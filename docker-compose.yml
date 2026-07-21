@@ -1,0 +1,99 @@
+version: '3.8'
+
+services:
+  # ======================================
+  # SQL Server (Control Plane Database)
+  # ======================================
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: ct-cp-sql
+    environment:
+      ACCEPT_EULA: 'Y'
+      SA_PASSWORD: '@Secure!Pass123456'
+      MSSQL_PID: Developer
+    ports:
+      - "1433:1433"
+    volumes:
+      - sqldata:/var/opt/mssql
+    healthcheck:
+      test: ["CMD", "/opt/mssql-tools/bin/sqlcmd", "-S", "localhost", "-U", "sa", "-P", "@Secure!Pass123456", "-Q", "SELECT 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ======================================
+  # Backend (Node.js — Control Plane API)
+  # ======================================
+  api:
+    build:
+      context: ./control-plane/backend
+      dockerfile: Dockerfile
+    container_name: ct-cp-api
+    environment:
+      NODE_ENV: development
+      LOG_LEVEL: debug
+
+      # Azure
+      AZURE_TENANT_ID: ${AZURE_TENANT_ID}
+      AZURE_CLIENT_ID: ${AZURE_CLIENT_ID}
+      AZURE_CLIENT_SECRET: ${AZURE_CLIENT_SECRET}
+
+      # Database
+      CP_DB_SERVER: sqlserver
+      CP_DB_NAME: ct_control_plane
+      CP_DB_USER: sa
+      CP_DB_PASSWORD: '@Secure!Pass123456'
+
+      # Keys
+      JWT_SECRET: dev-jwt-secret-change-in-prod
+      SESSION_SECRET: dev-session-secret-change-in-prod
+
+      # URLs
+      CORS_ORIGINS: http://localhost:3000,http://localhost:3001
+      APP_URL: http://localhost:3001
+    ports:
+      - "3001:3000"
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+    volumes:
+      - ./control-plane/backend:/app
+      - /app/node_modules
+    command: npm run dev
+
+  # ======================================
+  # Frontend (React — Dashboard)
+  # ======================================
+  frontend:
+    build:
+      context: ./control-plane/frontend
+      dockerfile: Dockerfile
+    container_name: ct-cp-frontend
+    environment:
+      REACT_APP_API_URL: http://localhost:3001/api
+    ports:
+      - "3000:3000"
+    depends_on:
+      - api
+    volumes:
+      - ./control-plane/frontend:/app
+      - /app/node_modules
+
+  # ======================================
+  # PgAdmin (opcional, para gerenciar SQL)
+  # ======================================
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: ct-pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@example.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+    ports:
+      - "5050:80"
+
+volumes:
+  sqldata:
+
+networks:
+  default:
+    name: ct-network

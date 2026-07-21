@@ -75,20 +75,28 @@
 - [x] `docs/DEPLOYMENT.md` (step-by-step)
 - [x] `CONTRIBUTING.md` (workflow)
 
-### ❌ Não Implementado (Próximas Prioridades)
+#### Frontend (React + Vite)
+- [x] Setup React 18 + TypeScript + Vite
+- [x] Configuração TailwindCSS (light/dark themes)
+- [x] Componentes base:
+  - [x] Layout (sidebar + header + main content)
+  - [x] Sidebar com navegação baseada em roles
+  - [x] Header com tema toggle e logout
+- [x] Páginas:
+  - [x] Login (Entra ID integration)
+  - [x] Dashboard (KPIs, alertas, FinOps)
+  - [x] Clientes (listagem + busca)
+  - [x] Tenants (placeholder)
+  - [x] Execuções (placeholder)
+  - [x] Configurações (perfil do usuário)
+- [x] Hooks customizados (useAuth)
+- [x] API client service com tipos TypeScript
+- [x] Tema claro/escuro com persistência
+- [x] Charts e visualizações (Recharts)
+- [x] Ícones (Lucide React)
+- [x] Responsive design
 
-#### Frontend (React)
-- [ ] Setup React 18 + TypeScript
-- [ ] Componentes base (layout, sidebar, cards)
-- [ ] Páginas:
-  - [ ] Dashboard (resumo)
-  - [ ] Clientes (CRUD)
-  - [ ] Tenants (gerenciar por cliente)
-  - [ ] Execuções (histórico, progresso)
-  - [ ] Configurações (usuários, políticas)
-- [ ] Login/logout com Entra ID (fluxo OIDC/OAuth2)
-- [ ] Temas (light/dark)
-- [ ] Charts/visualizações (custo, timeline, etc)
+### ❌ Não Implementado (Próximas Prioridades)
 
 #### Onboarding Automático do Cliente
 - [ ] Fluxo OAuth2 multi-tenant (consentimento de admin)
@@ -144,11 +152,12 @@
 
 ## Problemas Conhecidos
 
-1. **Frontend não existe**: Renderizando hardcoded no momento
+1. ✅ **Frontend existente**: React + Vite + TailwindCSS implementados
 2. **Onboarding é manual**: Requer ação de DevOps para criar tenant
 3. **Job não coleta dados reais**: Scripts são placeholders
 4. **Sem cálculo de custo**: Hardcoded em $5.00
 5. **Sem alertas**: Monitoramento não implementado
+6. **Algumas páginas são placeholders**: Tenants, Execuções (scaffolded, falta implementação)
 
 ---
 
@@ -166,7 +175,7 @@
 - **Autenticação**: Entra ID + Passport.js
 - **IaC**: Azure Bicep
 - **Jobs**: PowerShell 7 + Docker
-- **Frontend**: React 18 (a implementar)
+- **Frontend**: React 18 + Vite + TypeScript + TailwindCSS
 
 ### Ambiente
 - **Região**: Brazil South (LGPD compliance)
@@ -179,35 +188,38 @@
 
 | Métrica | Valor |
 |---------|-------|
-| Arquivos criados | 30 |
-| Linhas de código | ~2600 |
+| Arquivos criados | 56+ |
+| Linhas de código | ~4000+ |
 | Módulos Bicep | 5 |
 | Tabelas SQL | 8 |
 | Endpoints API | 12 (5 implementados, 7 scaffolded) |
-| Commits | 1 (inicial) |
+| Componentes React | 8 |
+| Páginas React | 6 |
+| Commits | 3 |
 
 ---
 
 ## Próximos Passos (Prioridade)
 
 ### Semana 1
+- [x] Frontend React básica (✅ concluído)
+- [x] Dashboard com dados (✅ skeleton implementado)
+- [ ] Integração frontend ↔ API (conectar dados reais)
+
+### Semana 2
 - [ ] Deploy do Control Plane em Azure (dev)
 - [ ] Testes de conectividade SQL
 - [ ] Setup de logging (Application Insights)
 - [ ] Teste manual de login (Entra ID)
 
-### Semana 2
-- [ ] Frontend React básica
-- [ ] Dashboard com dados mockados
-- [ ] Integração frontend ↔ API
-
 ### Semana 3
 - [ ] Onboarding automático (OAuth2)
 - [ ] Provisioning de tenant (Bicep programático)
+- [ ] Páginas Tenants e Execuções (implementação completa)
 
 ### Semana 4
 - [ ] Execução containerizada real
-- [ ] FinOps operacional
+- [ ] FinOps operacional com cálculos reais
 - [ ] Testes de carga
 
 ---

@@ -1,0 +1,100 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --bg: #f3f2f7;
+    --surface: #ffffff;
+    --surface-2: #eeecf3;
+    --border: #dad6e4;
+    --text: #1c1a22;
+    --muted: #635f70;
+    --accent: #c94d16;
+    --accent-ink: #ffffff;
+    --structural: #6b3fa0;
+  }
+
+  :root[data-theme="dark"] {
+    --bg: #131117;
+    --surface: #1c1a22;
+    --surface-2: #242030;
+    --border: #332f3d;
+    --text: #eae7f0;
+    --muted: #9a95a8;
+    --accent: #ea5a1c;
+    --accent-ink: #1c1000;
+    --structural: #a983d8;
+  }
+
+  html {
+    @apply scroll-smooth;
+  }
+
+  body {
+    @apply bg-[var(--bg)] text-[var(--text)] transition-colors;
+  }
+
+  a {
+    @apply text-[var(--structural)] hover:underline;
+  }
+
+  button:focus-visible,
+  input:focus-visible,
+  select:focus-visible {
+    @apply outline-2 outline-offset-2 outline-[var(--accent)] rounded-sm;
+  }
+}
+
+@layer components {
+  .card {
+    @apply bg-[var(--surface)] border border-[var(--border)] rounded-lg shadow-sm p-5;
+  }
+
+  .btn-primary {
+    @apply bg-[var(--accent)] text-[var(--accent-ink)] px-4 py-2 rounded-lg font-medium hover:opacity-90 transition;
+  }
+
+  .btn-secondary {
+    @apply bg-[var(--surface-2)] text-[var(--text)] px-4 py-2 rounded-lg font-medium border border-[var(--border)] hover:bg-[var(--border)] transition;
+  }
+
+  .input {
+    @apply w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--surface)] text-[var(--text)] placeholder-[var(--muted)];
+  }
+
+  .badge {
+    @apply inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-full;
+  }
+
+  .badge-success {
+    @apply badge bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200;
+  }
+
+  .badge-warning {
+    @apply badge bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200;
+  }
+
+  .badge-danger {
+    @apply badge bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200;
+  }
+}
+
+/* Scrollbar customizado */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--surface-2);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--muted);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text);
+}

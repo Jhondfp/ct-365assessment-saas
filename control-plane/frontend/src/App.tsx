@@ -13,6 +13,9 @@ import Login from '@/pages/Login'
 import UserManagement from '@/pages/UserManagement'
 import BillingDashboard from '@/pages/BillingDashboard'
 import AcceptInvitation from '@/pages/AcceptInvitation'
+import LicenseDashboard from '@/pages/LicenseDashboard'
+import LicenseAnalysis from '@/pages/LicenseAnalysis'
+import LicenseRecommendations from '@/pages/LicenseRecommendations'
 import { useAuth } from '@/hooks/useAuth'
 
 function AppRoutes() {
@@ -50,6 +53,9 @@ function AppRoutes() {
         <Route path="/clientes/:clientId/tenant-provisioning" element={<TenantProvisioning />} />
         <Route path="/clientes/:clientId/users" element={<UserManagement />} />
         <Route path="/clientes/:clientId/billing" element={<BillingDashboard />} />
+        <Route path="/clientes/:clientId/licenses" element={<LicenseDashboard />} />
+        <Route path="/clientes/:clientId/licenses/analysis" element={<LicenseAnalysis />} />
+        <Route path="/clientes/:clientId/licenses/recommendations" element={<LicenseRecommendations />} />
         <Route path="/tenants" element={<Tenants />} />
         <Route path="/execucoes" element={<Executions />} />
         <Route path="/configuracoes" element={<Settings />} />

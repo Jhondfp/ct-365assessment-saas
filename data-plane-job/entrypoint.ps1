@@ -153,7 +153,26 @@ try {
     $findings += @{ type = "OneDrive"; data = $odData }
 
     # ======================================
-    # 4. CONECTAR AO DATABASE ISOLADO
+    # 4. EXECUTAR COLETA DE LICENÇAS
+    # ======================================
+    Write-Log "Iniciando coleta de licenças..."
+
+    $licenseScriptPath = "/app/scripts/Get-LicenseInfo.ps1"
+    $licenseResult = & $licenseScriptPath `
+        -TenantId $M365TenantId `
+        -AccessToken $accessToken `
+        -IncludeActivityData $true
+
+    $licenseData = $licenseResult | ConvertFrom-Json
+    if ($licenseData.summary.totalLicenses -gt 0) {
+        Write-Log "✓ License collection complete: $($licenseData.summary.totalLicenses) licenses, $($licenseData.summary.totalUsers) users"
+        $findings += @{ type = "Licenses"; data = $licenseData }
+    } else {
+        Write-Log "⚠ No license data collected"
+    }
+
+    # ======================================
+    # 5. CONECTAR AO DATABASE ISOLADO
     # ======================================
     Write-Log "Conectando ao database isolado do tenant..."
 
@@ -168,7 +187,7 @@ try {
     Write-Log "✓ Conectado ao database: $SqlDatabase"
 
     # ======================================
-    # 5. SALVAR DADOS DE SHAREPOINT
+    # 6. SALVAR DADOS DE SHAREPOINT
     # ======================================
     Write-Log "Salvando dados de SharePoint..."
 
@@ -210,7 +229,7 @@ try {
     Write-Log "✓ Dados de SharePoint salvos ($($spoData.drives.Count) drives)"
 
     # ======================================
-    # 6. SALVAR DADOS DE ONEDRIVE
+    # 7. SALVAR DADOS DE ONEDRIVE
     # ======================================
     Write-Log "Salvando dados de OneDrive..."
 
@@ -236,7 +255,48 @@ try {
     Write-Log "✓ Dados de OneDrive salvos ($($odData.summary.totalUsersSuccess) usuários)"
 
     # ======================================
-    # 7. REGISTRAR LOG DE COLETA
+    # 8. SALVAR DADOS DE LICENÇAS
+    # ======================================
+    if ($licenseData.summary.totalLicenses -gt 0) {
+        Write-Log "Salvando dados de licenças..."
+
+        foreach ($licenseType in $licenseData.licensesByType.Keys) {
+            $count = $licenseData.licensesByType[$licenseType]
+
+            $cmd = $connection.CreateCommand()
+            $cmd.CommandText = @"
+                INSERT INTO [dbo].[license_plans]
+                    ([sku_id], [sku_name], [display_name], [categoria])
+                VALUES (@skuId, @skuName, @displayName, @categoria)
+"@
+            $cmd.Parameters.AddWithValue("@skuId", $licenseType) | Out-Null
+            $cmd.Parameters.AddWithValue("@skuName", $licenseType) | Out-Null
+            $cmd.Parameters.AddWithValue("@displayName", $licenseType) | Out-Null
+            $cmd.Parameters.AddWithValue("@categoria", "Microsoft 365") | Out-Null
+            $cmd.ExecuteNonQuery() | Out-Null
+        }
+
+        foreach ($user in $licenseData.detailedLicenseData) {
+            foreach ($license in $user.licenses) {
+                $cmd = $connection.CreateCommand()
+                $cmd.CommandText = @"
+                    INSERT INTO [dbo].[user_licenses]
+                        ([user_id], [user_email], [sku_id], [sku_name], [status])
+                    VALUES (@userId, @userEmail, @skuId, @skuName, 'active')
+"@
+                $cmd.Parameters.AddWithValue("@userId", $user.userPrincipalName) | Out-Null
+                $cmd.Parameters.AddWithValue("@userEmail", $user.mail) | Out-Null
+                $cmd.Parameters.AddWithValue("@skuId", $license.sku) | Out-Null
+                $cmd.Parameters.AddWithValue("@skuName", $license.displayName) | Out-Null
+                $cmd.ExecuteNonQuery() | Out-Null
+            }
+        }
+
+        Write-Log "✓ Dados de licenças salvos ($($licenseData.summary.totalLicenses) licenses)"
+    }
+
+    # ======================================
+    # 9. REGISTRAR LOG DE COLETA
     # ======================================
     Write-Log "Registrando log de coleta..."
 
@@ -262,7 +322,7 @@ try {
     Write-Log "✓ Log de coleta registrado"
 
     # ======================================
-    # 8. RELATÓRIO FINAL
+    # 10. RELATÓRIO FINAL
     # ======================================
     $totalSizeGb = $spoData.summary.totalSizeGb + $odData.summary.totalSizeGb
     $totalFiles = $spoData.summary.totalFiles + $odData.summary.totalFiles
@@ -282,6 +342,9 @@ try {
             od_users            = $odData.summary.totalUsersSuccess
             od_files            = $odData.summary.totalFiles
             external_shares     = $odData.summary.sharedItemsCount
+            licenses_total      = if ($licenseData) { $licenseData.summary.totalLicenses } else { 0 }
+            licenses_usuarios   = if ($licenseData) { $licenseData.summary.totalUsers } else { 0 }
+            licenses_utilizacao = if ($licenseData) { $licenseData.summary.utilizationRate } else { 0 }
         }
         sites_analisados          = @($spoData.siteInfo.webUrl)
     }

@@ -348,6 +348,63 @@ class ApiClient {
     })
     return data
   }
+
+  // ======================================
+  // Licenses - Analysis
+  // ======================================
+  async getLicenseDashboard(clientId: string) {
+    const { data } = await this.client.get(`/licenses/clients/${clientId}/dashboard`)
+    return data
+  }
+
+  async getLicenseSummary(clientId: string) {
+    const { data } = await this.client.get(`/licenses/clients/${clientId}/summary`)
+    return data
+  }
+
+  async getLicenseUtilization(clientId: string) {
+    const { data } = await this.client.get(`/licenses/clients/${clientId}/utilization`)
+    return data
+  }
+
+  async getUnusedLicenses(clientId: string, daysInactive = 30) {
+    const { data } = await this.client.get(`/licenses/clients/${clientId}/unused`, {
+      params: { daysInactive }
+    })
+    return data
+  }
+
+  async getDowngradeOpportunities(clientId: string) {
+    const { data } = await this.client.get(`/licenses/clients/${clientId}/downgrade-opportunities`)
+    return data
+  }
+
+  async getLicenseCosts(clientId: string) {
+    const { data } = await this.client.get(`/licenses/clients/${clientId}/costs`)
+    return data
+  }
+
+  async getLicenseRecommendations(clientId: string, limit = 20) {
+    const { data } = await this.client.get(`/licenses/clients/${clientId}/recommendations`, {
+      params: { limit }
+    })
+    return data
+  }
+
+  async markRecommendationResolved(recommendationId: string) {
+    const { data } = await this.client.patch(`/licenses/recommendations/${recommendationId}/resolve`)
+    return data
+  }
+
+  async generateLicenseReport(clientId: string) {
+    const { data } = await this.client.get(`/licenses/clients/${clientId}/report`)
+    return data
+  }
+
+  async importLicenseData(clientId: string, licensesData: any) {
+    const { data } = await this.client.post(`/licenses/clients/${clientId}/import`, licensesData)
+    return data
+  }
 }
 
 export const apiClient = new ApiClient()

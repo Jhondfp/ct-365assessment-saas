@@ -14,6 +14,7 @@ const dashboardRoutes = require('./routes/dashboard');
 const featuresRoutes = require('./routes/features');
 const adminRoutes = require('./routes/admin');
 const billingRoutes = require('./routes/billing');
+const licenseRoutes = require('./routes/licenses');
 
 const app = express();
 
@@ -119,6 +120,7 @@ app.use('/api/dashboard', requireAuth, dashboardRoutes);
 app.use('/api', requireAuth, featuresRoutes);
 app.use('/api/admin', requireAuth, adminRoutes);
 app.use('/api/billing', requireAuth, billingRoutes);
+app.use('/api/licenses', requireAuth, licenseRoutes);
 
 // ======================================
 // ERROR HANDLING

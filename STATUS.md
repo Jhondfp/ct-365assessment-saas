@@ -1,7 +1,7 @@
 # Status do Projeto — CT Assessment SaaS Multi-Tenant
 
-**Última atualização:** 2026-07-21
-**Fase atual:** Fase 1 - MVP (Estrutura + API Base)
+**Última atualização:** 2026-07-22
+**Fase atual:** Fase 1B - Features Prioritárias (Histórico, Email, PDF, Templates)
 
 ---
 
@@ -150,6 +150,91 @@
 
 ---
 
+## Fase 1B: Features Prioritárias — Histórico, Email, PDF, Templates
+
+### ✅ Concluído (2026-07-22)
+
+#### Histórico de Versões & Versionamento
+- [x] Tabela `execution_snapshots` com version tracking
+- [x] Stored procedures: `sp_SaveExecutionSnapshot`, `sp_CompareSnapshots`
+- [x] API endpoints:
+  - [x] `GET /api/executions/:id/versions` (listar versões)
+  - [x] `GET /api/executions/:id/versions/:version` (obter snapshot)
+  - [x] `GET /api/executions/:id/diff?v1=X&v2=Y` (comparar versões)
+- [x] Frontend React page: `ExecutionHistory.tsx` (timeline + diff visual)
+- [x] TypeScript types: ExecutionVersion, ExecutionSnapshot, ExecutionDelta
+
+#### Email de Notificação
+- [x] Tabela `email_queue` com retry logic
+- [x] Service `email.js` com SendGrid integration
+- [x] Stored procedures: `sp_EnqueueEmail`
+- [x] Job processor: `email-processor.js` (async worker com cron support)
+- [x] Email template: HTML com branding, link para relatório
+- [x] API endpoint: `GET /api/admin/email-queue` (monitor)
+- [x] Cleanup automático (hard delete >90 dias)
+
+#### Relatórios em PDF
+- [x] Tabela `pdf_reports` (cache com URL + SAS token)
+- [x] Service `pdf-generator.js` com html-to-pdf
+- [x] Azure Blob Storage integration com SAS URLs (24h expiration)
+- [x] Report HTML com: summary, findings, sites, FinOps
+- [x] API endpoint: `GET /api/executions/:id/report/pdf`
+- [x] Stored procedures: `sp_RegisterPdfReport`
+
+#### Execution Templates & Customização
+- [x] Tabela `execution_templates` (reusable configs)
+- [x] Support para parametrização: includeDeleted, maxFileSize, scanExternalShares, etc
+- [x] CRUD endpoints:
+  - [x] `POST /api/execution-templates` (criar)
+  - [x] `GET /api/execution-templates/:tenantId` (listar)
+  - [x] `PUT /api/execution-templates/:id` (atualizar)
+  - [x] `DELETE /api/execution-templates/:id` (soft delete)
+- [x] Audit trail: `criado_por` tracking
+- [x] TypeScript type: ExecutionTemplate
+
+#### Database Schema (Migration 002)
+- [x] 4 novas tabelas (snapshots, email_queue, pdf_reports, templates)
+- [x] 5 novas colunas em `executions` (version_number, config_json, findings_json, etc)
+- [x] 5 stored procedures (snapshot, email, pdf, compare)
+- [x] Índices para performance
+
+#### Backend Dependencies
+- [x] @sendgrid/mail (^8.1.0)
+- [x] html-pdf (^3.0.0)
+- [x] @azure/storage-blob (^12.19.0)
+
+#### Documentação
+- [x] `docs/IMPLEMENTATION-FEATURES.md` (400+ linhas com detalhes técnicos)
+- [x] `docs/SETUP-FEATURES.md` (guia passo-a-passo de setup)
+- [x] Updated `.env.example` com novas variáveis
+
+#### Frontend Types & API Client
+- [x] 8 novos tipos TypeScript
+- [x] 12 novos métodos no apiClient
+- [x] Page: ExecutionHistory com versioning UI
+- [x] Support para execução templates
+
+### ❌ Não Implementado (Próximas)
+
+#### Integração Real com Dados
+- [ ] SharePoint Graph API calls (Get-SPOInfo.ps1)
+- [ ] OneDrive Graph API calls (Get-OneDriveInfo.ps1)
+- [ ] Cálculo real de custo por GB
+- [ ] Callback para atualizar executions com resultados
+
+#### Hooks de Execução
+- [ ] Ao completar: enfileirar email + gerar PDF + salvar snapshot
+- [ ] Ao falhar: notificar admin
+- [ ] Logging de timestamps (iniciado_em, finalizado_em)
+
+#### UI/UX Refinements
+- [ ] Página de Execution History integrada no dashboard
+- [ ] Template selector na página de Nova Execução
+- [ ] Download direto de PDF pelo dashboard
+- [ ] Timeline visual com gráficos de delta
+
+---
+
 ## Problemas Conhecidos
 
 1. ✅ **Frontend existente**: React + Vite + TailwindCSS implementados
@@ -188,39 +273,55 @@
 
 | Métrica | Valor |
 |---------|-------|
-| Arquivos criados | 56+ |
-| Linhas de código | ~4000+ |
+| Arquivos criados | 65+ |
+| Linhas de código | ~6500+ |
 | Módulos Bicep | 5 |
-| Tabelas SQL | 8 |
-| Endpoints API | 12 (5 implementados, 7 scaffolded) |
+| Tabelas SQL | 12 (8 orig + 4 novas) |
+| Endpoints API | 26 (19 implementados, 7 scaffolded) |
 | Componentes React | 8 |
-| Páginas React | 6 |
-| Commits | 3 |
+| Páginas React | 7 (+ ExecutionHistory) |
+| Commits | 5 (3 orig + 2 features) |
+| SQL Stored Procedures | 9 (4 orig + 5 novas) |
+| Services Backend | 5 (database, features, email, pdf-generator, analysis) |
+| Jobs | 1 (email-processor) |
 
 ---
 
 ## Próximos Passos (Prioridade)
 
-### Semana 1
-- [x] Frontend React básica (✅ concluído)
-- [x] Dashboard com dados (✅ skeleton implementado)
-- [ ] Integração frontend ↔ API (conectar dados reais)
+### Semana 1 (Imediato - Setup & Validação)
+- [x] Backend das 5 features (✅ 22/07 - concluído)
+- [x] Frontend ExecutionHistory (✅ 22/07 - concluído)
+- [x] Migration SQL (✅ 22/07 - concluído)
+- [ ] **TODO:** Rodar migration no banco
+- [ ] **TODO:** Instalar dependencies (`npm install`)
+- [ ] **TODO:** Testar endpoints com Postman/curl
+- [ ] **TODO:** Validar TypeScript types
 
-### Semana 2
-- [ ] Deploy do Control Plane em Azure (dev)
-- [ ] Testes de conectividade SQL
-- [ ] Setup de logging (Application Insights)
-- [ ] Teste manual de login (Entra ID)
+### Semana 2 (Integração & Email)
+- [ ] **TODO:** Setup SendGrid (obter API key)
+- [ ] **TODO:** Testar email processor job (cron/scheduler)
+- [ ] **TODO:** Implementar hook de conclusão de execução
+  - Enfileirar email ao completar
+  - Gerar PDF ao completar
+  - Salvar snapshot ao completar
+- [ ] **TODO:** Setup Azure Storage (obter connection string)
+- [ ] **TODO:** Testar upload/download de PDF
 
-### Semana 3
-- [ ] Onboarding automático (OAuth2)
-- [ ] Provisioning de tenant (Bicep programático)
-- [ ] Páginas Tenants e Execuções (implementação completa)
+### Semana 3 (Real Data & SharePoint)
+- [ ] **TODO:** Implementar `sharepoint.js` com Graph API
+- [ ] **TODO:** Implementar PowerShell scripts reais:
+  - Get-SPOInfo.ps1 (SharePoint collection)
+  - Get-OneDriveInfo.ps1 (OneDrive collection)
+- [ ] **TODO:** Testar coleta em environment dev
+- [ ] **TODO:** Salvar dados em banco isolado do tenant
 
-### Semana 4
-- [ ] Execução containerizada real
-- [ ] FinOps operacional com cálculos reais
-- [ ] Testes de carga
+### Semana 4 (Production & Hardening)
+- [ ] **TODO:** Deploy do Control Plane em Azure (dev environment)
+- [ ] **TODO:** Testes de carga (50-100 execuções paralelas)
+- [ ] **TODO:** Security review (OWASP top 10)
+- [ ] **TODO:** LGPD compliance audit
+- [ ] **TODO:** Monitoramento & alertas (Application Insights)
 
 ---
 
@@ -233,4 +334,5 @@
 ---
 
 **Mantido por:** Claude Haiku 4.5  
-**Última revisão:** 2026-07-21
+**Última revisão:** 2026-07-22  
+**Próxima revisão:** 2026-07-29 (após completar Semana 1 TODO)

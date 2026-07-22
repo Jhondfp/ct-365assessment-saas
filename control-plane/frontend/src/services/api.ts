@@ -185,6 +185,169 @@ class ApiClient {
     const { data } = await this.client.get('/admin/email-queue')
     return data.data
   }
+
+  // ======================================
+  // Admin - Clients
+  // ======================================
+  async createClientAdmin(payload: any) {
+    const { data } = await this.client.post('/admin/clients', payload)
+    return data
+  }
+
+  async listClientsAdmin(skip = 0, take = 10) {
+    const { data } = await this.client.get('/admin/clients', {
+      params: { skip, take }
+    })
+    return data
+  }
+
+  async getClientAdmin(clientId: string) {
+    const { data } = await this.client.get(`/admin/clients/${clientId}`)
+    return data
+  }
+
+  async getClientStatsAdmin(clientId: string) {
+    const { data } = await this.client.get(`/admin/clients/${clientId}/stats`)
+    return data
+  }
+
+  async updateClientAdmin(clientId: string, payload: any) {
+    const { data } = await this.client.put(`/admin/clients/${clientId}`, payload)
+    return data
+  }
+
+  // ======================================
+  // Admin - Tenants
+  // ======================================
+  async createTenantAdmin(clientId: string, payload: any) {
+    const { data } = await this.client.post(`/admin/clients/${clientId}/tenants`, payload)
+    return data
+  }
+
+  async listTenantsAdmin(clientId: string) {
+    const { data } = await this.client.get(`/admin/clients/${clientId}/tenants`)
+    return data
+  }
+
+  async getTenantAdmin(tenantId: string) {
+    const { data } = await this.client.get(`/admin/tenants/${tenantId}`)
+    return data
+  }
+
+  async createAppRegistration(tenantId: string, payload: any) {
+    const { data } = await this.client.post(`/admin/tenants/${tenantId}/app-registration`, payload)
+    return data
+  }
+
+  async addSharePointSite(tenantId: string, payload: any) {
+    const { data } = await this.client.post(`/admin/tenants/${tenantId}/sharepoint-sites`, payload)
+    return data
+  }
+
+  async listSharePointSites(tenantId: string) {
+    const { data } = await this.client.get(`/admin/tenants/${tenantId}/sharepoint-sites`)
+    return data
+  }
+
+  // ======================================
+  // Admin - Users
+  // ======================================
+  async inviteUserAdmin(clientId: string, payload: any) {
+    const { data } = await this.client.post(`/admin/clients/${clientId}/users/invite`, payload)
+    return data
+  }
+
+  async listUsersAdmin(clientId: string, skip = 0, take = 10) {
+    const { data } = await this.client.get(`/admin/clients/${clientId}/users`, {
+      params: { skip, take }
+    })
+    return data
+  }
+
+  async listPendingInvitationsAdmin(clientId: string) {
+    const { data } = await this.client.get(`/admin/clients/${clientId}/users/invitations`)
+    return data
+  }
+
+  async cancelInvitationAdmin(clientId: string, inviteId: string) {
+    await this.client.delete(`/admin/clients/${clientId}/users/invitations/${inviteId}`)
+  }
+
+  async getUserAdmin(userId: string) {
+    const { data } = await this.client.get(`/admin/users/${userId}`)
+    return data
+  }
+
+  async updateUserAdmin(userId: string, payload: any) {
+    const { data } = await this.client.put(`/admin/users/${userId}`, payload)
+    return data
+  }
+
+  // ======================================
+  // Billing - Credit Plans
+  // ======================================
+  async getCreditPlans() {
+    const { data } = await this.client.get('/billing/credit-plans')
+    return data
+  }
+
+  // ======================================
+  // Billing - Client Credits
+  // ======================================
+  async setupBilling(clientId: string, planId: string) {
+    const { data } = await this.client.post(`/billing/clients/${clientId}/setup-billing`, {
+      plan_id: planId
+    })
+    return data
+  }
+
+  async getClientCredits(clientId: string) {
+    const { data } = await this.client.get(`/billing/clients/${clientId}/credits`)
+    return data
+  }
+
+  async purchaseCredits(clientId: string, quantity: number, paymentMethod = 'credit_card') {
+    const { data } = await this.client.post(`/billing/clients/${clientId}/credits/purchase`, {
+      quantity,
+      payment_method: paymentMethod
+    })
+    return data
+  }
+
+  async getCreditTransactionHistory(clientId: string, skip = 0, take = 20) {
+    const { data } = await this.client.get(`/billing/clients/${clientId}/credits/transactions`, {
+      params: { skip, take }
+    })
+    return data
+  }
+
+  async getBillingDashboard(clientId: string) {
+    const { data } = await this.client.get(`/billing/clients/${clientId}/billing/dashboard`)
+    return data
+  }
+
+  async listInvoices(clientId: string, skip = 0, take = 10) {
+    const { data } = await this.client.get(`/billing/clients/${clientId}/invoices`, {
+      params: { skip, take }
+    })
+    return data
+  }
+
+  async getInvoice(invoiceId: string) {
+    const { data } = await this.client.get(`/billing/invoices/${invoiceId}`)
+    return data
+  }
+
+  // ======================================
+  // Auth - Invitation
+  // ======================================
+  async acceptInvitation(token: string, payload: any) {
+    const { data } = await this.client.post('/auth/accept-invitation', {
+      token,
+      ...payload
+    })
+    return data
+  }
 }
 
 export const apiClient = new ApiClient()

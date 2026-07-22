@@ -4,10 +4,15 @@ import Layout from '@/components/Layout'
 import Dashboard from '@/pages/Dashboard'
 import Clients from '@/pages/Clients'
 import ClientDetail from '@/pages/ClientDetail'
+import ClientRegistration from '@/pages/ClientRegistration'
+import TenantProvisioning from '@/pages/TenantProvisioning'
 import Tenants from '@/pages/Tenants'
 import Executions from '@/pages/Executions'
 import Settings from '@/pages/Settings'
 import Login from '@/pages/Login'
+import UserManagement from '@/pages/UserManagement'
+import BillingDashboard from '@/pages/BillingDashboard'
+import AcceptInvitation from '@/pages/AcceptInvitation'
 import { useAuth } from '@/hooks/useAuth'
 
 function AppRoutes() {
@@ -24,8 +29,15 @@ function AppRoutes() {
     )
   }
 
+  // Public routes (no authentication required)
   if (!user) {
-    return <Login />
+    return (
+      <Routes>
+        <Route path="/accept-invitation" element={<AcceptInvitation />} />
+        <Route path="/login" element={<Login />} />
+        <Route path="*" element={<Login />} />
+      </Routes>
+    )
   }
 
   return (
@@ -33,10 +45,15 @@ function AppRoutes() {
       <Routes>
         <Route path="/" element={<Dashboard />} />
         <Route path="/clientes" element={<Clients />} />
+        <Route path="/clientes/novo" element={<ClientRegistration />} />
         <Route path="/clientes/:clientId" element={<ClientDetail />} />
+        <Route path="/clientes/:clientId/tenant-provisioning" element={<TenantProvisioning />} />
+        <Route path="/clientes/:clientId/users" element={<UserManagement />} />
+        <Route path="/clientes/:clientId/billing" element={<BillingDashboard />} />
         <Route path="/tenants" element={<Tenants />} />
         <Route path="/execucoes" element={<Executions />} />
         <Route path="/configuracoes" element={<Settings />} />
+        <Route path="/accept-invitation" element={<AcceptInvitation />} />
         <Route path="*" element={<Navigate to="/" />} />
       </Routes>
     </Layout>

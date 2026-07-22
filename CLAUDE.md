@@ -29,6 +29,7 @@ A production-ready multi-tenant SaaS platform for analyzing Microsoft 365 ShareP
 - **002-add-features.sql**: Execution snapshots, email queue, PDF reports, templates
 - **003-add-billing-and-users.sql**: Complete billing, client/tenant/user management
 - **001-tenant-isolated-schema.sql**: Tenant isolation with SharePoint/OneDrive tables, findings, audit logs
+- **002-license-analysis-schema.sql**: 7 tables for license tracking, utilization analysis, cost modeling, and recommendations
 
 ### ✅ Backend Services
 
@@ -47,6 +48,7 @@ A production-ready multi-tenant SaaS platform for analyzing Microsoft 365 ShareP
 - **userService.js**: User management, invitations (7-day tokens), role-based access
 - **billingService.js**: Credit plans, purchase tracking, consumption ledger, invoicing
 - **executionService.js**: Execution lifecycle, credit consumption, email notifications
+- **licenseService.js** (350+ lines): License dashboard, analysis, utilization metrics, cost modeling, recommendations
 
 ### ✅ Backend API Routes
 
@@ -79,6 +81,18 @@ A production-ready multi-tenant SaaS platform for analyzing Microsoft 365 ShareP
 - Get execution details
 - Update status (with credit consumption)
 
+#### License Routes (`routes/licenses.js`)
+- Dashboard: Overview with metrics, cost breakdown, top recommendations
+- Summary: SKU-level analysis with cost and utilization data
+- Utilization: Per-user metrics and activity statistics
+- Unused licenses: Priority-based grouping (critical/high/medium)
+- Downgrade opportunities: Underutilized license identification
+- Cost analysis: Monthly costs and ROI metrics
+- Recommendations: Optimization suggestions with filters
+- Recommendation resolution: Mark recommendations as implemented
+- Report generation: Comprehensive analysis aggregation
+- Data import: ETL for Graph API data into tenant database
+
 ### ✅ PowerShell Scripts
 
 #### `entrypoint.ps1` (410+ lines)
@@ -106,6 +120,17 @@ A production-ready multi-tenant SaaS platform for analyzing Microsoft 365 ShareP
 - Batch processing with configurable user limit
 - JSON output with per-user statistics
 
+#### `Get-LicenseInfo.ps1` (300+ lines)
+- Microsoft Graph API license enumeration
+- SKU subscription details with prepaid/consumed units
+- User license assignment collection
+- Activity data analysis via reports API
+- Unused license identification (inactivity-based)
+- Underutilization detection (service adoption scoring)
+- Cost estimation and ROI calculations
+- Recommendation generation with severity prioritization
+- JSON output with summary, licensesByType, and detailed analysis
+
 ### ✅ Frontend Pages
 
 #### Public Pages
@@ -123,6 +148,9 @@ A production-ready multi-tenant SaaS platform for analyzing Microsoft 365 ShareP
 - **ExecutionHistory.tsx**: Timeline view with snapshot comparison
 - **Tenants.tsx**: Tenant management
 - **Settings.tsx**: User preferences
+- **LicenseDashboard.tsx**: License metrics, cost breakdown by SKU, top recommendations
+- **LicenseAnalysis.tsx**: Three-tab analysis (unused licenses, downgrade opportunities, utilization)
+- **LicenseRecommendations.tsx**: Filterable recommendations with resolution tracking
 
 ### ✅ Frontend API Client (`services/api.ts`)
 
@@ -136,6 +164,18 @@ A production-ready multi-tenant SaaS platform for analyzing Microsoft 365 ShareP
 - Client credits: setup, get, purchase, transaction history
 - Invoicing: list, get, dashboard
 - Auth: accept invitation
+
+#### License API Methods
+- Dashboard: Overview with metrics and recommendations
+- Summary: SKU-level breakdown with costs
+- Utilization: Per-user metrics and statistics
+- Unused licenses: Priority-based grouping
+- Downgrade opportunities: Underutilization analysis
+- Costs: Monthly costs and ROI data
+- Recommendations: Optimization suggestions with filtering
+- Mark resolved: Update recommendation status
+- Report: Comprehensive aggregation
+- Import: ETL for Graph API data
 
 ### ✅ Configuration & Deployment
 
@@ -152,6 +192,14 @@ A production-ready multi-tenant SaaS platform for analyzing Microsoft 365 ShareP
 - Completion notification template with execution summary
 - Invitation template with 7-day expiration notice
 - Custom HTML templates with styling
+
+### ✅ License Analysis & Utilization
+- **Database schema**: 7 tables with views and stored procedures
+- **PowerShell collection**: Get-LicenseInfo.ps1 with Graph API integration
+- **Backend service**: licenseService.js with 10+ analysis methods
+- **API endpoints**: 10 routes for dashboard, analysis, and reporting
+- **Frontend pages**: LicenseDashboard, LicenseAnalysis, LicenseRecommendations
+- **Job integration**: Automatic license data collection via entrypoint.ps1
 
 ### ⏳ Pending Implementation
 
@@ -215,6 +263,16 @@ A production-ready multi-tenant SaaS platform for analyzing Microsoft 365 ShareP
 4. User gains access to client dashboard
 5. Admin can manage roles and permissions
 
+### License Analysis & Optimization
+1. Automatic collection via Get-LicenseInfo.ps1 on each execution
+2. SKU and user license data stored in tenant database
+3. Cost analysis and utilization metrics calculated via stored procedures
+4. Recommendations generated for unused, underutilized, and upgradeable licenses
+5. Dashboard displays key metrics: total licenses, monthly cost, average utilization, potential savings
+6. Analysis pages show detailed breakdowns: unused licenses (priority-based), downgrade opportunities, utilization statistics
+7. Recommendations filterable by severity and type with resolution tracking
+8. Cost ROI calculations support billing and customer engagement
+
 ## Database Design Highlights
 
 ### Isolation
@@ -234,6 +292,17 @@ A production-ready multi-tenant SaaS platform for analyzing Microsoft 365 ShareP
 - `executions`: Core execution records with configuration
 - `execution_snapshots`: Immutable version history with delta capability
 - Stored procedures for automatic versioning on completion
+
+### License Analysis Tables
+- `license_plans`: SKU registry with pricing and availability
+- `user_licenses`: User-to-license assignments with status
+- `license_services`: Service-level availability per license
+- `license_utilization`: Activity and utilization metrics (dias_inativo, utilizacao_percentual, servicos_utilizados)
+- `license_service_activity`: Per-service usage tracking
+- `license_costs_analysis`: Monthly cost calculations and ROI (custo_mensal_estimado_brl, economia_potencial_mensal_brl, taxa_utilizacao_media)
+- `license_recommendations`: Optimization suggestions (severidade: high/medium/low; tipo: unused_license/downgrade_opportunity/upgrade_opportunity/service_disabled)
+- Views: vw_license_summary_by_sku, vw_unused_licenses, vw_downgrade_opportunities
+- Stored procedures: sp_UpsertLicensePlan, sp_CalculateLicenseCostsAnalysis, sp_GenerateLicenseRecommendations
 
 ## API Endpoints Summary
 
@@ -263,6 +332,20 @@ GET    /api/billing/clients/:clientId/billing/dashboard  - Dashboard data
 GET    /api/billing/clients/:clientId/invoices           - List invoices
 ```
 
+#### License Routes (10+ routes)
+```
+GET    /api/licenses/clients/:clientId/dashboard              - Overview with metrics and recommendations
+GET    /api/licenses/clients/:clientId/summary               - SKU-level breakdown with costs
+GET    /api/licenses/clients/:clientId/utilization           - Per-user metrics and statistics
+GET    /api/licenses/clients/:clientId/unused?daysInactive   - Priority-based unused license grouping
+GET    /api/licenses/clients/:clientId/downgrade-opportunities - Underutilization analysis
+GET    /api/licenses/clients/:clientId/costs                 - Monthly costs and ROI data
+GET    /api/licenses/clients/:clientId/recommendations       - Optimization suggestions
+PATCH  /api/licenses/recommendations/:id/resolve             - Mark recommendation as implemented
+GET    /api/licenses/clients/:clientId/report                - Comprehensive analysis aggregation
+POST   /api/licenses/clients/:clientId/import                - ETL for Graph API data
+```
+
 ### Public Endpoints
 ```
 POST /api/auth/accept-invitation  - Accept user invitation and create account
@@ -270,16 +353,19 @@ POST /api/auth/accept-invitation  - Accept user invitation and create account
 
 ## Next Steps for Production Deployment
 
-1. **Complete credit consumption integration**: Wire sp_ConsumeCredits trigger on execution completion
-2. **Implement Azure AD automation**: Automatic app registration in customer tenants
-3. **Deploy infrastructure**: Configure Azure resources, app registrations, Key Vault
-4. **Setup monitoring**: Application Insights, alerting, dashboards
-5. **Configure CI/CD**: GitHub Actions for automated testing and deployment
-6. **Run security audit**: Penetration testing, OWASP compliance check
-7. **Load testing**: Verify scalability before customer launch
-8. **User acceptance testing**: Validate workflows with test customers
-9. **Documentation**: API docs, user guides, admin guides
-10. **Go-live**: Deploy to production with monitoring
+1. **Test license collection**: Verify Get-LicenseInfo.ps1 with real Microsoft 365 tenant
+2. **Validate license recommendations**: Test algorithm with sample data across different company sizes
+3. **Complete credit consumption integration**: Wire sp_ConsumeCredits trigger on execution completion
+4. **Implement Azure AD automation**: Automatic app registration in customer tenants
+5. **Add navigation UI**: Update client detail page with license module links
+6. **Deploy infrastructure**: Configure Azure resources, app registrations, Key Vault
+7. **Setup monitoring**: Application Insights, alerting, dashboards
+8. **Configure CI/CD**: GitHub Actions for automated testing and deployment
+9. **Run security audit**: Penetration testing, OWASP compliance check
+10. **Load testing**: Verify scalability before customer launch
+11. **User acceptance testing**: Validate workflows with test customers including license analysis
+12. **Documentation**: API docs, user guides, admin guides
+13. **Go-live**: Deploy to production with monitoring
 
 ## Code Quality Notes
 

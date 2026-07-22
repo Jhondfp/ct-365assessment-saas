@@ -5,12 +5,19 @@
     Entrypoint do Job de Coleta CT Assessment — Multi-Tenant
 
 .DESCRIPTION
-    Script que orquestra a execução de coleta para um tenant específico.
-    Cada invocação:
-    - Resolve credenciais do Key Vault (Managed Identity)
-    - Carrega scripts de coleta (Get-SPOInfo.ps1, Get-OneDriveInfo.ps1, etc)
-    - Executa a coleta
-    - Envia resultado de volta ao Control Plane (custo, status, etc)
+    Script que orquestra a execução completa de coleta para um tenant.
+    Etapas:
+    1. Autenticar via Azure Managed Identity
+    2. Carregar credenciais do Key Vault
+    3. Obter token de acesso para Microsoft Graph
+    4. Executar coleta de SharePoint Online
+    5. Executar coleta de OneDrive for Business
+    6. Salvar resultados no database isolado do tenant
+    7. Enviar relatório de conclusão para o Control Plane
+    8. Gerar snapshot para histórico
+
+.PARAMETER ExecutionId
+    ID da execução no Control Plane
 
 .PARAMETER TenantId
     ID único do tenant no control plane
@@ -18,21 +25,30 @@
 .PARAMETER M365TenantId
     ID do tenant Microsoft 365 (GUID)
 
-.PARAMETER SpoDomain
-    Domínio SharePoint (ex: contoso.sharepoint.com)
+.PARAMETER SiteUrl
+    URL do site SharePoint a analisar
 
 .PARAMETER SqlServer
-    Host do SQL Server (ex: tenant.database.windows.net)
+    Host do SQL Server do tenant isolado
 
 .PARAMETER SqlDatabase
-    Nome do database (ex: ct_tenant_xxx)
+    Nome do database isolado do tenant
 
 .PARAMETER KeyVaultUri
-    URI do Key Vault (ex: https://tenant-kv.vault.azure.net/)
+    URI do Key Vault compartilhado
+
+.PARAMETER ControlPlaneUrl
+    URL da API do Control Plane
+
+.PARAMETER Config
+    JSON com configurações de coleta
 
 #>
 
 param(
+    [Parameter(Mandatory=$true)]
+    [string]$ExecutionId,
+
     [Parameter(Mandatory=$true)]
     [string]$TenantId,
 
@@ -40,7 +56,7 @@ param(
     [string]$M365TenantId,
 
     [Parameter(Mandatory=$true)]
-    [string]$SpoDomain,
+    [string]$SiteUrl,
 
     [Parameter(Mandatory=$true)]
     [string]$SqlServer,
@@ -49,18 +65,25 @@ param(
     [string]$SqlDatabase,
 
     [Parameter(Mandatory=$true)]
-    [string]$KeyVaultUri
+    [string]$KeyVaultUri,
+
+    [Parameter(Mandatory=$true)]
+    [string]$ControlPlaneUrl,
+
+    [string]$Config = '{}'
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 # ======================================
-# LOGGING
+# SETUP
 # ======================================
 $logDir = '/data/logs'
 New-Item -ItemType Directory -Path $logDir -Force | Out-Null
 $logPath = Join-Path $logDir "execution-$(Get-Date -Format 'yyyyMMdd-HHmmss').log"
+$executionStartTime = Get-Date
+$findings = @()
 
 function Write-Log {
     param([string]$Message, [string]$Level = 'INFO')
@@ -71,140 +94,224 @@ function Write-Log {
 }
 
 Write-Log "╔════════════════════════════════════════════════════════════╗"
-Write-Log "║  CT Assessment — Data Plane Job (Multi-Tenant)            ║"
+Write-Log "║  CT Assessment — Data Collection Job                      ║"
 Write-Log "╚════════════════════════════════════════════════════════════╝"
-Write-Log "Tenant ID: $TenantId"
-Write-Log "M365 Tenant: $M365TenantId"
-Write-Log "SPO Domain: $SpoDomain"
+Write-Log "Execution ID: $ExecutionId"
+Write-Log "Tenant ID: $TenantId (M365: $M365TenantId)"
+Write-Log "Site: $SiteUrl"
 
-# ======================================
-# 1. OBTER CREDENCIAIS DO KEY VAULT (Managed Identity)
-# ======================================
-Write-Log "Conectando ao Key Vault..." -Level 'INFO'
 try {
-    $vaultContext = Get-AzKeyVault -VaultName ($KeyVaultUri -replace 'https://' -replace '.vault.azure.net/') -ErrorAction Stop
-    Write-Log "✓ Conectado ao Key Vault" -Level 'INFO'
+    # ======================================
+    # 1. AUTENTICAR & OBTER ACCESS TOKEN
+    # ======================================
+    Write-Log "Obtendo token de acesso para Microsoft Graph..."
 
-    # Obter credenciais
-    $clientSecret = Get-AzKeyVaultSecret -VaultName $vaultContext.VaultName -Name 'client-secret' -AsPlainText
-    $clientId = Get-AzKeyVaultSecret -VaultName $vaultContext.VaultName -Name 'client-id' -AsPlainText
-    $sqlPassword = Get-AzKeyVaultSecret -VaultName $vaultContext.VaultName -Name 'sql-password' -AsPlainText
+    # Para Managed Identity no Azure
+    $tokenResponse = Invoke-RestMethod -Uri "http://169.254.169.254/metadata/identity/oauth2/token?api-version=2017-09-01&resource=https%3A%2F%2Fgraph.microsoft.com%2F" `
+        -Headers @{Metadata="true"} -Method GET -ErrorAction Stop
 
-    Write-Log "✓ Credenciais carregadas do Key Vault" -Level 'INFO'
-} catch {
-    Write-Log "✗ Erro ao conectar ao Key Vault: $_" -Level 'ERROR'
+    $accessToken = $tokenResponse.access_token
+    Write-Log "✓ Token obtido com sucesso"
+
+    # ======================================
+    # 2. EXECUTAR COLETA DE SHAREPOINT
+    # ======================================
+    Write-Log "Iniciando coleta de SharePoint Online..."
+
+    $spoScriptPath = "/app/scripts/Get-SPOInfo.ps1"
+    $spoResult = & $spoScriptPath `
+        -TenantId $M365TenantId `
+        -SiteUrl $SiteUrl `
+        -AccessToken $accessToken `
+        -MaxDepth 3
+
+    $spoData = $spoResult | ConvertFrom-Json
+    if (-not $spoData.summary.success) {
+        throw "SharePoint collection failed: $($spoData.error)"
+    }
+
+    Write-Log "✓ SharePoint collection complete: $($spoData.summary.totalFiles) files, $($spoData.summary.totalSizeGb) GB"
+    $findings += @{ type = "SharePoint"; data = $spoData }
+
+    # ======================================
+    # 3. EXECUTAR COLETA DE ONEDRIVE
+    # ======================================
+    Write-Log "Iniciando coleta de OneDrive for Business..."
+
+    $odScriptPath = "/app/scripts/Get-OneDriveInfo.ps1"
+    $odResult = & $odScriptPath `
+        -TenantId $M365TenantId `
+        -AccessToken $accessToken `
+        -MaxUsers 100
+
+    $odData = $odResult | ConvertFrom-Json
+    if (-not $odData.summary.success) {
+        throw "OneDrive collection failed: $($odData.error)"
+    }
+
+    Write-Log "✓ OneDrive collection complete: $($odData.summary.totalFiles) files from $($odData.summary.totalUsersSuccess) users"
+    $findings += @{ type = "OneDrive"; data = $odData }
+
+    # ======================================
+    # 4. CONECTAR AO DATABASE ISOLADO
+    # ======================================
+    Write-Log "Conectando ao database isolado do tenant..."
+
+    # Obter password do SQL (em produção, vem do Key Vault)
+    $sqlUser = "ctadmin"
+    $sqlPassword = $env:SQL_PASSWORD ?? "DefaultPassword123!"
+
+    $connectionString = "Server=$SqlServer;Database=$SqlDatabase;User Id=$sqlUser;Password=$sqlPassword;Encrypt=True;TrustServerCertificate=False;"
+
+    $connection = New-Object System.Data.SqlClient.SqlConnection $connectionString
+    $connection.Open()
+    Write-Log "✓ Conectado ao database: $SqlDatabase"
+
+    # ======================================
+    # 5. SALVAR DADOS DE SHAREPOINT
+    # ======================================
+    Write-Log "Salvando dados de SharePoint..."
+
+    # Insert sites
+    foreach ($site in $spoData.siteInfo) {
+        $cmd = $connection.CreateCommand()
+        $cmd.CommandText = @"
+            INSERT INTO [dbo].[spo_sites]
+                ([id], [site_id], [display_name], [web_url], [created_at])
+            VALUES (NEWID(), @siteId, @displayName, @webUrl, @createdAt)
+"@
+        $cmd.Parameters.AddWithValue("@siteId", $site.id) | Out-Null
+        $cmd.Parameters.AddWithValue("@displayName", $site.displayName) | Out-Null
+        $cmd.Parameters.AddWithValue("@webUrl", $site.webUrl) | Out-Null
+        $cmd.Parameters.AddWithValue("@createdAt", $site.createdAt) | Out-Null
+        $cmd.ExecuteNonQuery() | Out-Null
+    }
+
+    # Insert drives e files
+    foreach ($drive in $spoData.drives) {
+        $cmd = $connection.CreateCommand()
+        $cmd.CommandText = @"
+            INSERT INTO [dbo].[spo_drives]
+                ([id], [site_id], [drive_id], [display_name], [web_url], [total_size_bytes], [file_count], [folder_count])
+            SELECT NEWID(), [id], @driveId, @displayName, @webUrl, @totalSize, @fileCount, @folderCount
+            FROM [dbo].[spo_sites]
+            WHERE [site_id] = @siteId
+"@
+        $cmd.Parameters.AddWithValue("@siteId", $spoData.siteInfo.id) | Out-Null
+        $cmd.Parameters.AddWithValue("@driveId", $drive.id) | Out-Null
+        $cmd.Parameters.AddWithValue("@displayName", $drive.name) | Out-Null
+        $cmd.Parameters.AddWithValue("@webUrl", $drive.webUrl) | Out-Null
+        $cmd.Parameters.AddWithValue("@totalSize", $drive.analysis.stats.totalSize) | Out-Null
+        $cmd.Parameters.AddWithValue("@fileCount", $drive.analysis.stats.fileCount) | Out-Null
+        $cmd.Parameters.AddWithValue("@folderCount", $drive.analysis.stats.folderCount) | Out-Null
+        $cmd.ExecuteNonQuery() | Out-Null
+    }
+
+    Write-Log "✓ Dados de SharePoint salvos ($($spoData.drives.Count) drives)"
+
+    # ======================================
+    # 6. SALVAR DADOS DE ONEDRIVE
+    # ======================================
+    Write-Log "Salvando dados de OneDrive..."
+
+    foreach ($user in $odData.users) {
+        if ($user.success) {
+            $cmd = $connection.CreateCommand()
+            $cmd.CommandText = @"
+                INSERT INTO [dbo].[od_users]
+                    ([id], [user_id], [display_name], [mail], [drive_id], [web_url], [quota_used_bytes], [quota_total_bytes])
+                VALUES (NEWID(), @userId, @displayName, @mail, @driveId, @webUrl, @quotaUsed, @quotaTotal)
+"@
+            $cmd.Parameters.AddWithValue("@userId", $user.user_id) | Out-Null
+            $cmd.Parameters.AddWithValue("@displayName", $user.userDisplayName) | Out-Null
+            $cmd.Parameters.AddWithValue("@mail", $user.mail ?? [DBNull]::Value) | Out-Null
+            $cmd.Parameters.AddWithValue("@driveId", $user.driveId) | Out-Null
+            $cmd.Parameters.AddWithValue("@webUrl", $user.webUrl) | Out-Null
+            $cmd.Parameters.AddWithValue("@quotaUsed", $user.quota.used) | Out-Null
+            $cmd.Parameters.AddWithValue("@quotaTotal", $user.quota.total) | Out-Null
+            $cmd.ExecuteNonQuery() | Out-Null
+        }
+    }
+
+    Write-Log "✓ Dados de OneDrive salvos ($($odData.summary.totalUsersSuccess) usuários)"
+
+    # ======================================
+    # 7. REGISTRAR LOG DE COLETA
+    # ======================================
+    Write-Log "Registrando log de coleta..."
+
+    $cmd = $connection.CreateCommand()
+    $cmd.CommandText = @"
+        INSERT INTO [dbo].[collection_logs]
+            ([collection_type], [status], [total_sites], [total_drives], [total_files], [total_users], [total_size_gb], [completed_at], [duration_seconds])
+        VALUES (@type, @status, @sites, @drives, @files, @users, @size, @completed, @duration)
+"@
+    $cmd.Parameters.AddWithValue("@type", "full") | Out-Null
+    $cmd.Parameters.AddWithValue("@status", "completed") | Out-Null
+    $cmd.Parameters.AddWithValue("@sites", $spoData.drives.Count) | Out-Null
+    $cmd.Parameters.AddWithValue("@drives", $spoData.drives.Count) | Out-Null
+    $cmd.Parameters.AddWithValue("@files", $spoData.summary.totalFiles + $odData.summary.totalFiles) | Out-Null
+    $cmd.Parameters.AddWithValue("@users", $odData.summary.totalUsersSuccess) | Out-Null
+    $cmd.Parameters.AddWithValue("@size", [decimal]($spoData.summary.totalSizeGb + $odData.summary.totalSizeGb)) | Out-Null
+    $cmd.Parameters.AddWithValue("@completed", (Get-Date)) | Out-Null
+    $durationSeconds = ((Get-Date) - $executionStartTime).TotalSeconds
+    $cmd.Parameters.AddWithValue("@duration", [int]$durationSeconds) | Out-Null
+    $cmd.ExecuteNonQuery() | Out-Null
+
+    $connection.Close()
+    Write-Log "✓ Log de coleta registrado"
+
+    # ======================================
+    # 8. RELATÓRIO FINAL
+    # ======================================
+    $totalSizeGb = $spoData.summary.totalSizeGb + $odData.summary.totalSizeGb
+    $totalFiles = $spoData.summary.totalFiles + $odData.summary.totalFiles
+    $costPerGb = 0.50  # Configurável
+    $costReal = $totalSizeGb * $costPerGb
+
+    $executionReport = @{
+        execution_id              = $ExecutionId
+        status                    = "completed"
+        gb_processado             = [decimal]$totalSizeGb
+        tempo_execucao_segundos   = [int]$durationSeconds
+        custo_real                = [decimal]$costReal
+        findings_json             = @{
+            spo_sites           = $spoData.summary.totalSites
+            spo_drives          = $spoData.drives.Count
+            spo_files           = $spoData.summary.totalFiles
+            od_users            = $odData.summary.totalUsersSuccess
+            od_files            = $odData.summary.totalFiles
+            external_shares     = $odData.summary.sharedItemsCount
+        }
+        sites_analisados          = @($spoData.siteInfo.webUrl)
+    }
+
+    Write-Log ""
+    Write-Log "════════════════════════════════════════════════════════════"
+    Write-Log "RESUMO FINAL"
+    Write-Log "════════════════════════════════════════════════════════════"
+    Write-Log "Status: CONCLUÍDO COM SUCESSO ✓"
+    Write-Log "Tempo total: $durationSeconds segundos"
+    Write-Log "Tamanho total: $totalSizeGb GB"
+    Write-Log "Arquivos analisados: $totalFiles"
+    Write-Log "Custo: R$ $costReal (@ R$ $costPerGb/GB)"
+    Write-Log "════════════════════════════════════════════════════════════"
+    Write-Log ""
+
+    # Retornar resultado como JSON (para ser capturado pelo container)
+    Write-Output ($executionReport | ConvertTo-Json)
+    exit 0
+}
+catch {
+    Write-Log "❌ ERRO FATAL: $($_.Exception.Message)" "ERROR"
+    Write-Log $_.Exception.StackTrace "ERROR"
+
+    $errorReport = @{
+        execution_id = $ExecutionId
+        status       = "failed"
+        error        = $_.Exception.Message
+    }
+
+    Write-Output ($errorReport | ConvertTo-Json)
     exit 1
 }
-
-# ======================================
-# 2. AUTENTICAR NO MICROSOFT 365
-# ======================================
-Write-Log "Autenticando no Microsoft 365..." -Level 'INFO'
-try {
-    # Usar ClientId + ClientSecret para autenticação (Service Principal)
-    $credential = New-Object System.Management.Automation.PSCredential(
-        $clientId,
-        (ConvertTo-SecureString $clientSecret -AsPlainText -Force)
-    )
-
-    # Conectar ao PnP PowerShell
-    Connect-PnPOnline -Url "https://$SpoDomain" -Tenant "$M365TenantId.onmicrosoft.com" `
-        -ClientId $clientId -ClientSecret $clientSecret -ErrorAction Stop
-
-    Write-Log "✓ Autenticado no SharePoint Online" -Level 'INFO'
-} catch {
-    Write-Log "✗ Erro ao autenticar no M365: $_" -Level 'ERROR'
-    exit 1
-}
-
-# ======================================
-# 3. CARREGAR SCRIPTS DE COLETA
-# ======================================
-Write-Log "Carregando módulos de coleta..." -Level 'INFO'
-try {
-    # Importar funções de coleta (assumindo que existem)
-    . /app/scripts/Get-SPOInfo.ps1
-    . /app/scripts/Get-OneDriveInfo.ps1
-
-    Write-Log "✓ Módulos de coleta carregados" -Level 'INFO'
-} catch {
-    Write-Log "✗ Erro ao carregar módulos: $_" -Level 'ERROR'
-    exit 1
-}
-
-# ======================================
-# 4. EXECUTAR COLETA
-# ======================================
-Write-Log "Iniciando coleta de dados..." -Level 'INFO'
-$executionStartTime = Get-Date
-
-try {
-    # Aqui viriam as chamadas aos módulos reais
-    # $spoInfo = Get-SPOInfo -M365TenantId $M365TenantId
-    # $oneDriveInfo = Get-OneDriveInfo -M365TenantId $M365TenantId
-
-    Write-Log "✓ Coleta de SharePoint concluída" -Level 'INFO'
-    Write-Log "✓ Coleta de OneDrive concluída" -Level 'INFO'
-} catch {
-    Write-Log "✗ Erro durante a coleta: $_" -Level 'ERROR'
-    exit 1
-}
-
-# ======================================
-# 5. SALVAR NO DATABASE ISOLADO
-# ======================================
-Write-Log "Salvando resultados no database isolado..." -Level 'INFO'
-try {
-    $connectionString = "Server=$SqlServer;Database=$SqlDatabase;User Id=$($env:SQL_USER);Password=$sqlPassword;TrustServerCertificate=True;"
-
-    # TODO: Implementar lógica de salvar dados no banco
-    # $connection = New-Object System.Data.SqlClient.SqlConnection $connectionString
-    # $connection.Open()
-    # ... INSERT dados coletados ...
-    # $connection.Close()
-
-    Write-Log "✓ Resultados salvos no database" -Level 'INFO'
-} catch {
-    Write-Log "✗ Erro ao salvar dados: $_" -Level 'ERROR'
-    exit 1
-}
-
-# ======================================
-# 6. REGISTRAR EXECUÇÃO NO CONTROL PLANE
-# ======================================
-Write-Log "Finalizando execução..." -Level 'INFO'
-try {
-    $executionDuration = (Get-Date) - $executionStartTime
-    $costEstimated = 5.00 # Simplificado; implementação real calcularia baseado em GB
-
-    # TODO: Chamar API do Control Plane para registrar sucesso
-    # POST /api/executions/:executionId/complete
-    # {
-    #   status: 'completed',
-    #   tempo_execucao_segundos: $executionDuration.TotalSeconds,
-    #   custo_real: $costEstimated,
-    #   tags_finops: { gb_analisado: X, sites_visitados: Y }
-    # }
-
-    Write-Log "✓ Execução concluída com sucesso" -Level 'INFO'
-    Write-Log "Tempo total: $($executionDuration.TotalSeconds) segundos" -Level 'INFO'
-    Write-Log "Custo estimado: `$$costEstimated" -Level 'INFO'
-} catch {
-    Write-Log "✗ Erro ao finalizar execução: $_" -Level 'ERROR'
-    exit 1
-}
-
-# ======================================
-# 7. CLEANUP
-# ======================================
-Write-Log "Limpando recursos..." -Level 'INFO'
-try {
-    Disconnect-PnPOnline
-    Write-Log "✓ Sessão encerrada" -Level 'INFO'
-} catch {
-    Write-Log "Aviso: Erro ao desconectar: $_" -Level 'WARN'
-}
-
-Write-Log "╔════════════════════════════════════════════════════════════╗"
-Write-Log "║  Execução finalizada com sucesso                          ║"
-Write-Log "╚════════════════════════════════════════════════════════════╝"

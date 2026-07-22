@@ -16,6 +16,7 @@
     "@azure/msal-node": "^1.18.0",
     "@azure/keyvault-secrets": "^4.7.0",
     "@azure/storage-blob": "^12.19.0",
+    "@microsoft/microsoft-graph-client": "^3.1.0",
     "express-session": "^1.17.3",
     "passport": "^0.7.0",
     "passport-azure-ad": "^4.3.5",

@@ -38,6 +38,14 @@ module.exports = {
   // Logging
   APPINSIGHTS_CONNECTION_STRING: process.env.APPINSIGHTS_CONNECTION_STRING,
 
+  // Email (SendGrid)
+  SENDGRID_API_KEY: process.env.SENDGRID_API_KEY,
+  SENDGRID_FROM_EMAIL: process.env.SENDGRID_FROM_EMAIL || 'noreply@ctassessment.com.br',
+  SENDGRID_REPLY_TO: process.env.SENDGRID_REPLY_TO || 'support@ctassessment.com.br',
+
+  // Storage (Azure Blob)
+  AZURE_STORAGE_CONNECTION_STRING: process.env.AZURE_STORAGE_CONNECTION_STRING,
+
   // Validações
   validateRequired: () => {
     const required = [

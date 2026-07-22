@@ -109,3 +109,90 @@ export interface FinOpsData {
   custo_por_gb: number
   tendencia: 'crescente' | 'estável' | 'decrescente'
 }
+
+// ======================================
+// Tipos de Features (Histórico, Email, PDF, Templates)
+// ======================================
+export interface ExecutionVersion {
+  version_number: number
+  criado_em: string
+}
+
+export interface ExecutionSnapshot {
+  version_number: number
+  snapshot_data: Record<string, any>
+  criado_em: string
+}
+
+export interface ExecutionDelta {
+  v1_version: number
+  v2_version: number
+  v1_created: string
+  v2_created: string
+  findings_added: any[]
+  findings_removed: any[]
+  findings_changed: any[]
+  findings_count_v1?: number
+  findings_count_v2?: number
+}
+
+export interface ExecutionTemplate {
+  id: string
+  tenant_id: string
+  template_nome: string
+  descricao?: string
+  config_json: {
+    includeDeleted?: boolean
+    maxFileSize?: string
+    scanExternalShares?: boolean
+    [key: string]: any
+  }
+  criado_por: string
+  ativo: boolean
+  criado_em: string
+  atualizado_em: string
+}
+
+export interface PdfReport {
+  url: string
+  sas_token?: string
+  size_bytes?: number
+  created_at: string
+  expires_at: string
+}
+
+export interface EmailQueueItem {
+  id: string
+  execution_id: string
+  recipient_email: string
+  assunto: string
+  status: 'pending' | 'sent' | 'failed' | 'bounced'
+  tentativas: number
+  max_tentativas: number
+  criado_em: string
+  enviado_em?: string
+}
+
+export interface Finding {
+  title: string
+  description: string
+  severity: 'high' | 'medium' | 'low'
+  impact?: string
+  recommendation?: string
+}
+
+export interface ExecutionResult {
+  id: string
+  tenant_id: string
+  client_id: string
+  status: 'completed' | 'failed'
+  findings_json?: Finding[]
+  gb_processado?: number
+  custo_real?: number
+  tempo_execucao_segundos?: number
+  sites_analisados?: string[]
+  config_json?: Record<string, any>
+  version_number?: number
+  iniciado_em: string
+  finalizado_em: string
+}

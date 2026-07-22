@@ -1,5 +1,9 @@
 import axios, { AxiosInstance } from 'axios'
-import type { Client, Tenant, Execution, DashboardSummary, FinOpsData } from '@/types'
+import type {
+  Client, Tenant, Execution, DashboardSummary, FinOpsData,
+  ExecutionVersion, ExecutionSnapshot, ExecutionDelta, ExecutionTemplate,
+  PdfReport
+} from '@/types'
 
 const API_BASE = import.meta.env.VITE_API_URL || '/api'
 
@@ -119,6 +123,67 @@ class ApiClient {
   async getFinOpsData(): Promise<FinOpsData> {
     const { data } = await this.client.get('/dashboard/finops')
     return data
+  }
+
+  // ======================================
+  // Histórico de Execuções
+  // ======================================
+  async getExecutionVersions(executionId: string): Promise<ExecutionVersion[]> {
+    const { data } = await this.client.get(`/executions/${executionId}/versions`)
+    return data.data || []
+  }
+
+  async getExecutionSnapshot(executionId: string, version: number): Promise<ExecutionSnapshot> {
+    const { data } = await this.client.get(`/executions/${executionId}/versions/${version}`)
+    return data.data
+  }
+
+  async compareExecutionSnapshots(executionId: string, v1: number, v2: number): Promise<ExecutionDelta> {
+    const { data } = await this.client.get(`/executions/${executionId}/diff`, {
+      params: { v1, v2 }
+    })
+    return data.data
+  }
+
+  // ======================================
+  // PDF Reports
+  // ======================================
+  async getPdfReport(executionId: string): Promise<PdfReport> {
+    const { data } = await this.client.get(`/executions/${executionId}/report/pdf`)
+    return data.data
+  }
+
+  // ======================================
+  // Execution Templates
+  // ======================================
+  async createExecutionTemplate(tenantId: string, payload: any): Promise<ExecutionTemplate> {
+    const { data } = await this.client.post('/execution-templates', {
+      tenant_id: tenantId,
+      ...payload
+    })
+    return data.data
+  }
+
+  async getExecutionTemplates(tenantId: string): Promise<ExecutionTemplate[]> {
+    const { data } = await this.client.get(`/execution-templates/${tenantId}`)
+    return data.data || []
+  }
+
+  async updateExecutionTemplate(templateId: string, payload: any): Promise<ExecutionTemplate> {
+    const { data } = await this.client.put(`/execution-templates/${templateId}`, payload)
+    return data.data
+  }
+
+  async deleteExecutionTemplate(templateId: string): Promise<void> {
+    await this.client.delete(`/execution-templates/${templateId}`)
+  }
+
+  // ======================================
+  // Email Queue (Admin)
+  // ======================================
+  async getEmailQueueStatus(): Promise<{ pending_count: number; items: any[] }> {
+    const { data } = await this.client.get('/admin/email-queue')
+    return data.data
   }
 }
 

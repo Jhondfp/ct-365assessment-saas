@@ -11,6 +11,7 @@ const clientRoutes = require('./routes/clients');
 const tenantRoutes = require('./routes/tenants');
 const executionRoutes = require('./routes/executions');
 const dashboardRoutes = require('./routes/dashboard');
+const featuresRoutes = require('./routes/features');
 
 const app = express();
 
@@ -88,6 +89,7 @@ app.use('/api/clients', requireAuth, clientRoutes);
 app.use('/api/tenants', requireAuth, tenantRoutes);
 app.use('/api/executions', requireAuth, executionRoutes);
 app.use('/api/dashboard', requireAuth, dashboardRoutes);
+app.use('/api', requireAuth, featuresRoutes);
 
 // ======================================
 // ERROR HANDLING

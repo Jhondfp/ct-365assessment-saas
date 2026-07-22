@@ -12,6 +12,8 @@ const tenantRoutes = require('./routes/tenants');
 const executionRoutes = require('./routes/executions');
 const dashboardRoutes = require('./routes/dashboard');
 const featuresRoutes = require('./routes/features');
+const adminRoutes = require('./routes/admin');
+const billingRoutes = require('./routes/billing');
 
 const app = express();
 
@@ -72,6 +74,31 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
+// User invitation acceptance (public)
+const userService = require('./services/userService');
+app.post('/api/auth/accept-invitation', async (req, res) => {
+  try {
+    const { token, name, password_hash, telefone } = req.body;
+
+    if (!token || !name || !password_hash) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+
+    const result = await userService.acceptInvitation(token, {
+      name,
+      password_hash,
+      telefone,
+    });
+
+    res.status(201).json({
+      user: result.user,
+      message: 'User account created successfully',
+    });
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
 // ======================================
 // MIDDLEWARE DE AUTENTICAÇÃO
 // ======================================
@@ -90,6 +117,8 @@ app.use('/api/tenants', requireAuth, tenantRoutes);
 app.use('/api/executions', requireAuth, executionRoutes);
 app.use('/api/dashboard', requireAuth, dashboardRoutes);
 app.use('/api', requireAuth, featuresRoutes);
+app.use('/api/admin', requireAuth, adminRoutes);
+app.use('/api/billing', requireAuth, billingRoutes);
 
 // ======================================
 // ERROR HANDLING

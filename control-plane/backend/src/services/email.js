@@ -124,8 +124,89 @@ const sendCustomEmail = async (recipientEmail, subject, htmlContent) => {
   }
 };
 
+const getInvitationEmailHtml = (recipientEmail, invitationToken, clientName) => {
+  const acceptUrl = `${process.env.FRONTEND_URL || 'https://ctassessment.com.br'}/accept-invitation?token=${invitationToken}`;
+
+  return `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="UTF-8">
+      <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #333; }
+        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { background: linear-gradient(135deg, #c94d16 0%, #6b3fa0 100%); color: white; padding: 30px; border-radius: 8px 8px 0 0; }
+        .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 8px 8px; }
+        .button { background: #c94d16; color: white; padding: 14px 30px; border-radius: 4px; text-decoration: none; display: inline-block; margin-top: 20px; font-weight: bold; }
+        .footer { color: #999; font-size: 12px; margin-top: 30px; padding-top: 20px; border-top: 1px solid #ddd; }
+        .expiration-notice { background: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; margin: 20px 0; border-radius: 4px; }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="header">
+          <h1>Bem-vindo à CT Assessment 👋</h1>
+          <p>Você foi convidado para se juntar ao nosso platform!</p>
+        </div>
+
+        <div class="content">
+          <p>Olá ${recipientEmail},</p>
+
+          <p>Você recebeu um convite para criar sua conta na <strong>CT Assessment</strong> para o cliente <strong>${clientName}</strong>.</p>
+
+          <p>Clique no botão abaixo para aceitar o convite e criar sua conta:</p>
+
+          <a href="${acceptUrl}" class="button">Aceitar Convite e Criar Conta</a>
+
+          <div class="expiration-notice">
+            <strong>⏰ Importante:</strong> Este convite é válido por 7 dias. Após esse período, você precisará solicitar um novo convite.
+          </div>
+
+          <p style="color: #666; font-size: 14px; margin-top: 30px;">
+            Se você recebeu este email por engano ou não solicitou um convite, basta ignorar este email.
+          </p>
+
+          <div class="footer">
+            <p>© 2026 CT Assessment SaaS. Todos os direitos reservados.</p>
+            <p>Esse é um email automatizado. Não responda este email.</p>
+          </div>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+};
+
+const sendInvitationEmail = async (recipientEmail, invitationToken, clientName) => {
+  try {
+    if (!config.SENDGRID_API_KEY) {
+      logger.warn('SendGrid API key not configured. Invitation email not sent.');
+      return false;
+    }
+
+    const htmlContent = getInvitationEmailHtml(recipientEmail, invitationToken, clientName);
+
+    const msg = {
+      to: recipientEmail,
+      from: config.SENDGRID_FROM_EMAIL || 'noreply@ctassessment.com.br',
+      subject: '[CT Assessment] Convite para criar sua conta',
+      html: htmlContent,
+      replyTo: config.SENDGRID_REPLY_TO || 'support@ctassessment.com.br'
+    };
+
+    await sgMail.send(msg);
+    logger.info(`Invitation email sent to: ${recipientEmail}`);
+    return true;
+  } catch (error) {
+    logger.error(`Error sending invitation email: ${error.message}`);
+    throw error;
+  }
+};
+
 module.exports = {
   sendCompletionEmail,
   sendCustomEmail,
-  getCompletionEmailHtml
+  sendInvitationEmail,
+  getCompletionEmailHtml,
+  getInvitationEmailHtml
 };

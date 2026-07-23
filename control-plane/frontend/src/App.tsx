@@ -21,6 +21,12 @@ import TrashAudit from '@/pages/TrashAudit'
 import StaleFiles from '@/pages/StaleFiles'
 import DuplicatesAnalysis from '@/pages/DuplicatesAnalysis'
 import GovernanceRecommendations from '@/pages/GovernanceRecommendations'
+import GovernanceOverview from '@/pages/GovernanceOverview'
+import GovernanceSecurity from '@/pages/GovernanceSecurity'
+import GovernanceSites from '@/pages/GovernanceSites'
+import GovernanceStorage from '@/pages/GovernanceStorage'
+import GovernanceSharing from '@/pages/GovernanceSharing'
+import GovernancePermissions from '@/pages/GovernancePermissions'
 import { useAuth } from '@/hooks/useAuth'
 
 function AppRoutes() {
@@ -62,6 +68,12 @@ function AppRoutes() {
         <Route path="/clientes/:clientId/licenses/analysis" element={<LicenseAnalysis />} />
         <Route path="/clientes/:clientId/licenses/recommendations" element={<LicenseRecommendations />} />
         <Route path="/clientes/:clientId/governance" element={<GovernanceDashboard />} />
+        <Route path="/clientes/:clientId/governance/overview" element={<GovernanceOverview />} />
+        <Route path="/clientes/:clientId/governance/security" element={<GovernanceSecurity />} />
+        <Route path="/clientes/:clientId/governance/sites" element={<GovernanceSites />} />
+        <Route path="/clientes/:clientId/governance/storage" element={<GovernanceStorage />} />
+        <Route path="/clientes/:clientId/governance/sharing" element={<GovernanceSharing />} />
+        <Route path="/clientes/:clientId/governance/permissions" element={<GovernancePermissions />} />
         <Route path="/clientes/:clientId/governance/trash" element={<TrashAudit />} />
         <Route path="/clientes/:clientId/governance/stale-files" element={<StaleFiles />} />
         <Route path="/clientes/:clientId/governance/duplicates" element={<DuplicatesAnalysis />} />

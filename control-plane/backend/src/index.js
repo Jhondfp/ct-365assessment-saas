@@ -16,6 +16,7 @@ const adminRoutes = require('./routes/admin');
 const billingRoutes = require('./routes/billing');
 const licenseRoutes = require('./routes/licenses');
 const governanceRoutes = require('./routes/governance');
+const completeGovernanceRoutes = require('./routes/completeGovernance');
 
 const app = express();
 
@@ -123,6 +124,7 @@ app.use('/api/admin', requireAuth, adminRoutes);
 app.use('/api/billing', requireAuth, billingRoutes);
 app.use('/api/licenses', requireAuth, licenseRoutes);
 app.use('/api/governance', requireAuth, governanceRoutes);
+app.use('/api/governance', requireAuth, completeGovernanceRoutes);
 
 // ======================================
 // ERROR HANDLING

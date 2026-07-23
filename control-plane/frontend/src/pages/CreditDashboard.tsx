@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { AlertCircle, TrendingDown, Zap, Loader, Clock, CheckCircle2, AlertTriangle } from 'lucide-react';
 
-interface CreditBalance {
+interface SaldoCreditos {
   current_balance: number;
   monthly_allocation: number;
   used_percentage: number;
@@ -12,7 +12,7 @@ interface CreditBalance {
   plan_type: string;
 }
 
-interface CreditLedgerEntry {
+interface MovimentacaoLivro {
   transaction_id: string;
   transaction_type: string;
   amount: number;
@@ -21,7 +21,7 @@ interface CreditLedgerEntry {
   created_at: string;
 }
 
-interface CreditAlert {
+interface AlertaCredito {
   alert_id: string;
   threshold_percentage: number;
   status: string;
@@ -29,55 +29,55 @@ interface CreditAlert {
   dismissed_at?: string;
 }
 
-export default function CreditDashboard() {
+export default function PainelCreditos() {
   const { clientId } = useParams<{ clientId: string }>();
-  const [balance, setBalance] = useState<CreditBalance | null>(null);
-  const [ledger, setLedger] = useState<CreditLedgerEntry[]>([]);
-  const [alerts, setAlerts] = useState<CreditAlert[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  const [activeTab, setActiveTab] = useState<'overview' | 'ledger' | 'alerts'>('overview');
+  const [saldo, setSaldo] = useState<SaldoCreditos | null>(null);
+  const [movimentacoes, setMovimentacoes] = useState<MovimentacaoLivro[]>([]);
+  const [alertas, setAlertas] = useState<AlertaCredito[]>([]);
+  const [carregando, setCarregando] = useState(true);
+  const [erro, setErro] = useState('');
+  const [abaBotaoAtiva, setAbaBotaoAtiva] = useState<'resumo' | 'historico' | 'alertas'>('resumo');
 
   useEffect(() => {
-    fetchCreditData();
+    buscarDadosCreditos();
   }, [clientId]);
 
-  const fetchCreditData = async () => {
+  const buscarDadosCreditos = async () => {
     try {
-      setLoading(true);
-      setError('');
+      setCarregando(true);
+      setErro('');
 
-      const [balanceRes, ledgerRes, alertsRes] = await Promise.all([
+      const [respostaSaldo, respostaMovimentacoes, respostaAlertas] = await Promise.all([
         fetch(`/api/billing/clients/${clientId}/credits/balance`),
         fetch(`/api/billing/clients/${clientId}/credits/ledger?limit=20`),
         fetch(`/api/billing/clients/${clientId}/credits/alerts`),
       ]);
 
-      if (!balanceRes.ok) throw new Error('Failed to fetch credit balance');
-      if (!ledgerRes.ok) throw new Error('Failed to fetch credit ledger');
-      if (!alertsRes.ok) throw new Error('Failed to fetch credit alerts');
+      if (!respostaSaldo.ok) throw new Error('Erro ao buscar saldo de créditos');
+      if (!respostaMovimentacoes.ok) throw new Error('Erro ao buscar histórico de movimentações');
+      if (!respostaAlertas.ok) throw new Error('Erro ao buscar alertas');
 
-      const balanceData = await balanceRes.json();
-      const ledgerData = await ledgerRes.json();
-      const alertsData = await alertsRes.json();
+      const dadosSaldo = await respostaSaldo.json();
+      const dadosMovimentacoes = await respostaMovimentacoes.json();
+      const dadosAlertas = await respostaAlertas.json();
 
-      if (balanceData.success) {
-        setBalance(balanceData.data);
+      if (dadosSaldo.sucesso) {
+        setSaldo(dadosSaldo.dados);
       }
-      if (ledgerData.success) {
-        setLedger(ledgerData.data);
+      if (dadosMovimentacoes.sucesso) {
+        setMovimentacoes(dadosMovimentacoes.dados);
       }
-      if (alertsData.success) {
-        setAlerts(alertsData.data);
+      if (dadosAlertas.sucesso) {
+        setAlertas(dadosAlertas.dados);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred');
+      setErro(err instanceof Error ? err.message : 'Ocorreu um erro');
     } finally {
-      setLoading(false);
+      setCarregando(false);
     }
   };
 
-  if (loading) {
+  if (carregando) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <Loader className="w-8 h-8 text-blue-600 animate-spin" />
@@ -85,7 +85,7 @@ export default function CreditDashboard() {
     );
   }
 
-  if (!balance) {
+  if (!saldo) {
     return (
       <div className="min-h-screen bg-gray-50 p-8">
         <div className="max-w-6xl mx-auto">
@@ -98,8 +98,8 @@ export default function CreditDashboard() {
     );
   }
 
-  const creditStatus = balance.used_percentage > 90 ? 'critical' : balance.used_percentage > 80 ? 'warning' : 'healthy';
-  const statusColor = creditStatus === 'critical' ? 'red' : creditStatus === 'warning' ? 'yellow' : 'green';
+  const statusCredito = saldo.used_percentage > 90 ? 'critico' : saldo.used_percentage > 80 ? 'aviso' : 'saudavel';
+  const corStatus = statusCredito === 'critico' ? 'red' : statusCredito === 'aviso' ? 'yellow' : 'green';
 
   return (
     <div className="min-h-screen bg-gray-50 p-8">
@@ -109,21 +109,21 @@ export default function CreditDashboard() {
           <p className="text-gray-600">Acompanhe o consumo de créditos e histórico de transações</p>
         </div>
 
-        {error && (
+        {erro && (
           <div className="p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
             <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
-            <div className="text-red-700">{error}</div>
+            <div className="text-red-700">{erro}</div>
           </div>
         )}
 
-        {/* Hero Metrics */}
+        {/* Métricas Principais */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
           <div className="bg-white rounded-lg shadow p-6">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-gray-600 font-medium text-sm">Saldo Disponível</h3>
               <Zap className="w-5 h-5 text-yellow-500" />
             </div>
-            <div className="text-4xl font-bold text-gray-900">{balance.current_balance.toFixed(2)}</div>
+            <div className="text-4xl font-bold text-gray-900">{saldo.current_balance.toFixed(2)}</div>
             <p className="text-xs text-gray-500 mt-2">créditos</p>
           </div>
 
@@ -132,7 +132,7 @@ export default function CreditDashboard() {
               <h3 className="text-gray-600 font-medium text-sm">Alocação Mensal</h3>
               <Clock className="w-5 h-5 text-blue-500" />
             </div>
-            <div className="text-4xl font-bold text-gray-900">{balance.monthly_allocation.toFixed(2)}</div>
+            <div className="text-4xl font-bold text-gray-900">{saldo.monthly_allocation.toFixed(2)}</div>
             <p className="text-xs text-gray-500 mt-2">créditos/mês</p>
           </div>
 
@@ -141,34 +141,34 @@ export default function CreditDashboard() {
               <h3 className="text-gray-600 font-medium text-sm">Execuções este Mês</h3>
               <CheckCircle2 className="w-5 h-5 text-green-500" />
             </div>
-            <div className="text-4xl font-bold text-gray-900">{balance.execution_count}</div>
+            <div className="text-4xl font-bold text-gray-900">{saldo.execution_count}</div>
             <p className="text-xs text-gray-500 mt-2">
-              {balance.avg_credits_per_execution > 0 ? `${balance.avg_credits_per_execution.toFixed(2)} créditos/exec` : 'sem execuções'}
+              {saldo.avg_credits_per_execution > 0 ? `${saldo.avg_credits_per_execution.toFixed(2)} créditos/exec` : 'sem execuções'}
             </p>
           </div>
 
-          <div className={`bg-white rounded-lg shadow p-6 border-l-4 border-${statusColor}-500`}>
+          <div className={`bg-white rounded-lg shadow p-6 border-l-4 border-${corStatus}-500`}>
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-gray-600 font-medium text-sm">Uso Total</h3>
-              <TrendingDown className={`w-5 h-5 text-${statusColor}-500`} />
+              <TrendingDown className={`w-5 h-5 text-${corStatus}-500`} />
             </div>
-            <div className="text-4xl font-bold text-gray-900">{balance.used_percentage.toFixed(1)}%</div>
-            <p className={`text-xs mt-2 ${statusColor === 'red' ? 'text-red-600' : statusColor === 'yellow' ? 'text-yellow-600' : 'text-green-600'}`}>
-              {statusColor === 'red' ? 'Crítico' : statusColor === 'yellow' ? 'Aviso' : 'Saudável'}
+            <div className="text-4xl font-bold text-gray-900">{saldo.used_percentage.toFixed(1)}%</div>
+            <p className={`text-xs mt-2 ${corStatus === 'red' ? 'text-red-600' : corStatus === 'yellow' ? 'text-yellow-600' : 'text-green-600'}`}>
+              {statusCredito === 'critico' ? 'Crítico' : statusCredito === 'aviso' ? 'Aviso' : 'Saudável'}
             </p>
           </div>
         </div>
 
-        {/* Alert Section */}
-        {alerts.length > 0 && (
+        {/* Seção de Alertas */}
+        {alertas.length > 0 && (
           <div className="grid grid-cols-1 gap-3">
-            {alerts.map((alert) => (
-              <div key={alert.alert_id} className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 flex items-start gap-3">
+            {alertas.map((alerta) => (
+              <div key={alerta.alert_id} className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 flex items-start gap-3">
                 <AlertTriangle className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" />
                 <div className="flex-1">
-                  <p className="font-medium text-yellow-900">Limite de {alert.threshold_percentage}% atingido</p>
+                  <p className="font-medium text-yellow-900">Limite de {alerta.threshold_percentage}% atingido</p>
                   <p className="text-sm text-yellow-800">
-                    {new Date(alert.triggered_at).toLocaleDateString('pt-BR', {
+                    {new Date(alerta.triggered_at).toLocaleDateString('pt-BR', {
                       day: '2-digit',
                       month: 'short',
                       hour: '2-digit',
@@ -181,7 +181,7 @@ export default function CreditDashboard() {
           </div>
         )}
 
-        {/* Usage Progress */}
+        {/* Progresso de Uso */}
         <div className="bg-white rounded-lg shadow p-6">
           <h3 className="text-lg font-semibold text-gray-900 mb-6">Uso de Créditos</h3>
 
@@ -190,17 +190,17 @@ export default function CreditDashboard() {
               <div className="flex justify-between mb-2">
                 <span className="text-sm font-medium text-gray-700">Créditos Utilizados</span>
                 <span className="text-sm font-semibold text-gray-900">
-                  {(balance.monthly_allocation - balance.current_balance).toFixed(2)} de {balance.monthly_allocation.toFixed(2)}
+                  {(saldo.monthly_allocation - saldo.current_balance).toFixed(2)} de {saldo.monthly_allocation.toFixed(2)}
                 </span>
               </div>
               <div className="w-full bg-gray-200 rounded-full h-4">
                 <div
                   className={`h-4 rounded-full transition-all ${
-                    balance.used_percentage > 90 ? 'bg-red-500' :
-                    balance.used_percentage > 80 ? 'bg-yellow-500' :
+                    saldo.used_percentage > 90 ? 'bg-red-500' :
+                    saldo.used_percentage > 80 ? 'bg-yellow-500' :
                     'bg-green-500'
                   }`}
-                  style={{ width: `${Math.min(balance.used_percentage, 100)}%` }}
+                  style={{ width: `${Math.min(saldo.used_percentage, 100)}%` }}
                 />
               </div>
             </div>
@@ -209,27 +209,27 @@ export default function CreditDashboard() {
               <div className="flex justify-between mb-2">
                 <span className="text-sm font-medium text-gray-700">Créditos Restantes</span>
                 <span className="text-sm font-semibold text-gray-900">
-                  {balance.remaining_percentage.toFixed(1)}% ({balance.current_balance.toFixed(2)} créditos)
+                  {saldo.remaining_percentage.toFixed(1)}% ({saldo.current_balance.toFixed(2)} créditos)
                 </span>
               </div>
               <div className="w-full bg-gray-200 rounded-full h-4">
                 <div
                   className="h-4 rounded-full bg-blue-500 transition-all"
-                  style={{ width: `${balance.remaining_percentage}%` }}
+                  style={{ width: `${saldo.remaining_percentage}%` }}
                 />
               </div>
             </div>
           </div>
         </div>
 
-        {/* Tabs */}
+        {/* Abas */}
         <div className="bg-white rounded-lg shadow">
           <div className="border-b border-gray-200">
             <div className="flex gap-8 px-6">
               <button
-                onClick={() => setActiveTab('overview')}
+                onClick={() => setAbaBotaoAtiva('resumo')}
                 className={`py-4 font-medium border-b-2 transition ${
-                  activeTab === 'overview'
+                  abaBotaoAtiva === 'resumo'
                     ? 'text-blue-600 border-blue-600'
                     : 'text-gray-600 border-transparent hover:text-gray-900'
                 }`}
@@ -237,40 +237,40 @@ export default function CreditDashboard() {
                 Resumo
               </button>
               <button
-                onClick={() => setActiveTab('ledger')}
+                onClick={() => setAbaBotaoAtiva('historico')}
                 className={`py-4 font-medium border-b-2 transition ${
-                  activeTab === 'ledger'
+                  abaBotaoAtiva === 'historico'
                     ? 'text-blue-600 border-blue-600'
                     : 'text-gray-600 border-transparent hover:text-gray-900'
                 }`}
               >
-                Histórico de Transações ({ledger.length})
+                Histórico de Transações ({movimentacoes.length})
               </button>
               <button
-                onClick={() => setActiveTab('alerts')}
+                onClick={() => setAbaBotaoAtiva('alertas')}
                 className={`py-4 font-medium border-b-2 transition ${
-                  activeTab === 'alerts'
+                  abaBotaoAtiva === 'alertas'
                     ? 'text-blue-600 border-blue-600'
                     : 'text-gray-600 border-transparent hover:text-gray-900'
                 }`}
               >
-                Alertas ({alerts.length})
+                Alertas ({alertas.length})
               </button>
             </div>
           </div>
 
           <div className="p-6">
-            {activeTab === 'overview' && (
+            {abaBotaoAtiva === 'resumo' && (
               <div className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg p-4">
                     <p className="text-sm text-blue-600 font-medium mb-1">Plano</p>
-                    <p className="text-2xl font-bold text-blue-900">{balance.plan_type}</p>
+                    <p className="text-2xl font-bold text-blue-900">{saldo.plan_type}</p>
                   </div>
                   <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-lg p-4">
                     <p className="text-sm text-green-600 font-medium mb-1">Média por Execução</p>
                     <p className="text-2xl font-bold text-green-900">
-                      {balance.avg_credits_per_execution.toFixed(3)} créditos
+                      {saldo.avg_credits_per_execution.toFixed(3)} créditos
                     </p>
                   </div>
                 </div>
@@ -286,21 +286,21 @@ export default function CreditDashboard() {
               </div>
             )}
 
-            {activeTab === 'ledger' && (
+            {abaBotaoAtiva === 'historico' && (
               <div className="space-y-3">
-                {ledger.length === 0 ? (
+                {movimentacoes.length === 0 ? (
                   <p className="text-gray-600 text-center py-8">Nenhuma transação encontrada</p>
                 ) : (
-                  ledger.map((entry) => (
+                  movimentacoes.map((entrada) => (
                     <div
-                      key={entry.transaction_id}
+                      key={entrada.transaction_id}
                       className="flex justify-between items-start py-4 border-b border-gray-100 last:border-b-0"
                     >
                       <div>
-                        <p className="font-medium text-gray-900 capitalize">{entry.transaction_type}</p>
-                        <p className="text-sm text-gray-600 mt-1">{entry.reason}</p>
+                        <p className="font-medium text-gray-900 capitalize">{entrada.transaction_type}</p>
+                        <p className="text-sm text-gray-600 mt-1">{entrada.reason}</p>
                         <p className="text-xs text-gray-500 mt-2">
-                          {new Date(entry.created_at).toLocaleDateString('pt-BR', {
+                          {new Date(entrada.created_at).toLocaleDateString('pt-BR', {
                             day: '2-digit',
                             month: 'short',
                             year: 'numeric',
@@ -312,17 +312,17 @@ export default function CreditDashboard() {
                       <div className="text-right">
                         <p
                           className={`font-semibold text-lg ${
-                            entry.transaction_type === 'purchase' || entry.transaction_type === 'addition'
+                            entrada.transaction_type === 'purchase' || entrada.transaction_type === 'addition'
                               ? 'text-green-600'
-                              : entry.transaction_type === 'consumption'
+                              : entrada.transaction_type === 'consumption'
                               ? 'text-red-600'
                               : 'text-gray-600'
                           }`}
                         >
-                          {entry.transaction_type === 'purchase' || entry.transaction_type === 'addition' ? '+' : '-'}
-                          {Math.abs(entry.amount).toFixed(2)}
+                          {entrada.transaction_type === 'purchase' || entrada.transaction_type === 'addition' ? '+' : '-'}
+                          {Math.abs(entrada.amount).toFixed(2)}
                         </p>
-                        <p className="text-sm text-gray-600 mt-2">Saldo: {entry.balance_after.toFixed(2)}</p>
+                        <p className="text-sm text-gray-600 mt-2">Saldo: {entrada.balance_after.toFixed(2)}</p>
                       </div>
                     </div>
                   ))
@@ -330,32 +330,32 @@ export default function CreditDashboard() {
               </div>
             )}
 
-            {activeTab === 'alerts' && (
+            {abaBotaoAtiva === 'alertas' && (
               <div className="space-y-3">
-                {alerts.length === 0 ? (
+                {alertas.length === 0 ? (
                   <p className="text-gray-600 text-center py-8">Nenhum alerta ativo</p>
                 ) : (
-                  alerts.map((alert) => (
-                    <div key={alert.alert_id} className="bg-yellow-50 rounded-lg p-4 border border-yellow-200">
+                  alertas.map((alerta) => (
+                    <div key={alerta.alert_id} className="bg-yellow-50 rounded-lg p-4 border border-yellow-200">
                       <div className="flex justify-between items-start">
                         <div>
-                          <p className="font-medium text-yellow-900">Limite de {alert.threshold_percentage}% Atingido</p>
+                          <p className="font-medium text-yellow-900">Limite de {alerta.threshold_percentage}% Atingido</p>
                           <p className="text-sm text-yellow-800 mt-1">
-                            Status: <span className="font-semibold">{alert.status}</span>
+                            Status: <span className="font-semibold">{alerta.status}</span>
                           </p>
                           <p className="text-xs text-yellow-700 mt-2">
                             Disparado em:{' '}
-                            {new Date(alert.triggered_at).toLocaleDateString('pt-BR', {
+                            {new Date(alerta.triggered_at).toLocaleDateString('pt-BR', {
                               day: '2-digit',
                               month: 'short',
                               hour: '2-digit',
                               minute: '2-digit',
                             })}
                           </p>
-                          {alert.dismissed_at && (
+                          {alerta.dismissed_at && (
                             <p className="text-xs text-yellow-700">
                               Descartado em:{' '}
-                              {new Date(alert.dismissed_at).toLocaleDateString('pt-BR', {
+                              {new Date(alerta.dismissed_at).toLocaleDateString('pt-BR', {
                                 day: '2-digit',
                                 month: 'short',
                                 hour: '2-digit',

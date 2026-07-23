@@ -1,155 +1,155 @@
 const { getTenantConnection } = require('./database');
 
-class CreditService {
-  // Calculate credits needed for an execution based on data size, reports, and alerts
-  async calculateExecutionCredits(clientId, executionConfig) {
-    const conn = await getTenantConnection(clientId);
+class ServicoCreditos {
+  // Calcula créditos necessários para uma execução baseado em tamanho de dados, relatórios e alertas
+  async calcularCreditosExecucao(idCliente, configExecucao) {
+    const conn = await getTenantConnection(idCliente);
     try {
-      // executionConfig should have: dataCollectionSizeGb, reportCount, alertCount
+      // configExecucao deve conter: tamanhoColecaoDadosGb, contaRelatorios, contaAlertas
       const result = await conn.request()
-        .input('DataSizeGb', executionConfig.dataCollectionSizeGb || 0)
-        .input('ReportCount', executionConfig.reportCount || 1)
-        .input('AlertCount', executionConfig.alertCount || 0)
+        .input('DataSizeGb', configExecucao.tamanhoColecaoDadosGb || 0)
+        .input('ReportCount', configExecucao.contaRelatorios || 1)
+        .input('AlertCount', configExecucao.contaAlertas || 0)
         .execute('sp_CalculateExecutionCredits');
 
       return {
-        success: true,
-        data: result.recordset[0] || {},
+        sucesso: true,
+        dados: result.recordset[0] || {},
       };
-    } catch (error) {
-      console.error('Error calculating execution credits:', error);
+    } catch (erro) {
+      console.error('Erro ao calcular créditos da execução:', erro);
       return {
-        success: false,
-        error: error.message,
+        sucesso: false,
+        erro: erro.message,
       };
     } finally {
       await conn.close();
     }
   }
 
-  // Consume credits from client balance for completed execution
-  async consumeCredits(clientId, creditsToConsume, executionId, executionDetails) {
-    const conn = await getTenantConnection(clientId);
+  // Consome créditos do saldo do cliente para execução concluída
+  async consumirCreditos(idCliente, creditosConsumidos, idExecucao, detalhesExecucao) {
+    const conn = await getTenantConnection(idCliente);
     try {
       const result = await conn.request()
-        .input('CreditsToConsume', creditsToConsume)
-        .input('ExecutionId', executionId)
-        .input('ExecutionDetails', JSON.stringify(executionDetails || {}))
+        .input('CreditsToConsume', creditosConsumidos)
+        .input('ExecutionId', idExecucao)
+        .input('ExecutionDetails', JSON.stringify(detalhesExecucao || {}))
         .execute('sp_ConsumeCredits');
 
       return {
-        success: true,
-        data: result.recordset[0] || {},
+        sucesso: true,
+        dados: result.recordset[0] || {},
       };
-    } catch (error) {
-      console.error('Error consuming credits:', error);
+    } catch (erro) {
+      console.error('Erro ao consumir créditos:', erro);
       return {
-        success: false,
-        error: error.message,
+        sucesso: false,
+        erro: erro.message,
       };
     } finally {
       await conn.close();
     }
   }
 
-  // Add credits (purchase or refund)
-  async addCredits(clientId, creditsToAdd, reason = 'Purchase') {
-    const conn = await getTenantConnection(clientId);
+  // Adiciona créditos (compra ou reembolso)
+  async adicionarCreditos(idCliente, creditosAdicionados, motivo = 'Compra') {
+    const conn = await getTenantConnection(idCliente);
     try {
       const result = await conn.request()
-        .input('CreditsToAdd', creditsToAdd)
-        .input('Reason', reason)
+        .input('CreditsToAdd', creditosAdicionados)
+        .input('Reason', motivo)
         .execute('sp_AddCredits');
 
       return {
-        success: true,
-        data: result.recordset[0] || {},
+        sucesso: true,
+        dados: result.recordset[0] || {},
       };
-    } catch (error) {
-      console.error('Error adding credits:', error);
+    } catch (erro) {
+      console.error('Erro ao adicionar créditos:', erro);
       return {
-        success: false,
-        error: error.message,
+        sucesso: false,
+        erro: erro.message,
       };
     } finally {
       await conn.close();
     }
   }
 
-  // Get current credit balance and usage analytics
-  async getCreditBalance(clientId) {
-    const conn = await getTenantConnection(clientId);
+  // Obtém saldo de créditos atual e análise de uso
+  async obterSaldoCreditos(idCliente) {
+    const conn = await getTenantConnection(idCliente);
     try {
       const result = await conn.request()
         .execute('sp_GetCreditUsageAnalytics');
 
       return {
-        success: true,
-        data: result.recordset[0] || {},
+        sucesso: true,
+        dados: result.recordset[0] || {},
       };
-    } catch (error) {
-      console.error('Error getting credit balance:', error);
+    } catch (erro) {
+      console.error('Erro ao obter saldo de créditos:', erro);
       return {
-        success: false,
-        error: error.message,
+        sucesso: false,
+        erro: erro.message,
       };
     } finally {
       await conn.close();
     }
   }
 
-  // Get credit transaction history
-  async getCreditLedger(clientId, limit = 50, offset = 0) {
-    const conn = await getTenantConnection(clientId);
+  // Obtém histórico de transações de créditos
+  async obterLivroCreditoMovimentacoes(idCliente, limite = 50, offset = 0) {
+    const conn = await getTenantConnection(idCliente);
     try {
       const result = await conn.request()
-        .input('Limit', limit)
+        .input('Limit', limite)
         .input('Offset', offset)
         .execute('sp_GetCreditLedger');
 
       return {
-        success: true,
-        data: result.recordset || [],
+        sucesso: true,
+        dados: result.recordset || [],
       };
-    } catch (error) {
-      console.error('Error getting credit ledger:', error);
+    } catch (erro) {
+      console.error('Erro ao obter livro de movimentações:', erro);
       return {
-        success: false,
-        error: error.message,
+        sucesso: false,
+        erro: erro.message,
       };
     } finally {
       await conn.close();
     }
   }
 
-  // Get active credit alerts
-  async getActiveAlerts(clientId) {
-    const conn = await getTenantConnection(clientId);
+  // Obtém alertas ativos de créditos
+  async obterAlertasAtivos(idCliente) {
+    const conn = await getTenantConnection(idCliente);
     try {
       const result = await conn.request()
         .execute('sp_GetCreditAlerts');
 
       return {
-        success: true,
-        data: result.recordset || [],
+        sucesso: true,
+        dados: result.recordset || [],
       };
-    } catch (error) {
-      console.error('Error getting credit alerts:', error);
+    } catch (erro) {
+      console.error('Erro ao obter alertas de créditos:', erro);
       return {
-        success: false,
-        error: error.message,
+        sucesso: false,
+        erro: erro.message,
       };
     } finally {
       await conn.close();
     }
   }
 
-  // Get execution-specific credit details
-  async getExecutionCreditDetails(clientId, executionId) {
-    const conn = await getTenantConnection(clientId);
+  // Obtém detalhes de créditos específicos da execução
+  async obterDetalheCreditosExecucao(idCliente, idExecucao) {
+    const conn = await getTenantConnection(idCliente);
     try {
       const result = await conn.request()
-        .input('ExecutionId', executionId)
+        .input('ExecutionId', idExecucao)
         .query(`
           SELECT
             [execution_id],
@@ -167,14 +167,14 @@ class CreditService {
         `);
 
       return {
-        success: true,
-        data: result.recordset[0] || {},
+        sucesso: true,
+        dados: result.recordset[0] || {},
       };
-    } catch (error) {
-      console.error('Error getting execution credit details:', error);
+    } catch (erro) {
+      console.error('Erro ao obter detalhes de créditos da execução:', erro);
       return {
-        success: false,
-        error: error.message,
+        sucesso: false,
+        erro: erro.message,
       };
     } finally {
       await conn.close();
@@ -182,4 +182,4 @@ class CreditService {
   }
 }
 
-module.exports = new CreditService();
+module.exports = new ServicoCreditos();

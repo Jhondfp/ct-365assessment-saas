@@ -1,25 +1,25 @@
 const express = require('express');
 const router = express.Router();
-const billingService = require('../services/billingService');
-const creditService = require('../services/creditService');
-const clientService = require('../services/clientService');
+const servicoFaturamento = require('../services/billingService');
+const servicoCreditos = require('../services/creditService');
+const servicoCliente = require('../services/clientService');
 const { requireAuth } = require('../middleware/auth');
 
 // ======================================
-// CREDIT PLANS
+// PLANOS DE CRÉDITOS
 // ======================================
 
 router.get('/credit-plans', async (req, res) => {
   try {
-    const plans = await billingService.getCreditPlans();
-    res.json(plans);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
+    const planos = await servicoFaturamento.getCreditPlans();
+    res.json(planos);
+  } catch (erro) {
+    res.status(500).json({ erro: erro.message });
   }
 });
 
 // ======================================
-// CLIENT BILLING
+// FATURAMENTO DO CLIENTE
 // ======================================
 
 router.post('/clients/:clientId/credits/purchase', requireAuth, async (req, res) => {
@@ -27,80 +27,80 @@ router.post('/clients/:clientId/credits/purchase', requireAuth, async (req, res)
     const { quantity, payment_method = 'credit_card' } = req.body;
 
     if (!quantity || quantity <= 0) {
-      return res.status(400).json({ error: 'Invalid quantity' });
+      return res.status(400).json({ erro: 'Quantidade inválida' });
     }
 
-    const transaction = await billingService.purchaseCredits(req.params.clientId, quantity, {
+    const transacao = await servicoFaturamento.purchaseCredits(req.params.clientId, quantity, {
       payment_method,
       purchased_by: req.user.id,
       timestamp: new Date().toISOString(),
     });
 
-    res.status(201).json(transaction);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
+    res.status(201).json(transacao);
+  } catch (erro) {
+    res.status(500).json({ erro: erro.message });
   }
 });
 
 router.get('/clients/:clientId/credits', requireAuth, async (req, res) => {
   try {
-    const credits = await billingService.getClientCredits(req.params.clientId);
-    if (!credits) {
-      return res.status(404).json({ error: 'No credit plan found for this client' });
+    const creditos = await servicoFaturamento.getClientCredits(req.params.clientId);
+    if (!creditos) {
+      return res.status(404).json({ erro: 'Nenhum plano de créditos encontrado para este cliente' });
     }
-    res.json(credits);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
+    res.json(creditos);
+  } catch (erro) {
+    res.status(500).json({ erro: erro.message });
   }
 });
 
 router.get('/clients/:clientId/credits/transactions', requireAuth, async (req, res) => {
   try {
-    const skip = parseInt(req.query.skip) || 0;
-    const take = parseInt(req.query.take) || 20;
+    const pular = parseInt(req.query.skip) || 0;
+    const pegar = parseInt(req.query.take) || 20;
 
-    const transactions = await billingService.getCreditTransactionHistory(req.params.clientId, skip, take);
-    res.json(transactions);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
+    const transacoes = await servicoFaturamento.getCreditTransactionHistory(req.params.clientId, pular, pegar);
+    res.json(transacoes);
+  } catch (erro) {
+    res.status(500).json({ erro: erro.message });
   }
 });
 
 router.get('/clients/:clientId/billing/dashboard', requireAuth, async (req, res) => {
   try {
-    const dashboard = await billingService.getBillingDashboard(req.params.clientId);
-    if (!dashboard) {
-      return res.status(404).json({ error: 'No credit plan found for this client' });
+    const painel = await servicoFaturamento.getBillingDashboard(req.params.clientId);
+    if (!painel) {
+      return res.status(404).json({ erro: 'Nenhum plano de créditos encontrado para este cliente' });
     }
-    res.json(dashboard);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
+    res.json(painel);
+  } catch (erro) {
+    res.status(500).json({ erro: erro.message });
   }
 });
 
 router.get('/clients/:clientId/invoices', requireAuth, async (req, res) => {
   try {
-    const skip = parseInt(req.query.skip) || 0;
-    const take = parseInt(req.query.take) || 10;
+    const pular = parseInt(req.query.skip) || 0;
+    const pegar = parseInt(req.query.take) || 10;
 
-    const invoices = await billingService.listInvoices(req.params.clientId, skip, take);
-    res.json(invoices);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
+    const faturas = await servicoFaturamento.listInvoices(req.params.clientId, pular, pegar);
+    res.json(faturas);
+  } catch (erro) {
+    res.status(500).json({ erro: erro.message });
   }
 });
 
 router.get('/invoices/:id', requireAuth, async (req, res) => {
   try {
-    const invoice = await billingService.getInvoice(req.params.id);
-    res.json(invoice);
-  } catch (error) {
-    res.status(404).json({ error: error.message });
+    const fatura = await servicoFaturamento.getInvoice(req.params.id);
+    res.json(fatura);
+  } catch (erro) {
+    res.status(404).json({ erro: erro.message });
   }
 });
 
 // ======================================
-// BILLING SETUP
+// CONFIGURAÇÃO DE FATURAMENTO
 // ======================================
 
 router.post('/clients/:clientId/setup-billing', requireAuth, async (req, res) => {
@@ -108,217 +108,217 @@ router.post('/clients/:clientId/setup-billing', requireAuth, async (req, res) =>
     const { plan_id } = req.body;
 
     if (!plan_id) {
-      return res.status(400).json({ error: 'Missing plan_id' });
+      return res.status(400).json({ erro: 'ID do plano é obrigatório' });
     }
 
-    const existingCredits = await billingService.getClientCredits(req.params.clientId);
-    if (existingCredits) {
-      return res.status(400).json({ error: 'Client already has an active billing plan' });
+    const creditosExistentes = await servicoFaturamento.getClientCredits(req.params.clientId);
+    if (creditosExistentes) {
+      return res.status(400).json({ erro: 'Cliente já possui um plano de faturamento ativo' });
     }
 
-    const credits = await billingService.createClientCredits(req.params.clientId, plan_id);
-    res.status(201).json(credits);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
+    const creditos = await servicoFaturamento.createClientCredits(req.params.clientId, plan_id);
+    res.status(201).json(creditos);
+  } catch (erro) {
+    res.status(500).json({ erro: erro.message });
   }
 });
 
 // ======================================
-// CREDIT CONSUMPTION & ANALYTICS
+// CONSUMO & ANÁLISE DE CRÉDITOS
 // ======================================
 
 router.get('/clients/:clientId/credits/balance', requireAuth, async (req, res) => {
   try {
-    const result = await creditService.getCreditBalance(req.params.clientId);
-    if (result.success) {
+    const resultado = await servicoCreditos.obterSaldoCreditos(req.params.clientId);
+    if (resultado.sucesso) {
       res.json({
-        success: true,
-        data: result.data,
+        sucesso: true,
+        dados: resultado.dados,
       });
     } else {
       res.status(500).json({
-        success: false,
-        error: result.error,
+        sucesso: false,
+        erro: resultado.erro,
       });
     }
-  } catch (error) {
+  } catch (erro) {
     res.status(500).json({
-      success: false,
-      error: error.message,
+      sucesso: false,
+      erro: erro.message,
     });
   }
 });
 
 router.get('/clients/:clientId/credits/ledger', requireAuth, async (req, res) => {
   try {
-    const limit = parseInt(req.query.limit) || 50;
+    const limite = parseInt(req.query.limit) || 50;
     const offset = parseInt(req.query.offset) || 0;
 
-    const result = await creditService.getCreditLedger(req.params.clientId, limit, offset);
-    if (result.success) {
+    const resultado = await servicoCreditos.obterLivroCreditoMovimentacoes(req.params.clientId, limite, offset);
+    if (resultado.sucesso) {
       res.json({
-        success: true,
-        data: result.data,
+        sucesso: true,
+        dados: resultado.dados,
       });
     } else {
       res.status(500).json({
-        success: false,
-        error: result.error,
+        sucesso: false,
+        erro: resultado.erro,
       });
     }
-  } catch (error) {
+  } catch (erro) {
     res.status(500).json({
-      success: false,
-      error: error.message,
+      sucesso: false,
+      erro: erro.message,
     });
   }
 });
 
 router.get('/clients/:clientId/credits/alerts', requireAuth, async (req, res) => {
   try {
-    const result = await creditService.getActiveAlerts(req.params.clientId);
-    if (result.success) {
+    const resultado = await servicoCreditos.obterAlertasAtivos(req.params.clientId);
+    if (resultado.sucesso) {
       res.json({
-        success: true,
-        data: result.data,
+        sucesso: true,
+        dados: resultado.dados,
       });
     } else {
       res.status(500).json({
-        success: false,
-        error: result.error,
+        sucesso: false,
+        erro: resultado.erro,
       });
     }
-  } catch (error) {
+  } catch (erro) {
     res.status(500).json({
-      success: false,
-      error: error.message,
+      sucesso: false,
+      erro: erro.message,
     });
   }
 });
 
 router.get('/clients/:clientId/executions/:executionId/credits', requireAuth, async (req, res) => {
   try {
-    const result = await creditService.getExecutionCreditDetails(
+    const resultado = await servicoCreditos.obterDetalheCreditosExecucao(
       req.params.clientId,
       req.params.executionId
     );
-    if (result.success) {
+    if (resultado.sucesso) {
       res.json({
-        success: true,
-        data: result.data,
+        sucesso: true,
+        dados: resultado.dados,
       });
     } else {
       res.status(500).json({
-        success: false,
-        error: result.error,
+        sucesso: false,
+        erro: resultado.erro,
       });
     }
-  } catch (error) {
+  } catch (erro) {
     res.status(500).json({
-      success: false,
-      error: error.message,
+      sucesso: false,
+      erro: erro.message,
     });
   }
 });
 
 router.post('/clients/:clientId/credits/calculate', requireAuth, async (req, res) => {
   try {
-    const { dataCollectionSizeGb, reportCount, alertCount } = req.body;
+    const { tamanhoColecaoDadosGb, contaRelatorios, contaAlertas } = req.body;
 
-    const result = await creditService.calculateExecutionCredits(req.params.clientId, {
-      dataCollectionSizeGb: dataCollectionSizeGb || 0,
-      reportCount: reportCount || 1,
-      alertCount: alertCount || 0,
+    const resultado = await servicoCreditos.calcularCreditosExecucao(req.params.clientId, {
+      tamanhoColecaoDadosGb: tamanhoColecaoDadosGb || 0,
+      contaRelatorios: contaRelatorios || 1,
+      contaAlertas: contaAlertas || 0,
     });
 
-    if (result.success) {
+    if (resultado.sucesso) {
       res.json({
-        success: true,
-        data: result.data,
+        sucesso: true,
+        dados: resultado.dados,
       });
     } else {
       res.status(500).json({
-        success: false,
-        error: result.error,
+        sucesso: false,
+        erro: resultado.erro,
       });
     }
-  } catch (error) {
+  } catch (erro) {
     res.status(500).json({
-      success: false,
-      error: error.message,
+      sucesso: false,
+      erro: erro.message,
     });
   }
 });
 
 router.post('/clients/:clientId/credits/consume', requireAuth, async (req, res) => {
   try {
-    const { creditsToConsume, executionId, executionDetails } = req.body;
+    const { creditosConsumidos, idExecucao, detalhesExecucao } = req.body;
 
-    if (!creditsToConsume || creditsToConsume <= 0) {
+    if (!creditosConsumidos || creditosConsumidos <= 0) {
       return res.status(400).json({
-        success: false,
-        error: 'Invalid credits amount',
+        sucesso: false,
+        erro: 'Valor de créditos inválido',
       });
     }
 
-    const result = await creditService.consumeCredits(
+    const resultado = await servicoCreditos.consumirCreditos(
       req.params.clientId,
-      creditsToConsume,
-      executionId,
-      executionDetails
+      creditosConsumidos,
+      idExecucao,
+      detalhesExecucao
     );
 
-    if (result.success) {
+    if (resultado.sucesso) {
       res.json({
-        success: true,
-        data: result.data,
+        sucesso: true,
+        dados: resultado.dados,
       });
     } else {
       res.status(500).json({
-        success: false,
-        error: result.error,
+        sucesso: false,
+        erro: resultado.erro,
       });
     }
-  } catch (error) {
+  } catch (erro) {
     res.status(500).json({
-      success: false,
-      error: error.message,
+      sucesso: false,
+      erro: erro.message,
     });
   }
 });
 
 router.post('/clients/:clientId/credits/add', requireAuth, async (req, res) => {
   try {
-    const { creditsToAdd, reason } = req.body;
+    const { creditosAdicionados, motivo } = req.body;
 
-    if (!creditsToAdd || creditsToAdd <= 0) {
+    if (!creditosAdicionados || creditosAdicionados <= 0) {
       return res.status(400).json({
-        success: false,
-        error: 'Invalid credits amount',
+        sucesso: false,
+        erro: 'Valor de créditos inválido',
       });
     }
 
-    const result = await creditService.addCredits(
+    const resultado = await servicoCreditos.adicionarCreditos(
       req.params.clientId,
-      creditsToAdd,
-      reason || 'Manual Addition'
+      creditosAdicionados,
+      motivo || 'Adição Manual'
     );
 
-    if (result.success) {
+    if (resultado.sucesso) {
       res.json({
-        success: true,
-        data: result.data,
+        sucesso: true,
+        dados: resultado.dados,
       });
     } else {
       res.status(500).json({
-        success: false,
-        error: result.error,
+        sucesso: false,
+        erro: resultado.erro,
       });
     }
-  } catch (error) {
+  } catch (erro) {
     res.status(500).json({
-      success: false,
-      error: error.message,
+      sucesso: false,
+      erro: erro.message,
     });
   }
 });

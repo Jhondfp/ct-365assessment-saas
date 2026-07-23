@@ -18,6 +18,9 @@ import LicenseAnalysis from '@/pages/LicenseAnalysis'
 import LicenseRecommendations from '@/pages/LicenseRecommendations'
 import GovernanceDashboard from '@/pages/GovernanceDashboard'
 import TrashAudit from '@/pages/TrashAudit'
+import StaleFiles from '@/pages/StaleFiles'
+import DuplicatesAnalysis from '@/pages/DuplicatesAnalysis'
+import GovernanceRecommendations from '@/pages/GovernanceRecommendations'
 import { useAuth } from '@/hooks/useAuth'
 
 function AppRoutes() {
@@ -60,6 +63,9 @@ function AppRoutes() {
         <Route path="/clientes/:clientId/licenses/recommendations" element={<LicenseRecommendations />} />
         <Route path="/clientes/:clientId/governance" element={<GovernanceDashboard />} />
         <Route path="/clientes/:clientId/governance/trash" element={<TrashAudit />} />
+        <Route path="/clientes/:clientId/governance/stale-files" element={<StaleFiles />} />
+        <Route path="/clientes/:clientId/governance/duplicates" element={<DuplicatesAnalysis />} />
+        <Route path="/clientes/:clientId/governance/recommendations" element={<GovernanceRecommendations />} />
         <Route path="/tenants" element={<Tenants />} />
         <Route path="/execucoes" element={<Executions />} />
         <Route path="/configuracoes" element={<Settings />} />

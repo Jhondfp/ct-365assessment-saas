@@ -405,6 +405,77 @@ class ApiClient {
     const { data } = await this.client.post(`/licenses/clients/${clientId}/import`, licensesData)
     return data
   }
+
+  // ======================================
+  // Governance - Files & Trash Analysis
+  // ======================================
+  async getFilesDashboard(clientId: string) {
+    const { data } = await this.client.get(`/governance/clients/${clientId}/files/dashboard`)
+    return data.data
+  }
+
+  async getStaleFiles(clientId: string, minYears: number = 1, limit: number = 100) {
+    const { data } = await this.client.get(`/governance/clients/${clientId}/files/stale`, {
+      params: { minYears, limit }
+    })
+    return data.data
+  }
+
+  async getDuplicateFiles(clientId: string, limit: number = 50) {
+    const { data } = await this.client.get(`/governance/clients/${clientId}/files/duplicates`, {
+      params: { limit }
+    })
+    return data.data
+  }
+
+  async getFilesByType(clientId: string) {
+    const { data } = await this.client.get(`/governance/clients/${clientId}/files/by-type`)
+    return data.data
+  }
+
+  async getTrashDashboard(clientId: string) {
+    const { data } = await this.client.get(`/governance/clients/${clientId}/trash/dashboard`)
+    return data.data
+  }
+
+  async getTrashItems(clientId: string, siteFilter?: string, limit: number = 500) {
+    const { data } = await this.client.get(`/governance/clients/${clientId}/trash/items`, {
+      params: { siteFilter, limit }
+    })
+    return data.data
+  }
+
+  async getTrashBySite(clientId: string) {
+    const { data } = await this.client.get(`/governance/clients/${clientId}/trash/by-site`)
+    return data.data
+  }
+
+  async getGovernanceRecommendations(clientId: string, type?: string, limit: number = 20) {
+    const { data } = await this.client.get(`/governance/recommendations`, {
+      params: { clientId, type, limit }
+    })
+    return data.data
+  }
+
+  async markGovernanceRecommendationResolved(recommendationId: string) {
+    const { data } = await this.client.patch(`/governance/recommendations/${recommendationId}/resolve`)
+    return data.data
+  }
+
+  async importFilesData(clientId: string, filesData: any) {
+    const { data } = await this.client.post(`/governance/clients/${clientId}/import/files`, { filesData })
+    return data.data
+  }
+
+  async importTrashData(clientId: string, trashData: any) {
+    const { data } = await this.client.post(`/governance/clients/${clientId}/import/trash`, { trashData })
+    return data.data
+  }
+
+  async getGovernanceReport(clientId: string) {
+    const { data } = await this.client.get(`/governance/clients/${clientId}/report`)
+    return data.data
+  }
 }
 
 export const apiClient = new ApiClient()

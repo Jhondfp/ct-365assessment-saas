@@ -16,6 +16,8 @@ import AcceptInvitation from '@/pages/AcceptInvitation'
 import LicenseDashboard from '@/pages/LicenseDashboard'
 import LicenseAnalysis from '@/pages/LicenseAnalysis'
 import LicenseRecommendations from '@/pages/LicenseRecommendations'
+import GovernanceDashboard from '@/pages/GovernanceDashboard'
+import TrashAudit from '@/pages/TrashAudit'
 import { useAuth } from '@/hooks/useAuth'
 
 function AppRoutes() {
@@ -56,6 +58,8 @@ function AppRoutes() {
         <Route path="/clientes/:clientId/licenses" element={<LicenseDashboard />} />
         <Route path="/clientes/:clientId/licenses/analysis" element={<LicenseAnalysis />} />
         <Route path="/clientes/:clientId/licenses/recommendations" element={<LicenseRecommendations />} />
+        <Route path="/clientes/:clientId/governance" element={<GovernanceDashboard />} />
+        <Route path="/clientes/:clientId/governance/trash" element={<TrashAudit />} />
         <Route path="/tenants" element={<Tenants />} />
         <Route path="/execucoes" element={<Executions />} />
         <Route path="/configuracoes" element={<Settings />} />

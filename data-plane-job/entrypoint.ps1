@@ -172,7 +172,44 @@ try {
     }
 
     # ======================================
-    # 5. CONECTAR AO DATABASE ISOLADO
+    # 5. EXECUTAR COLETA DE ARQUIVOS (DATA GOVERNANCE)
+    # ======================================
+    Write-Log "Iniciando coleta de arquivos para governança..."
+
+    $dataFilesScriptPath = "/app/scripts/Get-DataFiles.ps1"
+    $dataFilesResult = & $dataFilesScriptPath `
+        -TenantId $M365TenantId `
+        -AccessToken $accessToken `
+        -MaxDepth 3
+
+    $dataFilesData = $dataFilesResult | ConvertFrom-Json
+    if ($dataFilesData.summary.totalFiles -gt 0) {
+        Write-Log "✓ Data files collection complete: $($dataFilesData.summary.totalFiles) files, $($dataFilesData.summary.totalSizeGb) GB"
+        $findings += @{ type = "DataFiles"; data = $dataFilesData }
+    } else {
+        Write-Log "⚠ No data files collected"
+    }
+
+    # ======================================
+    # 6. EXECUTAR COLETA DE LIXEIRA (TRASH AUDIT)
+    # ======================================
+    Write-Log "Iniciando auditoria de lixeira..."
+
+    $trashItemsScriptPath = "/app/scripts/Get-TrashItems.ps1"
+    $trashItemsResult = & $trashItemsScriptPath `
+        -TenantId $M365TenantId `
+        -AccessToken $accessToken
+
+    $trashItemsData = $trashItemsResult | ConvertFrom-Json
+    if ($trashItemsData.summary.totalTrashItems -gt 0) {
+        Write-Log "✓ Trash audit complete: $($trashItemsData.summary.totalTrashItems) items, $($trashItemsData.summary.totalTrashSizeGb) GB"
+        $findings += @{ type = "TrashItems"; data = $trashItemsData }
+    } else {
+        Write-Log "⚠ No trash items collected"
+    }
+
+    # ======================================
+    # 7. CONECTAR AO DATABASE ISOLADO
     # ======================================
     Write-Log "Conectando ao database isolado do tenant..."
 
@@ -187,7 +224,7 @@ try {
     Write-Log "✓ Conectado ao database: $SqlDatabase"
 
     # ======================================
-    # 6. SALVAR DADOS DE SHAREPOINT
+    # 8. SALVAR DADOS DE SHAREPOINT
     # ======================================
     Write-Log "Salvando dados de SharePoint..."
 
@@ -229,7 +266,7 @@ try {
     Write-Log "✓ Dados de SharePoint salvos ($($spoData.drives.Count) drives)"
 
     # ======================================
-    # 7. SALVAR DADOS DE ONEDRIVE
+    # 9. SALVAR DADOS DE ONEDRIVE
     # ======================================
     Write-Log "Salvando dados de OneDrive..."
 
@@ -255,7 +292,7 @@ try {
     Write-Log "✓ Dados de OneDrive salvos ($($odData.summary.totalUsersSuccess) usuários)"
 
     # ======================================
-    # 8. SALVAR DADOS DE LICENÇAS
+    # 10. SALVAR DADOS DE LICENÇAS
     # ======================================
     if ($licenseData.summary.totalLicenses -gt 0) {
         Write-Log "Salvando dados de licenças..."
@@ -296,7 +333,7 @@ try {
     }
 
     # ======================================
-    # 9. REGISTRAR LOG DE COLETA
+    # 11. REGISTRAR LOG DE COLETA
     # ======================================
     Write-Log "Registrando log de coleta..."
 
@@ -322,9 +359,9 @@ try {
     Write-Log "✓ Log de coleta registrado"
 
     # ======================================
-    # 10. RELATÓRIO FINAL
+    # 12. RELATÓRIO FINAL
     # ======================================
-    $totalSizeGb = $spoData.summary.totalSizeGb + $odData.summary.totalSizeGb
+    $totalSizeGb = $spoData.summary.totalSizeGb + $odData.summary.totalSizeGb + ($dataFilesData.summary.totalSizeGb ?? 0)
     $totalFiles = $spoData.summary.totalFiles + $odData.summary.totalFiles
     $costPerGb = 0.50  # Configurável
     $costReal = $totalSizeGb * $costPerGb
@@ -345,6 +382,10 @@ try {
             licenses_total      = if ($licenseData) { $licenseData.summary.totalLicenses } else { 0 }
             licenses_usuarios   = if ($licenseData) { $licenseData.summary.totalUsers } else { 0 }
             licenses_utilizacao = if ($licenseData) { $licenseData.summary.utilizationRate } else { 0 }
+            data_files_total    = if ($dataFilesData) { $dataFilesData.summary.totalFiles } else { 0 }
+            stale_files_count   = if ($dataFilesData) { $dataFilesData.summary.staleFilesCount } else { 0 }
+            trash_items_total   = if ($trashItemsData) { $trashItemsData.summary.totalTrashItems } else { 0 }
+            trash_size_gb       = if ($trashItemsData) { $trashItemsData.summary.totalTrashSizeGb } else { 0 }
         }
         sites_analisados          = @($spoData.siteInfo.webUrl)
     }

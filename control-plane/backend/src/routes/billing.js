@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const billingService = require('../services/billingService');
+const creditService = require('../services/creditService');
 const clientService = require('../services/clientService');
 const { requireAuth } = require('../middleware/auth');
 
@@ -119,6 +120,206 @@ router.post('/clients/:clientId/setup-billing', requireAuth, async (req, res) =>
     res.status(201).json(credits);
   } catch (error) {
     res.status(500).json({ error: error.message });
+  }
+});
+
+// ======================================
+// CREDIT CONSUMPTION & ANALYTICS
+// ======================================
+
+router.get('/clients/:clientId/credits/balance', requireAuth, async (req, res) => {
+  try {
+    const result = await creditService.getCreditBalance(req.params.clientId);
+    if (result.success) {
+      res.json({
+        success: true,
+        data: result.data,
+      });
+    } else {
+      res.status(500).json({
+        success: false,
+        error: result.error,
+      });
+    }
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message,
+    });
+  }
+});
+
+router.get('/clients/:clientId/credits/ledger', requireAuth, async (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit) || 50;
+    const offset = parseInt(req.query.offset) || 0;
+
+    const result = await creditService.getCreditLedger(req.params.clientId, limit, offset);
+    if (result.success) {
+      res.json({
+        success: true,
+        data: result.data,
+      });
+    } else {
+      res.status(500).json({
+        success: false,
+        error: result.error,
+      });
+    }
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message,
+    });
+  }
+});
+
+router.get('/clients/:clientId/credits/alerts', requireAuth, async (req, res) => {
+  try {
+    const result = await creditService.getActiveAlerts(req.params.clientId);
+    if (result.success) {
+      res.json({
+        success: true,
+        data: result.data,
+      });
+    } else {
+      res.status(500).json({
+        success: false,
+        error: result.error,
+      });
+    }
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message,
+    });
+  }
+});
+
+router.get('/clients/:clientId/executions/:executionId/credits', requireAuth, async (req, res) => {
+  try {
+    const result = await creditService.getExecutionCreditDetails(
+      req.params.clientId,
+      req.params.executionId
+    );
+    if (result.success) {
+      res.json({
+        success: true,
+        data: result.data,
+      });
+    } else {
+      res.status(500).json({
+        success: false,
+        error: result.error,
+      });
+    }
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message,
+    });
+  }
+});
+
+router.post('/clients/:clientId/credits/calculate', requireAuth, async (req, res) => {
+  try {
+    const { dataCollectionSizeGb, reportCount, alertCount } = req.body;
+
+    const result = await creditService.calculateExecutionCredits(req.params.clientId, {
+      dataCollectionSizeGb: dataCollectionSizeGb || 0,
+      reportCount: reportCount || 1,
+      alertCount: alertCount || 0,
+    });
+
+    if (result.success) {
+      res.json({
+        success: true,
+        data: result.data,
+      });
+    } else {
+      res.status(500).json({
+        success: false,
+        error: result.error,
+      });
+    }
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message,
+    });
+  }
+});
+
+router.post('/clients/:clientId/credits/consume', requireAuth, async (req, res) => {
+  try {
+    const { creditsToConsume, executionId, executionDetails } = req.body;
+
+    if (!creditsToConsume || creditsToConsume <= 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid credits amount',
+      });
+    }
+
+    const result = await creditService.consumeCredits(
+      req.params.clientId,
+      creditsToConsume,
+      executionId,
+      executionDetails
+    );
+
+    if (result.success) {
+      res.json({
+        success: true,
+        data: result.data,
+      });
+    } else {
+      res.status(500).json({
+        success: false,
+        error: result.error,
+      });
+    }
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message,
+    });
+  }
+});
+
+router.post('/clients/:clientId/credits/add', requireAuth, async (req, res) => {
+  try {
+    const { creditsToAdd, reason } = req.body;
+
+    if (!creditsToAdd || creditsToAdd <= 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid credits amount',
+      });
+    }
+
+    const result = await creditService.addCredits(
+      req.params.clientId,
+      creditsToAdd,
+      reason || 'Manual Addition'
+    );
+
+    if (result.success) {
+      res.json({
+        success: true,
+        data: result.data,
+      });
+    } else {
+      res.status(500).json({
+        success: false,
+        error: result.error,
+      });
+    }
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message,
+    });
   }
 });
 

@@ -1,36 +1,36 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
 import { useEffect, useState } from 'react'
 import Layout from '@/components/Layout'
-import Dashboard from '@/pages/Dashboard'
-import Clients from '@/pages/Clients'
-import ClientDetail from '@/pages/ClientDetail'
-import ClientRegistration from '@/pages/ClientRegistration'
-import TenantProvisioning from '@/pages/TenantProvisioning'
-import Tenants from '@/pages/Tenants'
-import Executions from '@/pages/Executions'
-import Settings from '@/pages/Settings'
+import PainelPrincipal from '@/pages/Dashboard'
+import Clientes from '@/pages/Clients'
+import DetalheCliente from '@/pages/ClientDetail'
+import RegistroCliente from '@/pages/ClientRegistration'
+import ProvisionamentoTenant from '@/pages/TenantProvisioning'
+import Inquilinos from '@/pages/Tenants'
+import Execucoes from '@/pages/Executions'
+import Configuracoes from '@/pages/Settings'
 import Login from '@/pages/Login'
-import UserManagement from '@/pages/UserManagement'
-import BillingDashboard from '@/pages/BillingDashboard'
-import CreditDashboard from '@/pages/CreditDashboard'
-import AcceptInvitation from '@/pages/AcceptInvitation'
-import LicenseDashboard from '@/pages/LicenseDashboard'
-import LicenseAnalysis from '@/pages/LicenseAnalysis'
-import LicenseRecommendations from '@/pages/LicenseRecommendations'
-import GovernanceDashboard from '@/pages/GovernanceDashboard'
-import TrashAudit from '@/pages/TrashAudit'
-import StaleFiles from '@/pages/StaleFiles'
-import DuplicatesAnalysis from '@/pages/DuplicatesAnalysis'
-import GovernanceRecommendations from '@/pages/GovernanceRecommendations'
-import GovernanceOverview from '@/pages/GovernanceOverview'
-import GovernanceSecurity from '@/pages/GovernanceSecurity'
-import GovernanceSites from '@/pages/GovernanceSites'
-import GovernanceStorage from '@/pages/GovernanceStorage'
-import GovernanceSharing from '@/pages/GovernanceSharing'
-import GovernancePermissions from '@/pages/GovernancePermissions'
+import GerenciamentoUsuarios from '@/pages/UserManagement'
+import PainelFaturamento from '@/pages/BillingDashboard'
+import PainelCreditos from '@/pages/CreditDashboard'
+import AceitarConvite from '@/pages/AcceptInvitation'
+import PainelLicencas from '@/pages/LicenseDashboard'
+import AnaliseeLicencas from '@/pages/LicenseAnalysis'
+import RecomendacoesLicencas from '@/pages/LicenseRecommendations'
+import PainelGovernanca from '@/pages/GovernanceDashboard'
+import AuditoriaLixo from '@/pages/TrashAudit'
+import ArquivosAntigos from '@/pages/StaleFiles'
+import Analiseduplicatas from '@/pages/DuplicatesAnalysis'
+import RecomendacoesGovernanca from '@/pages/GovernanceRecommendations'
+import VisaoGeralGovernanca from '@/pages/GovernanceOverview'
+import SegurancaGovernanca from '@/pages/GovernanceSecurity'
+import SitesGovernanca from '@/pages/GovernanceSites'
+import ArmazenamentoGovernanca from '@/pages/GovernanceStorage'
+import CompartilhamentoGovernanca from '@/pages/GovernanceSharing'
+import PermissoesGovernanca from '@/pages/GovernancePermissions'
 import { useAuth } from '@/hooks/useAuth'
 
-function AppRoutes() {
+function RotasApp() {
   const { user, loading } = useAuth()
 
   if (loading) {
@@ -44,12 +44,12 @@ function AppRoutes() {
     )
   }
 
-  // Public routes (no authentication required)
+  // Rotas públicas (sem autenticação)
   if (!user) {
     return (
       <Routes>
-        <Route path="/accept-invitation" element={<AcceptInvitation />} />
-        <Route path="/login" element={<Login />} />
+        <Route path="/aceitar-convite" element={<AceitarConvite />} />
+        <Route path="/entrar" element={<Login />} />
         <Route path="*" element={<Login />} />
       </Routes>
     )
@@ -58,61 +58,61 @@ function AppRoutes() {
   return (
     <Layout>
       <Routes>
-        <Route path="/" element={<Dashboard />} />
-        <Route path="/clientes" element={<Clients />} />
-        <Route path="/clientes/novo" element={<ClientRegistration />} />
-        <Route path="/clientes/:clientId" element={<ClientDetail />} />
-        <Route path="/clientes/:clientId/tenant-provisioning" element={<TenantProvisioning />} />
-        <Route path="/clientes/:clientId/users" element={<UserManagement />} />
-        <Route path="/clientes/:clientId/billing" element={<BillingDashboard />} />
-        <Route path="/clientes/:clientId/credits" element={<CreditDashboard />} />
-        <Route path="/clientes/:clientId/licenses" element={<LicenseDashboard />} />
-        <Route path="/clientes/:clientId/licenses/analysis" element={<LicenseAnalysis />} />
-        <Route path="/clientes/:clientId/licenses/recommendations" element={<LicenseRecommendations />} />
-        <Route path="/clientes/:clientId/governance" element={<GovernanceDashboard />} />
-        <Route path="/clientes/:clientId/governance/overview" element={<GovernanceOverview />} />
-        <Route path="/clientes/:clientId/governance/security" element={<GovernanceSecurity />} />
-        <Route path="/clientes/:clientId/governance/sites" element={<GovernanceSites />} />
-        <Route path="/clientes/:clientId/governance/storage" element={<GovernanceStorage />} />
-        <Route path="/clientes/:clientId/governance/sharing" element={<GovernanceSharing />} />
-        <Route path="/clientes/:clientId/governance/permissions" element={<GovernancePermissions />} />
-        <Route path="/clientes/:clientId/governance/trash" element={<TrashAudit />} />
-        <Route path="/clientes/:clientId/governance/stale-files" element={<StaleFiles />} />
-        <Route path="/clientes/:clientId/governance/duplicates" element={<DuplicatesAnalysis />} />
-        <Route path="/clientes/:clientId/governance/recommendations" element={<GovernanceRecommendations />} />
-        <Route path="/tenants" element={<Tenants />} />
-        <Route path="/execucoes" element={<Executions />} />
-        <Route path="/configuracoes" element={<Settings />} />
-        <Route path="/accept-invitation" element={<AcceptInvitation />} />
+        <Route path="/" element={<PainelPrincipal />} />
+        <Route path="/clientes" element={<Clientes />} />
+        <Route path="/clientes/novo" element={<RegistroCliente />} />
+        <Route path="/clientes/:clientId" element={<DetalheCliente />} />
+        <Route path="/clientes/:clientId/provisionamento-tenant" element={<ProvisionamentoTenant />} />
+        <Route path="/clientes/:clientId/usuarios" element={<GerenciamentoUsuarios />} />
+        <Route path="/clientes/:clientId/faturamento" element={<PainelFaturamento />} />
+        <Route path="/clientes/:clientId/creditos" element={<PainelCreditos />} />
+        <Route path="/clientes/:clientId/licencas" element={<PainelLicencas />} />
+        <Route path="/clientes/:clientId/licencas/analise" element={<AnaliseeLicencas />} />
+        <Route path="/clientes/:clientId/licencas/recomendacoes" element={<RecomendacoesLicencas />} />
+        <Route path="/clientes/:clientId/governanca" element={<PainelGovernanca />} />
+        <Route path="/clientes/:clientId/governanca/visao-geral" element={<VisaoGeralGovernanca />} />
+        <Route path="/clientes/:clientId/governanca/seguranca" element={<SegurancaGovernanca />} />
+        <Route path="/clientes/:clientId/governanca/sites" element={<SitesGovernanca />} />
+        <Route path="/clientes/:clientId/governanca/armazenamento" element={<ArmazenamentoGovernanca />} />
+        <Route path="/clientes/:clientId/governanca/compartilhamento" element={<CompartilhamentoGovernanca />} />
+        <Route path="/clientes/:clientId/governanca/permissoes" element={<PermissoesGovernanca />} />
+        <Route path="/clientes/:clientId/governanca/lixo" element={<AuditoriaLixo />} />
+        <Route path="/clientes/:clientId/governanca/arquivos-antigos" element={<ArquivosAntigos />} />
+        <Route path="/clientes/:clientId/governanca/duplicatas" element={<Analiseduplicatas />} />
+        <Route path="/clientes/:clientId/governanca/recomendacoes" element={<RecomendacoesGovernanca />} />
+        <Route path="/inquilinos" element={<Inquilinos />} />
+        <Route path="/execucoes" element={<Execucoes />} />
+        <Route path="/configuracoes" element={<Configuracoes />} />
+        <Route path="/aceitar-convite" element={<AceitarConvite />} />
         <Route path="*" element={<Navigate to="/" />} />
       </Routes>
     </Layout>
   )
 }
 
-export default function App() {
-  const [theme, setTheme] = useState<'light' | 'dark'>('light')
+export default function Aplicacao() {
+  const [tema, setTema] = useState<'light' | 'dark'>('light')
 
   useEffect(() => {
     // Detectar preferência do sistema
-    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
-    const saved = localStorage.getItem('theme') as 'light' | 'dark' | null
-    const initial = saved || (prefersDark ? 'dark' : 'light')
+    const preferirEscuro = window.matchMedia('(prefers-color-scheme: dark)').matches
+    const salvo = localStorage.getItem('theme') as 'light' | 'dark' | null
+    const inicial = salvo || (preferirEscuro ? 'dark' : 'light')
 
-    setTheme(initial)
-    document.documentElement.setAttribute('data-theme', initial)
+    setTema(inicial)
+    document.documentElement.setAttribute('data-theme', inicial)
   }, [])
 
-  const toggleTheme = () => {
-    const newTheme = theme === 'light' ? 'dark' : 'light'
-    setTheme(newTheme)
-    localStorage.setItem('theme', newTheme)
-    document.documentElement.setAttribute('data-theme', newTheme)
+  const alternarTema = () => {
+    const novoTema = tema === 'light' ? 'dark' : 'light'
+    setTema(novoTema)
+    localStorage.setItem('theme', novoTema)
+    document.documentElement.setAttribute('data-theme', novoTema)
   }
 
   return (
     <Router>
-      <AppRoutes />
+      <RotasApp />
     </Router>
   )
 }

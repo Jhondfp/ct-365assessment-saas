@@ -6,17 +6,17 @@ const session = require('express-session');
 const passport = require('passport');
 const logger = require('./config/logger');
 const config = require('./config');
-const authRoutes = require('./routes/auth');
-const clientRoutes = require('./routes/clients');
-const tenantRoutes = require('./routes/tenants');
-const executionRoutes = require('./routes/executions');
-const dashboardRoutes = require('./routes/dashboard');
-const featuresRoutes = require('./routes/features');
-const adminRoutes = require('./routes/admin');
-const billingRoutes = require('./routes/billing');
-const licenseRoutes = require('./routes/licenses');
-const governanceRoutes = require('./routes/governance');
-const completeGovernanceRoutes = require('./routes/completeGovernance');
+const rotasAutenticacao = require('./routes/auth');
+const rotasClientes = require('./routes/clients');
+const rotasInquilinos = require('./routes/tenants');
+const rotasExecucoes = require('./routes/executions');
+const rotasPainel = require('./routes/dashboard');
+const rotasRecursos = require('./routes/features');
+const rotasAdmin = require('./routes/admin');
+const rotasFaturamento = require('./routes/billing');
+const rotasLicencas = require('./routes/licenses');
+const rotasGovernanca = require('./routes/governance');
+const rotasGovernancaCompleta = require('./routes/completeGovernance');
 
 const app = express();
 
@@ -32,7 +32,7 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ limit: '10mb', extended: true }));
 
 // ======================================
-// SESSION & AUTENTICAÇÃO
+// SESSÃO E AUTENTICAÇÃO
 // ======================================
 app.use(session({
   secret: config.SESSION_SECRET,
@@ -50,18 +50,18 @@ app.use(passport.initialize());
 app.use(passport.session());
 
 // ======================================
-// LOGGING MIDDLEWARE
+// MIDDLEWARE DE REGISTRO
 // ======================================
 app.use((req, res, next) => {
-  const start = Date.now();
+  const inicio = Date.now();
   res.on('finish', () => {
-    const duration = Date.now() - start;
+    const duracao = Date.now() - inicio;
     logger.info({
-      method: req.method,
-      path: req.path,
+      metodo: req.method,
+      caminho: req.path,
       status: res.statusCode,
-      duration: `${duration}ms`,
-      user: req.user?.email || 'anonymous'
+      duracao: `${duracao}ms`,
+      usuario: req.user?.email || 'anonimo'
     });
   });
   next();
@@ -70,44 +70,44 @@ app.use((req, res, next) => {
 // ======================================
 // ROTAS PÚBLICAS
 // ======================================
-app.use('/api/auth', authRoutes);
+app.use('/api/auth', rotasAutenticacao);
 
-// Health check
-app.get('/health', (req, res) => {
+// Verificação de saúde
+app.get('/saude', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-// User invitation acceptance (public)
-const userService = require('./services/userService');
-app.post('/api/auth/accept-invitation', async (req, res) => {
+// Aceitação de convite de usuário (público)
+const servicoUsuario = require('./services/userService');
+app.post('/api/auth/aceitar-convite', async (req, res) => {
   try {
     const { token, name, password_hash, telefone } = req.body;
 
     if (!token || !name || !password_hash) {
-      return res.status(400).json({ error: 'Missing required fields' });
+      return res.status(400).json({ erro: 'Campos obrigatórios faltando' });
     }
 
-    const result = await userService.acceptInvitation(token, {
+    const resultado = await servicoUsuario.acceptInvitation(token, {
       name,
       password_hash,
       telefone,
     });
 
     res.status(201).json({
-      user: result.user,
-      message: 'User account created successfully',
+      usuario: resultado.user,
+      mensagem: 'Conta de usuário criada com sucesso',
     });
-  } catch (error) {
-    res.status(400).json({ error: error.message });
+  } catch (erro) {
+    res.status(400).json({ erro: erro.message });
   }
 });
 
 // ======================================
 // MIDDLEWARE DE AUTENTICAÇÃO
 // ======================================
-const requireAuth = (req, res, next) => {
+const requerAutenticacao = (req, res, next) => {
   if (!req.user) {
-    return res.status(401).json({ error: 'Não autenticado' });
+    return res.status(401).json({ erro: 'Não autenticado' });
   }
   next();
 };
@@ -115,59 +115,59 @@ const requireAuth = (req, res, next) => {
 // ======================================
 // ROTAS PROTEGIDAS
 // ======================================
-app.use('/api/clients', requireAuth, clientRoutes);
-app.use('/api/tenants', requireAuth, tenantRoutes);
-app.use('/api/executions', requireAuth, executionRoutes);
-app.use('/api/dashboard', requireAuth, dashboardRoutes);
-app.use('/api', requireAuth, featuresRoutes);
-app.use('/api/admin', requireAuth, adminRoutes);
-app.use('/api/billing', requireAuth, billingRoutes);
-app.use('/api/licenses', requireAuth, licenseRoutes);
-app.use('/api/governance', requireAuth, governanceRoutes);
-app.use('/api/governance', requireAuth, completeGovernanceRoutes);
+app.use('/api/clientes', requerAutenticacao, rotasClientes);
+app.use('/api/inquilinos', requerAutenticacao, rotasInquilinos);
+app.use('/api/execucoes', requerAutenticacao, rotasExecucoes);
+app.use('/api/painel', requerAutenticacao, rotasPainel);
+app.use('/api', requerAutenticacao, rotasRecursos);
+app.use('/api/admin', requerAutenticacao, rotasAdmin);
+app.use('/api/faturamento', requerAutenticacao, rotasFaturamento);
+app.use('/api/licencas', requerAutenticacao, rotasLicencas);
+app.use('/api/governanca', requerAutenticacao, rotasGovernanca);
+app.use('/api/governanca', requerAutenticacao, rotasGovernancaCompleta);
 
 // ======================================
-// ERROR HANDLING
+// TRATAMENTO DE ERROS
 // ======================================
-app.use((err, req, res, next) => {
+app.use((erro, req, res, next) => {
   logger.error({
-    error: err.message,
-    stack: err.stack,
-    path: req.path,
-    method: req.method
+    erro: erro.message,
+    stack: erro.stack,
+    caminho: req.path,
+    metodo: req.method
   });
 
-  if (err.status) {
-    return res.status(err.status).json({ error: err.message });
+  if (erro.status) {
+    return res.status(erro.status).json({ erro: erro.message });
   }
 
   res.status(500).json({
-    error: 'Erro interno do servidor',
-    message: process.env.NODE_ENV === 'development' ? err.message : undefined
+    erro: 'Erro interno do servidor',
+    mensagem: process.env.NODE_ENV === 'development' ? erro.message : undefined
   });
 });
 
 // ======================================
-// 404 HANDLER
+// MANIPULADOR 404
 // ======================================
 app.use((req, res) => {
-  res.status(404).json({ error: 'Rota não encontrada' });
+  res.status(404).json({ erro: 'Rota não encontrada' });
 });
 
 // ======================================
 // INICIALIZAÇÃO
 // ======================================
-const PORT = process.env.PORT || 3000;
-const server = app.listen(PORT, () => {
-  logger.info(`✓ Control Plane iniciado na porta ${PORT}`);
+const PORTA = process.env.PORT || 3000;
+const servidor = app.listen(PORTA, () => {
+  logger.info(`✓ Plano de Controle iniciado na porta ${PORTA}`);
   logger.info(`  Ambiente: ${process.env.NODE_ENV}`);
-  logger.info(`  Base de dados: ${config.CP_DB_SERVER}`);
+  logger.info(`  Banco de dados: ${config.CP_DB_SERVER}`);
 });
 
-// Graceful shutdown
+// Encerramento gracioso
 process.on('SIGTERM', () => {
-  logger.info('SIGTERM recebido, encerrando gracefully...');
-  server.close(() => {
+  logger.info('SIGTERM recebido, encerrando graciosamente...');
+  servidor.close(() => {
     logger.info('Servidor encerrado');
     process.exit(0);
   });

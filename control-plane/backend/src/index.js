@@ -18,6 +18,7 @@ const rotasLicencas = require('./routes/licenses');
 const rotasGovernanca = require('./routes/governance');
 const rotasGovernancaCompleta = require('./routes/completeGovernance');
 const rotasTimes = require('./routes/teams');
+const rotasPurview = require('./routes/purview');
 
 const app = express();
 
@@ -127,6 +128,7 @@ app.use('/api/licencas', requerAutenticacao, rotasLicencas);
 app.use('/api/governanca', requerAutenticacao, rotasGovernanca);
 app.use('/api/governanca', requerAutenticacao, rotasGovernancaCompleta);
 app.use('/api/governanca', requerAutenticacao, rotasTimes);
+app.use('/api/governanca', requerAutenticacao, rotasPurview);
 
 // ======================================
 // TRATAMENTO DE ERROS

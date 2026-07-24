@@ -28,6 +28,7 @@ import SitesGovernanca from '@/pages/GovernanceSites'
 import ArmazenamentoGovernanca from '@/pages/GovernanceStorage'
 import CompartilhamentoGovernanca from '@/pages/GovernanceSharing'
 import PermissoesGovernanca from '@/pages/GovernancePermissions'
+import PainelTimes from '@/pages/TeamsDashboard'
 import { useAuth } from '@/hooks/useAuth'
 
 function RotasApp() {
@@ -76,6 +77,7 @@ function RotasApp() {
         <Route path="/clientes/:clientId/governanca/armazenamento" element={<ArmazenamentoGovernanca />} />
         <Route path="/clientes/:clientId/governanca/compartilhamento" element={<CompartilhamentoGovernanca />} />
         <Route path="/clientes/:clientId/governanca/permissoes" element={<PermissoesGovernanca />} />
+        <Route path="/clientes/:clientId/governanca/times" element={<PainelTimes />} />
         <Route path="/clientes/:clientId/governanca/lixo" element={<AuditoriaLixo />} />
         <Route path="/clientes/:clientId/governanca/arquivos-antigos" element={<ArquivosAntigos />} />
         <Route path="/clientes/:clientId/governanca/duplicatas" element={<Analiseduplicatas />} />

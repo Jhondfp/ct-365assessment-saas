@@ -7,298 +7,304 @@
 -- ==========================
 
 -- Site health scores and compliance metrics
-CREATE TABLE [dbo].[sites_analysis] (
-    [id] BIGINT IDENTITY(1,1) NOT NULL,
-    [site_id] NVARCHAR(128) NOT NULL,
-    [site_name] NVARCHAR(256) NOT NULL,
-    [site_url] NVARCHAR(512) NOT NULL,
-    [site_owner] NVARCHAR(256) NULL,
-    [owner_email] NVARCHAR(256) NULL,
-    [health_score] INT DEFAULT 50, -- 0-100
-    [compliance_rate] INT DEFAULT 50, -- 0-100
-    [total_users] INT DEFAULT 0,
-    [total_storage_gb] DECIMAL(18,2) DEFAULT 0,
-    [stale_files_count] INT DEFAULT 0,
-    [external_shares] INT DEFAULT 0,
-    [inactive_users] INT DEFAULT 0,
-    [security_findings] INT DEFAULT 0,
-    [last_scan] DATETIME2 DEFAULT GETUTCDATE(),
-    [coletado_em] DATETIME2 DEFAULT GETUTCDATE() NOT NULL,
-    CONSTRAINT [PK_sites_analysis] PRIMARY KEY CLUSTERED ([site_id]),
-    UNIQUE NONCLUSTERED ([site_url])
+CREATE TABLE sites_analysis (
+    id BIGSERIAL NOT NULL,
+    site_id VARCHAR(128) NOT NULL,
+    site_name VARCHAR(256) NOT NULL,
+    site_url VARCHAR(512) NOT NULL,
+    site_owner VARCHAR(256) NULL,
+    owner_email VARCHAR(256) NULL,
+    health_score INTEGER DEFAULT 50,
+    compliance_rate INTEGER DEFAULT 50,
+    total_users INTEGER DEFAULT 0,
+    total_storage_gb DECIMAL(18,2) DEFAULT 0,
+    stale_files_count INTEGER DEFAULT 0,
+    external_shares INTEGER DEFAULT 0,
+    inactive_users INTEGER DEFAULT 0,
+    security_findings INTEGER DEFAULT 0,
+    last_scan TIMESTAMP DEFAULT NOW(),
+    coletado_em TIMESTAMP DEFAULT NOW() NOT NULL,
+    PRIMARY KEY (site_id),
+    UNIQUE (site_url)
 );
-CREATE NONCLUSTERED INDEX [IX_sites_health] ON [dbo].[sites_analysis] ([health_score] DESC);
-CREATE NONCLUSTERED INDEX [IX_sites_owner] ON [dbo].[sites_analysis] ([site_owner]);
+CREATE INDEX ix_sites_health ON sites_analysis (health_score DESC);
+CREATE INDEX ix_sites_owner ON sites_analysis (site_owner);
 
 -- ==========================
 -- SECURITY FINDINGS TABLE
 -- ==========================
 
-CREATE TABLE [dbo].[security_findings] (
-    [id] BIGINT IDENTITY(1,1) NOT NULL,
-    [finding_id] NVARCHAR(128) NOT NULL UNIQUE,
-    [category] NVARCHAR(64) NOT NULL, -- 'external_sharing', 'weak_permissions', 'mfa_not_enabled', etc.
-    [severity] NVARCHAR(32) NOT NULL, -- 'critical', 'high', 'medium', 'low'
-    [title] NVARCHAR(256) NOT NULL,
-    [description] NVARCHAR(MAX) NULL,
-    [site_id] NVARCHAR(128) NULL,
-    [site_name] NVARCHAR(256) NULL,
-    [affected_count] INT DEFAULT 0, -- Number of affected users, documents, etc.
-    [remediation] NVARCHAR(MAX) NULL,
-    [status] NVARCHAR(32) DEFAULT 'open', -- 'open', 'in_progress', 'resolved'
-    [data_criacao] DATETIME2 DEFAULT GETUTCDATE() NOT NULL,
-    [data_resolucao] DATETIME2 NULL,
-    [coletado_em] DATETIME2 DEFAULT GETUTCDATE() NOT NULL,
-    CONSTRAINT [PK_security_findings] PRIMARY KEY CLUSTERED ([id])
+CREATE TABLE security_findings (
+    id BIGSERIAL NOT NULL,
+    finding_id VARCHAR(128) NOT NULL UNIQUE,
+    category VARCHAR(64) NOT NULL,
+    severity VARCHAR(32) NOT NULL,
+    title VARCHAR(256) NOT NULL,
+    description TEXT NULL,
+    site_id VARCHAR(128) NULL,
+    site_name VARCHAR(256) NULL,
+    affected_count INTEGER DEFAULT 0,
+    remediation TEXT NULL,
+    status VARCHAR(32) DEFAULT 'open',
+    data_criacao TIMESTAMP DEFAULT NOW() NOT NULL,
+    data_resolucao TIMESTAMP NULL,
+    coletado_em TIMESTAMP DEFAULT NOW() NOT NULL,
+    PRIMARY KEY (id)
 );
-CREATE NONCLUSTERED INDEX [IX_findings_category] ON [dbo].[security_findings] ([category]);
-CREATE NONCLUSTERED INDEX [IX_findings_severity] ON [dbo].[security_findings] ([severity]);
-CREATE NONCLUSTERED INDEX [IX_findings_status] ON [dbo].[security_findings] ([status]);
+CREATE INDEX ix_findings_category ON security_findings (category);
+CREATE INDEX ix_findings_severity ON security_findings (severity);
+CREATE INDEX ix_findings_status ON security_findings (status);
 
 -- ==========================
 -- SHARING ANALYSIS TABLE
 -- ==========================
 
-CREATE TABLE [dbo].[sharing_analysis] (
-    [id] BIGINT IDENTITY(1,1) NOT NULL,
-    [share_id] NVARCHAR(256) NOT NULL UNIQUE,
-    [file_id] NVARCHAR(256) NULL,
-    [file_name] NVARCHAR(512) NULL,
-    [site_id] NVARCHAR(128) NULL,
-    [site_name] NVARCHAR(256) NULL,
-    [share_type] NVARCHAR(64) NOT NULL, -- 'external_user', 'public_anyone', 'organization', 'group', 'guest'
-    [shared_with] NVARCHAR(512) NULL, -- Email, domain, or group name
-    [shared_by] NVARCHAR(256) NULL,
-    [share_date] DATETIME2 NULL,
-    [expiration_date] DATETIME2 NULL,
-    [permissions] NVARCHAR(64) NULL, -- 'read', 'edit', 'owner'
-    [is_risky] BIT DEFAULT 0,
-    [risk_reason] NVARCHAR(256) NULL, -- 'public_access', 'no_expiration', 'external_domain'
-    [coletado_em] DATETIME2 DEFAULT GETUTCDATE() NOT NULL,
-    CONSTRAINT [PK_sharing_analysis] PRIMARY KEY CLUSTERED ([id])
+CREATE TABLE sharing_analysis (
+    id BIGSERIAL NOT NULL,
+    share_id VARCHAR(256) NOT NULL UNIQUE,
+    file_id VARCHAR(256) NULL,
+    file_name VARCHAR(512) NULL,
+    site_id VARCHAR(128) NULL,
+    site_name VARCHAR(256) NULL,
+    share_type VARCHAR(64) NOT NULL,
+    shared_with VARCHAR(512) NULL,
+    shared_by VARCHAR(256) NULL,
+    share_date TIMESTAMP NULL,
+    expiration_date TIMESTAMP NULL,
+    permissions VARCHAR(64) NULL,
+    is_risky BOOLEAN DEFAULT FALSE,
+    risk_reason VARCHAR(256) NULL,
+    coletado_em TIMESTAMP DEFAULT NOW() NOT NULL,
+    PRIMARY KEY (id)
 );
-CREATE NONCLUSTERED INDEX [IX_sharing_type] ON [dbo].[sharing_analysis] ([share_type]);
-CREATE NONCLUSTERED INDEX [IX_sharing_risky] ON [dbo].[sharing_analysis] ([is_risky]);
+CREATE INDEX ix_sharing_type ON sharing_analysis (share_type);
+CREATE INDEX ix_sharing_risky ON sharing_analysis (is_risky);
 
 -- ==========================
 -- USER PERMISSIONS TABLE
 -- ==========================
 
-CREATE TABLE [dbo].[user_permissions] (
-    [id] BIGINT IDENTITY(1,1) NOT NULL,
-    [user_id] NVARCHAR(256) NOT NULL,
-    [user_email] NVARCHAR(256) NOT NULL,
-    [user_name] NVARCHAR(256) NULL,
-    [site_id] NVARCHAR(128) NOT NULL,
-    [site_name] NVARCHAR(256) NULL,
-    [permission_level] NVARCHAR(64) NOT NULL, -- 'owner', 'member', 'visitor'
-    [is_site_owner] BIT DEFAULT 0,
-    [mfa_enabled] BIT DEFAULT 0,
-    [last_activity] DATETIME2 NULL,
-    [inactive_days] INT DEFAULT 0,
-    [is_inactive] BIT DEFAULT 0, -- Not accessed in >90 days
-    [is_external] BIT DEFAULT 0,
-    [coletado_em] DATETIME2 DEFAULT GETUTCDATE() NOT NULL,
-    CONSTRAINT [PK_user_permissions] PRIMARY KEY CLUSTERED ([id]),
-    UNIQUE NONCLUSTERED ([user_id], [site_id])
+CREATE TABLE user_permissions (
+    id BIGSERIAL NOT NULL,
+    user_id VARCHAR(256) NOT NULL,
+    user_email VARCHAR(256) NOT NULL,
+    user_name VARCHAR(256) NULL,
+    site_id VARCHAR(128) NOT NULL,
+    site_name VARCHAR(256) NULL,
+    permission_level VARCHAR(64) NOT NULL,
+    is_site_owner BOOLEAN DEFAULT FALSE,
+    mfa_enabled BOOLEAN DEFAULT FALSE,
+    last_activity TIMESTAMP NULL,
+    inactive_days INTEGER DEFAULT 0,
+    is_inactive BOOLEAN DEFAULT FALSE,
+    is_external BOOLEAN DEFAULT FALSE,
+    coletado_em TIMESTAMP DEFAULT NOW() NOT NULL,
+    PRIMARY KEY (id),
+    UNIQUE (user_id, site_id)
 );
-CREATE NONCLUSTERED INDEX [IX_permissions_user] ON [dbo].[user_permissions] ([user_email]);
-CREATE NONCLUSTERED INDEX [IX_permissions_mfa] ON [dbo].[user_permissions] ([mfa_enabled]);
-CREATE NONCLUSTERED INDEX [IX_permissions_inactive] ON [dbo].[user_permissions] ([is_inactive]);
+CREATE INDEX ix_permissions_user ON user_permissions (user_email);
+CREATE INDEX ix_permissions_mfa ON user_permissions (mfa_enabled);
+CREATE INDEX ix_permissions_inactive ON user_permissions (is_inactive);
 
 -- ==========================
 -- COMPLIANCE FRAMEWORK TABLE
 -- ==========================
 
-CREATE TABLE [dbo].[compliance_framework] (
-    [id] INT NOT NULL,
-    [framework_name] NVARCHAR(64) NOT NULL, -- 'GDPR', 'HIPAA', 'SOC2', 'ISO27001'
-    [control_name] NVARCHAR(256) NOT NULL,
-    [requirement] NVARCHAR(MAX) NULL,
-    [is_compliant] BIT DEFAULT 0,
-    [evidence] NVARCHAR(MAX) NULL,
-    [remediation] NVARCHAR(MAX) NULL,
-    [last_assessed] DATETIME2 NULL,
-    CONSTRAINT [PK_compliance_framework] PRIMARY KEY CLUSTERED ([id])
+CREATE TABLE compliance_framework (
+    id INTEGER NOT NULL,
+    framework_name VARCHAR(64) NOT NULL,
+    control_name VARCHAR(256) NOT NULL,
+    requirement TEXT NULL,
+    is_compliant BOOLEAN DEFAULT FALSE,
+    evidence TEXT NULL,
+    remediation TEXT NULL,
+    last_assessed TIMESTAMP NULL,
+    PRIMARY KEY (id)
 );
 
 -- ==========================
 -- GOVERNANCE DASHBOARD AGGREGATES
 -- ==========================
 
-CREATE TABLE [dbo].[agg_governance_summary] (
-    [metric_date] DATE NOT NULL,
-    [total_sites] INT DEFAULT 0,
-    [healthy_sites] INT DEFAULT 0,
-    [warning_sites] INT DEFAULT 0,
-    [critical_sites] INT DEFAULT 0,
-    [avg_health_score] INT DEFAULT 0,
-    [total_users] INT DEFAULT 0,
-    [mfa_enabled_count] INT DEFAULT 0,
-    [total_external_shares] INT DEFAULT 0,
-    [public_shares] INT DEFAULT 0,
-    [security_findings_count] INT DEFAULT 0,
-    [compliance_rate] INT DEFAULT 50,
-    [total_storage_gb] DECIMAL(18,2) DEFAULT 0,
-    [stale_files_gb] DECIMAL(18,2) DEFAULT 0,
-    [duplicate_files_gb] DECIMAL(18,2) DEFAULT 0,
-    [trash_items_gb] DECIMAL(18,2) DEFAULT 0,
-    [last_updated] DATETIME2 DEFAULT GETUTCDATE(),
-    CONSTRAINT [PK_agg_governance_summary] PRIMARY KEY CLUSTERED ([metric_date])
+CREATE TABLE agg_governance_summary (
+    metric_date DATE NOT NULL,
+    total_sites INTEGER DEFAULT 0,
+    healthy_sites INTEGER DEFAULT 0,
+    warning_sites INTEGER DEFAULT 0,
+    critical_sites INTEGER DEFAULT 0,
+    avg_health_score INTEGER DEFAULT 0,
+    total_users INTEGER DEFAULT 0,
+    mfa_enabled_count INTEGER DEFAULT 0,
+    total_external_shares INTEGER DEFAULT 0,
+    public_shares INTEGER DEFAULT 0,
+    security_findings_count INTEGER DEFAULT 0,
+    compliance_rate INTEGER DEFAULT 50,
+    total_storage_gb DECIMAL(18,2) DEFAULT 0,
+    stale_files_gb DECIMAL(18,2) DEFAULT 0,
+    duplicate_files_gb DECIMAL(18,2) DEFAULT 0,
+    trash_items_gb DECIMAL(18,2) DEFAULT 0,
+    last_updated TIMESTAMP DEFAULT NOW(),
+    PRIMARY KEY (metric_date)
 );
 
 -- ==========================
 -- STORED PROCEDURES
 -- ==========================
 
--- Refresh all governance aggregates
-CREATE PROCEDURE [dbo].[sp_RefreshCompletGovernanceAggregates]
-AS
+-- Function to refresh all governance aggregates
+CREATE OR REPLACE FUNCTION sp_refresh_complet_governance_aggregates()
+RETURNS void AS $$
+DECLARE
+    v_metric_date DATE;
 BEGIN
-    DECLARE @MetricDate DATE = CAST(GETUTCDATE() AS DATE);
+    v_metric_date := CAST(NOW() AS DATE);
 
     -- Delete existing record for today
-    DELETE FROM [dbo].[agg_governance_summary] WHERE [metric_date] = @MetricDate;
+    DELETE FROM agg_governance_summary WHERE metric_date = v_metric_date;
 
     -- Calculate and insert summary metrics
-    INSERT INTO [dbo].[agg_governance_summary] (
-        [metric_date],
-        [total_sites],
-        [healthy_sites],
-        [warning_sites],
-        [critical_sites],
-        [avg_health_score],
-        [total_users],
-        [mfa_enabled_count],
-        [total_external_shares],
-        [public_shares],
-        [security_findings_count],
-        [compliance_rate],
-        [total_storage_gb],
-        [stale_files_gb],
-        [duplicate_files_gb],
-        [trash_items_gb]
+    INSERT INTO agg_governance_summary (
+        metric_date,
+        total_sites,
+        healthy_sites,
+        warning_sites,
+        critical_sites,
+        avg_health_score,
+        total_users,
+        mfa_enabled_count,
+        total_external_shares,
+        public_shares,
+        security_findings_count,
+        compliance_rate,
+        total_storage_gb,
+        stale_files_gb,
+        duplicate_files_gb,
+        trash_items_gb
     )
     SELECT
-        @MetricDate,
+        v_metric_date,
         -- Total sites
-        (SELECT COUNT(DISTINCT [site_id]) FROM [dbo].[sites_analysis]),
+        (SELECT COUNT(DISTINCT site_id) FROM sites_analysis),
         -- Healthy sites (score >= 80)
-        (SELECT COUNT(DISTINCT [site_id]) FROM [dbo].[sites_analysis] WHERE [health_score] >= 80),
+        (SELECT COUNT(DISTINCT site_id) FROM sites_analysis WHERE health_score >= 80),
         -- Warning sites (score 60-79)
-        (SELECT COUNT(DISTINCT [site_id]) FROM [dbo].[sites_analysis] WHERE [health_score] >= 60 AND [health_score] < 80),
+        (SELECT COUNT(DISTINCT site_id) FROM sites_analysis WHERE health_score >= 60 AND health_score < 80),
         -- Critical sites (score < 60)
-        (SELECT COUNT(DISTINCT [site_id]) FROM [dbo].[sites_analysis] WHERE [health_score] < 60),
+        (SELECT COUNT(DISTINCT site_id) FROM sites_analysis WHERE health_score < 60),
         -- Average health score
-        ISNULL((SELECT AVG(CAST([health_score] AS INT)) FROM [dbo].[sites_analysis]), 50),
+        COALESCE((SELECT AVG(CAST(health_score AS INTEGER)) FROM sites_analysis), 50),
         -- Total unique users
-        (SELECT COUNT(DISTINCT [user_email]) FROM [dbo].[user_permissions]),
+        (SELECT COUNT(DISTINCT user_email) FROM user_permissions),
         -- MFA enabled count
-        (SELECT COUNT(DISTINCT [user_email]) FROM [dbo].[user_permissions] WHERE [mfa_enabled] = 1),
+        (SELECT COUNT(DISTINCT user_email) FROM user_permissions WHERE mfa_enabled = TRUE),
         -- External shares
-        (SELECT COUNT(*) FROM [dbo].[sharing_analysis] WHERE [share_type] IN ('external_user', 'guest')),
+        (SELECT COUNT(*) FROM sharing_analysis WHERE share_type IN ('external_user', 'guest')),
         -- Public shares
-        (SELECT COUNT(*) FROM [dbo].[sharing_analysis] WHERE [share_type] = 'public_anyone'),
+        (SELECT COUNT(*) FROM sharing_analysis WHERE share_type = 'public_anyone'),
         -- Security findings (open)
-        (SELECT COUNT(*) FROM [dbo].[security_findings] WHERE [status] = 'open'),
+        (SELECT COUNT(*) FROM security_findings WHERE status = 'open'),
         -- Compliance rate (placeholder)
         75,
         -- Total storage
-        ISNULL((SELECT SUM(CAST([total_storage_gb] AS DECIMAL(18,2))) FROM [dbo].[sites_analysis]), 0),
+        COALESCE((SELECT SUM(CAST(total_storage_gb AS DECIMAL(18,2))) FROM sites_analysis), 0),
         -- Stale files
-        ISNULL((SELECT SUM(CAST([total_size_gb] AS DECIMAL(18,2))) FROM [dbo].[agg_stale_files]), 0),
+        COALESCE((SELECT SUM(CAST(total_size_gb AS DECIMAL(18,2))) FROM agg_stale_files), 0),
         -- Duplicate files
-        ISNULL((SELECT SUM(CAST([total_size_gb] AS DECIMAL(18,2))) FROM [dbo].[agg_duplicate_files]), 0),
+        COALESCE((SELECT SUM(CAST(total_size_gb AS DECIMAL(18,2))) FROM agg_duplicate_files), 0),
         -- Trash items
-        ISNULL((SELECT SUM(CAST([total_size_gb] AS DECIMAL(18,2))) FROM [dbo].[agg_trash_summary]), 0);
+        COALESCE((SELECT SUM(CAST(total_size_gb AS DECIMAL(18,2))) FROM agg_trash_summary), 0);
 END;
-GO
+$$ LANGUAGE plpgsql;
 
--- Get complete governance overview
-CREATE PROCEDURE [dbo].[sp_GetGovernanceOverview]
-AS
+-- Function to get complete governance overview
+CREATE OR REPLACE FUNCTION sp_get_governance_overview()
+RETURNS TABLE(total_sites BIGINT, avg_health_score NUMERIC, healthy_sites BIGINT, warning_sites BIGINT, critical_sites BIGINT, open_findings BIGINT, mfa_enabled_users BIGINT, mfa_disabled_users BIGINT, risky_shares BIGINT, total_storage_gb DECIMAL) AS $$
 BEGIN
+    RETURN QUERY
     SELECT
-        (SELECT COUNT(DISTINCT [site_id]) FROM [dbo].[sites_analysis]) as [total_sites],
-        (SELECT AVG(CAST([health_score] AS INT)) FROM [dbo].[sites_analysis]) as [avg_health_score],
-        (SELECT COUNT(DISTINCT [site_id]) FROM [dbo].[sites_analysis] WHERE [health_score] >= 80) as [healthy_sites],
-        (SELECT COUNT(DISTINCT [site_id]) FROM [dbo].[sites_analysis] WHERE [health_score] >= 60 AND [health_score] < 80) as [warning_sites],
-        (SELECT COUNT(DISTINCT [site_id]) FROM [dbo].[sites_analysis] WHERE [health_score] < 60) as [critical_sites],
-        (SELECT COUNT(*) FROM [dbo].[security_findings] WHERE [status] = 'open') as [open_findings],
-        (SELECT COUNT(DISTINCT [user_email]) FROM [dbo].[user_permissions] WHERE [mfa_enabled] = 1) as [mfa_enabled_users],
-        (SELECT COUNT(DISTINCT [user_email]) FROM [dbo].[user_permissions] WHERE [mfa_enabled] = 0) as [mfa_disabled_users],
-        (SELECT COUNT(*) FROM [dbo].[sharing_analysis] WHERE [is_risky] = 1) as [risky_shares],
-        ISNULL((SELECT SUM(CAST([total_storage_gb] AS DECIMAL(18,2))) FROM [dbo].[sites_analysis]), 0) as [total_storage_gb];
+        (SELECT COUNT(DISTINCT site_id) FROM sites_analysis),
+        (SELECT AVG(CAST(health_score AS NUMERIC)) FROM sites_analysis),
+        (SELECT COUNT(DISTINCT site_id) FROM sites_analysis WHERE health_score >= 80),
+        (SELECT COUNT(DISTINCT site_id) FROM sites_analysis WHERE health_score >= 60 AND health_score < 80),
+        (SELECT COUNT(DISTINCT site_id) FROM sites_analysis WHERE health_score < 60),
+        (SELECT COUNT(*) FROM security_findings WHERE status = 'open'),
+        (SELECT COUNT(DISTINCT user_email) FROM user_permissions WHERE mfa_enabled = TRUE),
+        (SELECT COUNT(DISTINCT user_email) FROM user_permissions WHERE mfa_enabled = FALSE),
+        (SELECT COUNT(*) FROM sharing_analysis WHERE is_risky = TRUE),
+        COALESCE((SELECT SUM(CAST(total_storage_gb AS DECIMAL(18,2))) FROM sites_analysis), 0);
 END;
-GO
+$$ LANGUAGE plpgsql;
 
--- Get sites health distribution
-CREATE PROCEDURE [dbo].[sp_GetSitesHealthDistribution]
-AS
+-- Function to get sites health distribution
+CREATE OR REPLACE FUNCTION sp_get_sites_health_distribution()
+RETURNS TABLE(site_id VARCHAR, site_name VARCHAR, site_owner VARCHAR, owner_email VARCHAR, health_score INTEGER, compliance_rate INTEGER, total_users INTEGER, total_storage_gb DECIMAL, external_shares INTEGER, security_findings INTEGER) AS $$
 BEGIN
+    RETURN QUERY
     SELECT
-        [site_id],
-        [site_name],
-        [site_owner],
-        [owner_email],
-        [health_score],
-        [compliance_rate],
-        [total_users],
-        [total_storage_gb],
-        [external_shares],
-        [security_findings]
-    FROM [dbo].[sites_analysis]
-    ORDER BY [health_score] DESC;
+        sa.site_id,
+        sa.site_name,
+        sa.site_owner,
+        sa.owner_email,
+        sa.health_score,
+        sa.compliance_rate,
+        sa.total_users,
+        sa.total_storage_gb,
+        sa.external_shares,
+        sa.security_findings
+    FROM sites_analysis sa
+    ORDER BY sa.health_score DESC;
 END;
-GO
+$$ LANGUAGE plpgsql;
 
--- Get security findings summary
-CREATE PROCEDURE [dbo].[sp_GetSecurityFindingsSummary]
-    @Status NVARCHAR(32) = 'open'
-AS
+-- Function to get security findings summary
+CREATE OR REPLACE FUNCTION sp_get_security_findings_summary(status_param VARCHAR DEFAULT 'open')
+RETURNS TABLE(category VARCHAR, count BIGINT, top_severity VARCHAR, total_affected BIGINT) AS $$
 BEGIN
+    RETURN QUERY
     SELECT
-        [category],
-        COUNT(*) as [count],
-        MIN([severity]) as [top_severity],
-        SUM([affected_count]) as [total_affected]
-    FROM [dbo].[security_findings]
-    WHERE [status] = @Status
-    GROUP BY [category]
-    ORDER BY [count] DESC;
+        sf.category,
+        COUNT(*) as count,
+        MIN(sf.severity) as top_severity,
+        SUM(sf.affected_count) as total_affected
+    FROM security_findings sf
+    WHERE sf.status = status_param
+    GROUP BY sf.category
+    ORDER BY count DESC;
 END;
-GO
+$$ LANGUAGE plpgsql;
 
--- Get sharing analysis by type
-CREATE PROCEDURE [dbo].[sp_GetSharingAnalysisByType]
-AS
+-- Function to get sharing analysis by type
+CREATE OR REPLACE FUNCTION sp_get_sharing_analysis_by_type()
+RETURNS TABLE(share_type VARCHAR, count BIGINT, risky_count BIGINT, unique_recipients BIGINT) AS $$
 BEGIN
+    RETURN QUERY
     SELECT
-        [share_type],
-        COUNT(*) as [count],
-        SUM(CASE WHEN [is_risky] = 1 THEN 1 ELSE 0 END) as [risky_count],
-        COUNT(DISTINCT [shared_with]) as [unique_recipients]
-    FROM [dbo].[sharing_analysis]
-    GROUP BY [share_type]
-    ORDER BY [count] DESC;
+        sa.share_type,
+        COUNT(*) as count,
+        SUM(CASE WHEN sa.is_risky = TRUE THEN 1 ELSE 0 END) as risky_count,
+        COUNT(DISTINCT sa.shared_with) as unique_recipients
+    FROM sharing_analysis sa
+    GROUP BY sa.share_type
+    ORDER BY count DESC;
 END;
-GO
+$$ LANGUAGE plpgsql;
 
--- Get user permission risks
-CREATE PROCEDURE [dbo].[sp_GetUserPermissionRisks]
-AS
+-- Function to get user permission risks
+CREATE OR REPLACE FUNCTION sp_get_user_permission_risks()
+RETURNS TABLE(user_email VARCHAR, user_name VARCHAR, sites_with_access BIGINT, owned_sites BIGINT, sites_without_mfa BIGINT, inactive_sites BIGINT, last_activity TIMESTAMP, owner_count BIGINT) AS $$
 BEGIN
+    RETURN QUERY
     SELECT
-        [user_email],
-        [user_name],
-        COUNT(DISTINCT [site_id]) as [sites_with_access],
-        SUM(CASE WHEN [is_site_owner] = 1 THEN 1 ELSE 0 END) as [owned_sites],
-        SUM(CASE WHEN [mfa_enabled] = 0 THEN 1 ELSE 0 END) as [sites_without_mfa],
-        SUM(CASE WHEN [is_inactive] = 1 THEN 1 ELSE 0 END) as [inactive_sites],
-        MAX([last_activity]) as [last_activity],
-        SUM(CASE WHEN [permission_level] = 'owner' THEN 1 ELSE 0 END) as [owner_count]
-    FROM [dbo].[user_permissions]
-    GROUP BY [user_email], [user_name]
-    ORDER BY [owner_count] DESC;
+        up.user_email,
+        up.user_name,
+        COUNT(DISTINCT up.site_id) as sites_with_access,
+        SUM(CASE WHEN up.is_site_owner = TRUE THEN 1 ELSE 0 END) as owned_sites,
+        SUM(CASE WHEN up.mfa_enabled = FALSE THEN 1 ELSE 0 END) as sites_without_mfa,
+        SUM(CASE WHEN up.is_inactive = TRUE THEN 1 ELSE 0 END) as inactive_sites,
+        MAX(up.last_activity) as last_activity,
+        SUM(CASE WHEN up.permission_level = 'owner' THEN 1 ELSE 0 END) as owner_count
+    FROM user_permissions up
+    GROUP BY up.user_email, up.user_name
+    ORDER BY owner_count DESC;
 END;
-GO
+$$ LANGUAGE plpgsql;

@@ -7,22 +7,22 @@
 -- ==========================
 
 -- All credit transactions (immutable)
-CREATE TABLE [dbo].[credit_ledger] (
-    [id] BIGINT IDENTITY(1,1) NOT NULL,
-    [transaction_id] NVARCHAR(128) NOT NULL UNIQUE,
-    [client_id] NVARCHAR(128) NOT NULL,
-    [execution_id] NVARCHAR(128) NULL,
-    [transaction_type] NVARCHAR(32) NOT NULL, -- 'purchase', 'consumption', 'refund', 'adjustment'
-    [amount] DECIMAL(18,2) NOT NULL, -- Positive for purchase/refund, negative for consumption
-    [description] NVARCHAR(512) NULL,
-    [metadata] NVARCHAR(MAX) NULL, -- JSON with details (data_size_gb, sites_count, etc.)
-    [created_by] NVARCHAR(256) NULL,
-    [created_at] DATETIME2 DEFAULT GETUTCDATE() NOT NULL,
-    CONSTRAINT [PK_credit_ledger] PRIMARY KEY CLUSTERED ([id]),
-    INDEX [IX_ledger_client] NONCLUSTERED ([client_id]),
-    INDEX [IX_ledger_execution] NONCLUSTERED ([execution_id]),
-    INDEX [IX_ledger_date] NONCLUSTERED ([created_at] DESC),
-    INDEX [IX_ledger_type] NONCLUSTERED ([transaction_type])
+CREATE TABLE credit_ledger (
+    id BIGSERIAL NOT NULL,
+    transaction_id VARCHAR(128) NOT NULL UNIQUE,
+    client_id VARCHAR(128) NOT NULL,
+    execution_id VARCHAR(128) NULL,
+    transaction_type VARCHAR(32) NOT NULL,
+    amount DECIMAL(18,2) NOT NULL,
+    description VARCHAR(512) NULL,
+    metadata TEXT NULL,
+    created_by VARCHAR(256) NULL,
+    created_at TIMESTAMP DEFAULT NOW() NOT NULL,
+    PRIMARY KEY (id),
+    CONSTRAINT ix_ledger_client UNIQUE (client_id),
+    CONSTRAINT ix_ledger_execution UNIQUE (execution_id),
+    CONSTRAINT ix_ledger_date UNIQUE (created_at),
+    CONSTRAINT ix_ledger_type UNIQUE (transaction_type)
 );
 
 -- ==========================
@@ -30,20 +30,20 @@ CREATE TABLE [dbo].[credit_ledger] (
 -- ==========================
 
 -- Current balance per client (mutable)
-CREATE TABLE [dbo].[client_credit_balance] (
-    [client_id] NVARCHAR(128) NOT NULL,
-    [plan_type] NVARCHAR(32) NOT NULL, -- 'starter', 'professional', 'enterprise', 'custom'
-    [total_purchased_credits] DECIMAL(18,2) DEFAULT 0,
-    [total_consumed_credits] DECIMAL(18,2) DEFAULT 0,
-    [current_balance] DECIMAL(18,2) DEFAULT 0,
-    [last_consumption_date] DATETIME2 NULL,
-    [next_renewal_date] DATETIME2 NULL,
-    [auto_refill_enabled] BIT DEFAULT 0,
-    [auto_refill_amount] DECIMAL(18,2) NULL,
-    [updated_at] DATETIME2 DEFAULT GETUTCDATE(),
-    CONSTRAINT [PK_client_credit_balance] PRIMARY KEY CLUSTERED ([client_id]),
-    INDEX [IX_balance_plan] NONCLUSTERED ([plan_type]),
-    INDEX [IX_balance_updated] NONCLUSTERED ([updated_at] DESC)
+CREATE TABLE client_credit_balance (
+    client_id VARCHAR(128) NOT NULL,
+    plan_type VARCHAR(32) NOT NULL,
+    total_purchased_credits DECIMAL(18,2) DEFAULT 0,
+    total_consumed_credits DECIMAL(18,2) DEFAULT 0,
+    current_balance DECIMAL(18,2) DEFAULT 0,
+    last_consumption_date TIMESTAMP NULL,
+    next_renewal_date TIMESTAMP NULL,
+    auto_refill_enabled BOOLEAN DEFAULT FALSE,
+    auto_refill_amount DECIMAL(18,2) NULL,
+    updated_at TIMESTAMP DEFAULT NOW(),
+    PRIMARY KEY (client_id),
+    CONSTRAINT ix_balance_plan UNIQUE (plan_type),
+    CONSTRAINT ix_balance_updated UNIQUE (updated_at)
 );
 
 -- ==========================
@@ -51,25 +51,25 @@ CREATE TABLE [dbo].[client_credit_balance] (
 -- ==========================
 
 -- Detailed breakdown of credits per execution
-CREATE TABLE [dbo].[execution_credit_details] (
-    [id] BIGINT IDENTITY(1,1) NOT NULL,
-    [execution_id] NVARCHAR(128) NOT NULL,
-    [client_id] NVARCHAR(128) NOT NULL,
-    [data_collection_credits] DECIMAL(10,2) NOT NULL DEFAULT 0, -- Get-DataFiles, Get-TrashItems, etc.
-    [data_size_gb] DECIMAL(18,2) NOT NULL DEFAULT 0,
-    [storage_credits] DECIMAL(10,2) NOT NULL DEFAULT 0, -- 12-month storage cost
-    [report_generation_credits] DECIMAL(10,2) NOT NULL DEFAULT 0,
-    [alerts_generated] INT DEFAULT 0,
-    [alerts_credits] DECIMAL(10,2) NOT NULL DEFAULT 0,
-    [total_credits_consumed] DECIMAL(10,2) NOT NULL,
-    [execution_date] DATETIME2 NOT NULL,
-    [status] NVARCHAR(32) NOT NULL DEFAULT 'completed', -- 'pending', 'completed', 'failed'
-    [created_at] DATETIME2 DEFAULT GETUTCDATE(),
-    CONSTRAINT [PK_execution_credit_details] PRIMARY KEY CLUSTERED ([id]),
-    UNIQUE NONCLUSTERED ([execution_id]),
-    INDEX [IX_exec_client] NONCLUSTERED ([client_id]),
-    INDEX [IX_exec_status] NONCLUSTERED ([status]),
-    INDEX [IX_exec_date] NONCLUSTERED ([execution_date] DESC)
+CREATE TABLE execution_credit_details (
+    id BIGSERIAL NOT NULL,
+    execution_id VARCHAR(128) NOT NULL,
+    client_id VARCHAR(128) NOT NULL,
+    data_collection_credits DECIMAL(10,2) NOT NULL DEFAULT 0,
+    data_size_gb DECIMAL(18,2) NOT NULL DEFAULT 0,
+    storage_credits DECIMAL(10,2) NOT NULL DEFAULT 0,
+    report_generation_credits DECIMAL(10,2) NOT NULL DEFAULT 0,
+    alerts_generated INTEGER DEFAULT 0,
+    alerts_credits DECIMAL(10,2) NOT NULL DEFAULT 0,
+    total_credits_consumed DECIMAL(10,2) NOT NULL,
+    execution_date TIMESTAMP NOT NULL,
+    status VARCHAR(32) NOT NULL DEFAULT 'completed',
+    created_at TIMESTAMP DEFAULT NOW(),
+    PRIMARY KEY (id),
+    UNIQUE (execution_id),
+    CONSTRAINT ix_exec_client UNIQUE (client_id),
+    CONSTRAINT ix_exec_status UNIQUE (status),
+    CONSTRAINT ix_exec_date UNIQUE (execution_date)
 );
 
 -- ==========================
@@ -77,44 +77,44 @@ CREATE TABLE [dbo].[execution_credit_details] (
 -- ==========================
 
 -- Alerts for credit usage milestones
-CREATE TABLE [dbo].[credit_alerts] (
-    [id] BIGINT IDENTITY(1,1) NOT NULL,
-    [client_id] NVARCHAR(128) NOT NULL,
-    [alert_type] NVARCHAR(32) NOT NULL, -- '80_percent', '90_percent', 'depleted', 'low_balance'
-    [threshold_percent] INT NOT NULL,
-    [current_usage_percent] INT NOT NULL,
-    [current_balance] DECIMAL(18,2) NOT NULL,
-    [total_credits] DECIMAL(18,2) NOT NULL,
-    [alert_status] NVARCHAR(32) DEFAULT 'active', -- 'active', 'dismissed', 'acknowledged'
-    [sent_at] DATETIME2 DEFAULT GETUTCDATE(),
-    [dismissed_at] DATETIME2 NULL,
-    [acknowledged_at] DATETIME2 NULL,
-    CONSTRAINT [PK_credit_alerts] PRIMARY KEY CLUSTERED ([id]),
-    INDEX [IX_alert_client] NONCLUSTERED ([client_id]),
-    INDEX [IX_alert_type] NONCLUSTERED ([alert_type]),
-    INDEX [IX_alert_status] NONCLUSTERED ([alert_status]),
-    INDEX [IX_alert_date] NONCLUSTERED ([sent_at] DESC)
+CREATE TABLE credit_alerts (
+    id BIGSERIAL NOT NULL,
+    client_id VARCHAR(128) NOT NULL,
+    alert_type VARCHAR(32) NOT NULL,
+    threshold_percent INTEGER NOT NULL,
+    current_usage_percent INTEGER NOT NULL,
+    current_balance DECIMAL(18,2) NOT NULL,
+    total_credits DECIMAL(18,2) NOT NULL,
+    alert_status VARCHAR(32) DEFAULT 'active',
+    sent_at TIMESTAMP DEFAULT NOW(),
+    dismissed_at TIMESTAMP NULL,
+    acknowledged_at TIMESTAMP NULL,
+    PRIMARY KEY (id),
+    CONSTRAINT ix_alert_client UNIQUE (client_id),
+    CONSTRAINT ix_alert_type UNIQUE (alert_type),
+    CONSTRAINT ix_alert_status UNIQUE (alert_status),
+    CONSTRAINT ix_alert_date UNIQUE (sent_at)
 );
 
 -- ==========================
 -- 5. CREDIT PLANS REFERENCE TABLE
 -- ==========================
 
-CREATE TABLE [dbo].[credit_plan_reference] (
-    [plan_id] INT PRIMARY KEY,
-    [plan_name] NVARCHAR(64) NOT NULL, -- 'Starter', 'Professional', 'Enterprise', 'Custom'
-    [monthly_credits] DECIMAL(10,2) NOT NULL,
-    [annual_credits] DECIMAL(10,2) NOT NULL,
-    [price_monthly_brl] DECIMAL(18,2) NOT NULL,
-    [price_annual_brl] DECIMAL(18,2) NOT NULL,
-    [annual_discount_percent] INT DEFAULT 0,
-    [min_sites] INT,
-    [max_sites] INT,
-    [max_storage_gb] DECIMAL(18,2),
-    [recommended_executions_per_month] INT,
-    [description] NVARCHAR(MAX),
-    [created_at] DATETIME2 DEFAULT GETUTCDATE(),
-    [is_active] BIT DEFAULT 1
+CREATE TABLE credit_plan_reference (
+    plan_id INTEGER PRIMARY KEY,
+    plan_name VARCHAR(64) NOT NULL,
+    monthly_credits DECIMAL(10,2) NOT NULL,
+    annual_credits DECIMAL(10,2) NOT NULL,
+    price_monthly_brl DECIMAL(18,2) NOT NULL,
+    price_annual_brl DECIMAL(18,2) NOT NULL,
+    annual_discount_percent INTEGER DEFAULT 0,
+    min_sites INTEGER,
+    max_sites INTEGER,
+    max_storage_gb DECIMAL(18,2),
+    recommended_executions_per_month INTEGER,
+    description TEXT,
+    created_at TIMESTAMP DEFAULT NOW(),
+    is_active BOOLEAN DEFAULT TRUE
 );
 
 -- ==========================
@@ -122,319 +122,306 @@ CREATE TABLE [dbo].[credit_plan_reference] (
 -- ==========================
 
 -- Configurable rules for credit calculation
-CREATE TABLE [dbo].[credit_consumption_rules] (
-    [id] INT PRIMARY KEY,
-    [rule_name] NVARCHAR(128) NOT NULL,
-    [credits_per_gb_data] DECIMAL(10,4) NOT NULL DEFAULT 0.002, -- 0.002 credits per GB
-    [credits_per_execution] DECIMAL(10,2) NOT NULL DEFAULT 1.0, -- Base credit per execution
-    [credits_per_report] DECIMAL(10,2) NOT NULL DEFAULT 0.25,
-    [credits_per_100_alerts] DECIMAL(10,2) NOT NULL DEFAULT 0.1,
-    [storage_months_included] INT NOT NULL DEFAULT 12,
-    [storage_cost_per_gb_per_month_brl] DECIMAL(10,4) NOT NULL DEFAULT 0.2, -- R$0.20/GB/month
-    [backup_multiplier] DECIMAL(10,2) NOT NULL DEFAULT 0.5, -- Backups = 50% of original storage
-    [effective_from] DATETIME2 NOT NULL,
-    [effective_until] DATETIME2 NULL,
-    [is_active] BIT DEFAULT 1
+CREATE TABLE credit_consumption_rules (
+    id INTEGER PRIMARY KEY,
+    rule_name VARCHAR(128) NOT NULL,
+    credits_per_gb_data DECIMAL(10,4) NOT NULL DEFAULT 0.002,
+    credits_per_execution DECIMAL(10,2) NOT NULL DEFAULT 1.0,
+    credits_per_report DECIMAL(10,2) NOT NULL DEFAULT 0.25,
+    credits_per_100_alerts DECIMAL(10,2) NOT NULL DEFAULT 0.1,
+    storage_months_included INTEGER NOT NULL DEFAULT 12,
+    storage_cost_per_gb_per_month_brl DECIMAL(10,4) NOT NULL DEFAULT 0.2,
+    backup_multiplier DECIMAL(10,2) NOT NULL DEFAULT 0.5,
+    effective_from TIMESTAMP NOT NULL,
+    effective_until TIMESTAMP NULL,
+    is_active BOOLEAN DEFAULT TRUE
 );
 
 -- ==========================
 -- 7. STORED PROCEDURES
 -- ==========================
 
--- Calculate credits for an execution
-CREATE PROCEDURE [dbo].[sp_CalculateExecutionCredits]
-    @ExecutionId NVARCHAR(128),
-    @ClientId NVARCHAR(128),
-    @DataSizeGb DECIMAL(18,2),
-    @AlertsGenerated INT = 0,
-    @ReportGenerated BIT = 0
-AS
+-- Function to calculate credits for an execution
+CREATE OR REPLACE FUNCTION sp_calculate_execution_credits(
+    execution_id_param VARCHAR(128),
+    client_id_param VARCHAR(128),
+    data_size_gb_param DECIMAL(18,2),
+    alerts_generated_param INTEGER DEFAULT 0,
+    report_generated_param BOOLEAN DEFAULT FALSE
+)
+RETURNS TABLE(total_credits DECIMAL, data_collection_credits DECIMAL, storage_credits DECIMAL, report_credits DECIMAL, alerts_credits DECIMAL) AS $$
+DECLARE
+    v_data_collection_credits DECIMAL(10,2);
+    v_storage_credits DECIMAL(10,2);
+    v_report_credits DECIMAL(10,2);
+    v_alerts_credits DECIMAL(10,2);
+    v_total_credits DECIMAL(10,2);
+    v_credits_per_gb DECIMAL(10,4);
+    v_credits_per_execution DECIMAL(10,2);
+    v_storage_cost_per_month DECIMAL(10,4);
+    v_storage_months INTEGER;
+    v_backup_multiplier DECIMAL(10,2);
 BEGIN
-    DECLARE @DataCollectionCredits DECIMAL(10,2);
-    DECLARE @StorageCredits DECIMAL(10,2);
-    DECLARE @ReportCredits DECIMAL(10,2);
-    DECLARE @AlertsCredits DECIMAL(10,2);
-    DECLARE @TotalCredits DECIMAL(10,2);
-    DECLARE @CreditsPerGb DECIMAL(10,4);
-    DECLARE @CreditsPerExecution DECIMAL(10,2);
-    DECLARE @StorageCostPerMonth DECIMAL(10,4);
-    DECLARE @StorageMonths INT;
-    DECLARE @BackupMultiplier DECIMAL(10,2);
-
     -- Get current consumption rules
-    SELECT TOP 1
-        @CreditsPerGb = credits_per_gb_data,
-        @CreditsPerExecution = credits_per_execution,
-        @StorageCostPerMonth = storage_cost_per_gb_per_month_brl,
-        @StorageMonths = storage_months_included,
-        @BackupMultiplier = backup_multiplier
-    FROM [dbo].[credit_consumption_rules]
-    WHERE is_active = 1
-    ORDER BY effective_from DESC;
+    SELECT credits_per_gb_data, credits_per_execution, storage_cost_per_gb_per_month_brl, storage_months_included, backup_multiplier
+    INTO v_credits_per_gb, v_credits_per_execution, v_storage_cost_per_month, v_storage_months, v_backup_multiplier
+    FROM credit_consumption_rules
+    WHERE is_active = TRUE
+    ORDER BY effective_from DESC
+    LIMIT 1;
 
     -- Calculate each component
     -- Data collection: base execution + per GB
-    SET @DataCollectionCredits = @CreditsPerExecution + (@DataSizeGb * @CreditsPerGb);
+    v_data_collection_credits := v_credits_per_execution + (data_size_gb_param * v_credits_per_gb);
 
     -- Storage: 12-month cost (including backups)
-    SET @StorageCredits =
-        (@DataSizeGb * @StorageCostPerMonth * @StorageMonths * 1000) / 1000.0 / 1000.0; -- Convert to credits (R$1000 = 1 credit)
+    v_storage_credits := (data_size_gb_param * v_storage_cost_per_month * v_storage_months * 1000) / 1000.0 / 1000.0;
 
     -- Report generation
-    SET @ReportCredits = CASE WHEN @ReportGenerated = 1 THEN 0.25 ELSE 0 END;
+    v_report_credits := CASE WHEN report_generated_param = TRUE THEN 0.25 ELSE 0 END;
 
     -- Alerts: per 100 alerts
-    SET @AlertsCredits = (@AlertsGenerated / 100.0) * 0.1;
+    v_alerts_credits := (alerts_generated_param / 100.0) * 0.1;
 
     -- Total
-    SET @TotalCredits = @DataCollectionCredits + @StorageCredits + @ReportCredits + @AlertsCredits;
+    v_total_credits := v_data_collection_credits + v_storage_credits + v_report_credits + v_alerts_credits;
 
     -- Insert or update execution credit details
-    IF EXISTS (SELECT 1 FROM [dbo].[execution_credit_details] WHERE execution_id = @ExecutionId)
-    BEGIN
-        UPDATE [dbo].[execution_credit_details]
+    IF EXISTS (SELECT 1 FROM execution_credit_details WHERE execution_id = execution_id_param) THEN
+        UPDATE execution_credit_details
         SET
-            data_collection_credits = @DataCollectionCredits,
-            data_size_gb = @DataSizeGb,
-            storage_credits = @StorageCredits,
-            report_generation_credits = @ReportCredits,
-            alerts_generated = @AlertsGenerated,
-            alerts_credits = @AlertsCredits,
-            total_credits_consumed = @TotalCredits
-        WHERE execution_id = @ExecutionId;
-    END
+            data_collection_credits = v_data_collection_credits,
+            data_size_gb = data_size_gb_param,
+            storage_credits = v_storage_credits,
+            report_generation_credits = v_report_credits,
+            alerts_generated = alerts_generated_param,
+            alerts_credits = v_alerts_credits,
+            total_credits_consumed = v_total_credits
+        WHERE execution_id = execution_id_param;
     ELSE
-    BEGIN
-        INSERT INTO [dbo].[execution_credit_details] (
+        INSERT INTO execution_credit_details (
             execution_id, client_id, data_collection_credits, data_size_gb,
             storage_credits, report_generation_credits, alerts_generated,
             alerts_credits, total_credits_consumed, execution_date, status
         )
         VALUES (
-            @ExecutionId, @ClientId, @DataCollectionCredits, @DataSizeGb,
-            @StorageCredits, @ReportCredits, @AlertsGenerated,
-            @AlertsCredits, @TotalCredits, GETUTCDATE(), 'completed'
+            execution_id_param, client_id_param, v_data_collection_credits, data_size_gb_param,
+            v_storage_credits, v_report_credits, alerts_generated_param,
+            v_alerts_credits, v_total_credits, NOW(), 'completed'
         );
-    END
+    END IF;
 
     -- Return calculated values
-    SELECT
-        @TotalCredits as total_credits,
-        @DataCollectionCredits as data_collection_credits,
-        @StorageCredits as storage_credits,
-        @ReportCredits as report_credits,
-        @AlertsCredits as alerts_credits;
+    RETURN QUERY SELECT v_total_credits, v_data_collection_credits, v_storage_credits, v_report_credits, v_alerts_credits;
 END;
-GO
+$$ LANGUAGE plpgsql;
 
--- Consume credits for execution
-CREATE PROCEDURE [dbo].[sp_ConsumeCredits]
-    @ExecutionId NVARCHAR(128),
-    @ClientId NVARCHAR(128),
-    @CreditsToConsume DECIMAL(18,2),
-    @Description NVARCHAR(512) = NULL
-AS
+-- Function to consume credits for execution
+CREATE OR REPLACE FUNCTION sp_consume_credits(
+    execution_id_param VARCHAR(128),
+    client_id_param VARCHAR(128),
+    credits_to_consume_param DECIMAL(18,2),
+    description_param VARCHAR(512) DEFAULT NULL
+)
+RETURNS TABLE(remaining_balance DECIMAL, usage_percent INTEGER) AS $$
+DECLARE
+    v_current_balance DECIMAL(18,2);
+    v_transaction_id VARCHAR(128);
+    v_new_balance DECIMAL(18,2);
+    v_total_credits DECIMAL(18,2);
+    v_usage_percent INTEGER;
 BEGIN
-    DECLARE @CurrentBalance DECIMAL(18,2);
-    DECLARE @TransactionId NVARCHAR(128) = NEWID();
+    -- Generate transaction ID
+    v_transaction_id := gen_random_uuid()::VARCHAR;
 
     -- Check current balance
-    SELECT @CurrentBalance = current_balance
-    FROM [dbo].[client_credit_balance]
-    WHERE client_id = @ClientId;
+    SELECT current_balance INTO v_current_balance
+    FROM client_credit_balance
+    WHERE client_id = client_id_param;
 
     -- Verify sufficient credits
-    IF @CurrentBalance < @CreditsToConsume
-    BEGIN
-        THROW 50001, 'Insufficient credits for this execution', 1;
-    END
+    IF v_current_balance < credits_to_consume_param THEN
+        RAISE EXCEPTION 'Insufficient credits for this execution';
+    END IF;
 
     -- Record transaction in ledger
-    INSERT INTO [dbo].[credit_ledger] (
+    INSERT INTO credit_ledger (
         transaction_id, client_id, execution_id, transaction_type,
         amount, description, created_at
     )
     VALUES (
-        @TransactionId, @ClientId, @ExecutionId, 'consumption',
-        -@CreditsToConsume, @Description, GETUTCDATE()
+        v_transaction_id, client_id_param, execution_id_param, 'consumption',
+        -credits_to_consume_param, description_param, NOW()
     );
 
     -- Update balance
-    UPDATE [dbo].[client_credit_balance]
+    UPDATE client_credit_balance
     SET
-        total_consumed_credits = total_consumed_credits + @CreditsToConsume,
-        current_balance = current_balance - @CreditsToConsume,
-        last_consumption_date = GETUTCDATE(),
-        updated_at = GETUTCDATE()
-    WHERE client_id = @ClientId;
+        total_consumed_credits = total_consumed_credits + credits_to_consume_param,
+        current_balance = current_balance - credits_to_consume_param,
+        last_consumption_date = NOW(),
+        updated_at = NOW()
+    WHERE client_id = client_id_param;
 
-    -- Check if alert should be triggered (80% usage)
-    DECLARE @NewBalance DECIMAL(18,2);
-    DECLARE @TotalCredits DECIMAL(18,2);
-    DECLARE @UsagePercent INT;
+    -- Get new balance for alert checking
+    SELECT current_balance, total_purchased_credits INTO v_new_balance, v_total_credits
+    FROM client_credit_balance
+    WHERE client_id = client_id_param;
 
-    SELECT @NewBalance = current_balance, @TotalCredits = total_purchased_credits
-    FROM [dbo].[client_credit_balance]
-    WHERE client_id = @ClientId;
-
-    SET @UsagePercent = CAST(((@TotalCredits - @NewBalance) / @TotalCredits) * 100 AS INT);
+    v_usage_percent := CAST((CASE WHEN v_total_credits > 0 THEN ((v_total_credits - v_new_balance) / v_total_credits) * 100 ELSE 0 END) AS INTEGER);
 
     -- Insert alert if usage >= 80%
-    IF @UsagePercent >= 80 AND NOT EXISTS (
-        SELECT 1 FROM [dbo].[credit_alerts]
-        WHERE client_id = @ClientId
+    IF v_usage_percent >= 80 AND NOT EXISTS (
+        SELECT 1 FROM credit_alerts
+        WHERE client_id = client_id_param
         AND alert_status = 'active'
         AND alert_type = '80_percent'
-        AND DATEDIFF(DAY, sent_at, GETUTCDATE()) < 1 -- Max 1 per day
-    )
-    BEGIN
-        INSERT INTO [dbo].[credit_alerts] (
+        AND EXTRACT(DAY FROM (NOW() - sent_at)) < 1
+    ) THEN
+        INSERT INTO credit_alerts (
             client_id, alert_type, threshold_percent, current_usage_percent,
             current_balance, total_credits, alert_status
         )
         VALUES (
-            @ClientId, '80_percent', 80, @UsagePercent,
-            @NewBalance, @TotalCredits, 'active'
+            client_id_param, '80_percent', 80, v_usage_percent,
+            v_new_balance, v_total_credits, 'active'
         );
-    END
+    END IF;
 
     -- Return new balance
-    SELECT @NewBalance as remaining_balance, @UsagePercent as usage_percent;
+    RETURN QUERY SELECT v_new_balance, v_usage_percent;
 END;
-GO
+$$ LANGUAGE plpgsql;
 
--- Add credits to client account
-CREATE PROCEDURE [dbo].[sp_AddCredits]
-    @ClientId NVARCHAR(128),
-    @CreditsToAdd DECIMAL(18,2),
-    @TransactionType NVARCHAR(32) = 'purchase', -- 'purchase', 'refund', 'adjustment'
-    @Description NVARCHAR(512) = NULL
-AS
+-- Function to add credits to client account
+CREATE OR REPLACE FUNCTION sp_add_credits(
+    client_id_param VARCHAR(128),
+    credits_to_add_param DECIMAL(18,2),
+    transaction_type_param VARCHAR(32) DEFAULT 'purchase',
+    description_param VARCHAR(512) DEFAULT NULL
+)
+RETURNS TABLE(current_balance DECIMAL) AS $$
+DECLARE
+    v_transaction_id VARCHAR(128);
 BEGIN
-    DECLARE @TransactionId NVARCHAR(128) = NEWID();
+    -- Generate transaction ID
+    v_transaction_id := gen_random_uuid()::VARCHAR;
 
     -- Record transaction in ledger
-    INSERT INTO [dbo].[credit_ledger] (
+    INSERT INTO credit_ledger (
         transaction_id, client_id, transaction_type,
         amount, description, created_at
     )
     VALUES (
-        @TransactionId, @ClientId, @TransactionType,
-        @CreditsToAdd, @Description, GETUTCDATE()
+        v_transaction_id, client_id_param, transaction_type_param,
+        credits_to_add_param, description_param, NOW()
     );
 
     -- Update or create balance record
-    IF EXISTS (SELECT 1 FROM [dbo].[client_credit_balance] WHERE client_id = @ClientId)
-    BEGIN
-        UPDATE [dbo].[client_credit_balance]
+    IF EXISTS (SELECT 1 FROM client_credit_balance WHERE client_id = client_id_param) THEN
+        UPDATE client_credit_balance
         SET
-            total_purchased_credits = total_purchased_credits + @CreditsToAdd,
-            current_balance = current_balance + @CreditsToAdd,
-            updated_at = GETUTCDATE()
-        WHERE client_id = @ClientId;
-    END
+            total_purchased_credits = total_purchased_credits + credits_to_add_param,
+            current_balance = current_balance + credits_to_add_param,
+            updated_at = NOW()
+        WHERE client_id = client_id_param;
     ELSE
-    BEGIN
-        INSERT INTO [dbo].[client_credit_balance] (
+        INSERT INTO client_credit_balance (
             client_id, plan_type, total_purchased_credits, current_balance, updated_at
         )
         VALUES (
-            @ClientId, 'custom', @CreditsToAdd, @CreditsToAdd, GETUTCDATE()
+            client_id_param, 'custom', credits_to_add_param, credits_to_add_param, NOW()
         );
-    END
+    END IF;
 
     -- Clear alerts since balance was added
-    UPDATE [dbo].[credit_alerts]
+    UPDATE credit_alerts
     SET alert_status = 'dismissed'
-    WHERE client_id = @ClientId
+    WHERE client_id = client_id_param
     AND alert_status = 'active'
     AND alert_type IN ('80_percent', '90_percent', 'depleted');
 
     -- Return new balance
+    RETURN QUERY
     SELECT current_balance
-    FROM [dbo].[client_credit_balance]
-    WHERE client_id = @ClientId;
+    FROM client_credit_balance
+    WHERE client_id = client_id_param;
 END;
-GO
+$$ LANGUAGE plpgsql;
 
--- Get credit usage analytics
-CREATE PROCEDURE [dbo].[sp_GetCreditUsageAnalytics]
-    @ClientId NVARCHAR(128)
-AS
+-- Function to get credit usage analytics
+CREATE OR REPLACE FUNCTION sp_get_credit_usage_analytics(client_id_param VARCHAR(128))
+RETURNS TABLE(current_balance DECIMAL, total_purchased_credits DECIMAL, total_consumed_credits DECIMAL, usage_percent INTEGER, remaining_percent INTEGER, last_consumption_date TIMESTAMP, plan_type VARCHAR, updated_at TIMESTAMP, total_executions BIGINT, sum_credits_consumed DECIMAL, avg_credits_per_execution DECIMAL) AS $$
 BEGIN
+    RETURN QUERY
     SELECT
         ccb.current_balance,
         ccb.total_purchased_credits,
         ccb.total_consumed_credits,
-        CAST((CASE WHEN ccb.total_purchased_credits > 0
-            THEN (ccb.total_consumed_credits / ccb.total_purchased_credits) * 100
-            ELSE 0
-        END) AS INT) as usage_percent,
-        CAST((CASE WHEN ccb.total_purchased_credits > 0
-            THEN (ccb.current_balance / ccb.total_purchased_credits) * 100
-            ELSE 0
-        END) AS INT) as remaining_percent,
+        CAST((CASE WHEN ccb.total_purchased_credits > 0 THEN (ccb.total_consumed_credits / ccb.total_purchased_credits) * 100 ELSE 0 END) AS INTEGER),
+        CAST((CASE WHEN ccb.total_purchased_credits > 0 THEN (ccb.current_balance / ccb.total_purchased_credits) * 100 ELSE 0 END) AS INTEGER),
         ccb.last_consumption_date,
         ccb.plan_type,
         ccb.updated_at,
-        (SELECT COUNT(*) FROM [dbo].[execution_credit_details] WHERE client_id = @ClientId) as total_executions,
-        (SELECT SUM(total_credits_consumed) FROM [dbo].[execution_credit_details] WHERE client_id = @ClientId) as sum_credits_consumed,
-        (SELECT AVG(total_credits_consumed) FROM [dbo].[execution_credit_details] WHERE client_id = @ClientId) as avg_credits_per_execution
-    FROM [dbo].[client_credit_balance] ccb
-    WHERE ccb.client_id = @ClientId;
+        (SELECT COUNT(*) FROM execution_credit_details WHERE client_id = client_id_param),
+        (SELECT SUM(total_credits_consumed) FROM execution_credit_details WHERE client_id = client_id_param),
+        (SELECT AVG(total_credits_consumed) FROM execution_credit_details WHERE client_id = client_id_param)
+    FROM client_credit_balance ccb
+    WHERE ccb.client_id = client_id_param;
 END;
-GO
+$$ LANGUAGE plpgsql;
 
--- Get credit ledger (transaction history)
-CREATE PROCEDURE [dbo].[sp_GetCreditLedger]
-    @ClientId NVARCHAR(128),
-    @Limit INT = 100,
-    @Offset INT = 0
-AS
+-- Function to get credit ledger (transaction history)
+CREATE OR REPLACE FUNCTION sp_get_credit_ledger(
+    client_id_param VARCHAR(128),
+    limit_param INTEGER DEFAULT 100,
+    offset_param INTEGER DEFAULT 0
+)
+RETURNS TABLE(id BIGINT, transaction_id VARCHAR, transaction_type VARCHAR, amount DECIMAL, description VARCHAR, execution_id VARCHAR, created_at TIMESTAMP) AS $$
 BEGIN
+    RETURN QUERY
     SELECT
-        [id],
-        [transaction_id],
-        [transaction_type],
-        [amount],
-        [description],
-        [execution_id],
-        [created_at]
-    FROM [dbo].[credit_ledger]
-    WHERE client_id = @ClientId
-    ORDER BY created_at DESC
-    OFFSET @Offset ROWS
-    FETCH NEXT @Limit ROWS ONLY;
+        cl.id,
+        cl.transaction_id,
+        cl.transaction_type,
+        cl.amount,
+        cl.description,
+        cl.execution_id,
+        cl.created_at
+    FROM credit_ledger cl
+    WHERE cl.client_id = client_id_param
+    ORDER BY cl.created_at DESC
+    LIMIT limit_param OFFSET offset_param;
 END;
-GO
+$$ LANGUAGE plpgsql;
 
--- Get active alerts
-CREATE PROCEDURE [dbo].[sp_GetCreditAlerts]
-    @ClientId NVARCHAR(128)
-AS
+-- Function to get active alerts
+CREATE OR REPLACE FUNCTION sp_get_credit_alerts(client_id_param VARCHAR(128))
+RETURNS TABLE(id BIGINT, alert_type VARCHAR, threshold_percent INTEGER, current_usage_percent INTEGER, current_balance DECIMAL, total_credits DECIMAL, alert_status VARCHAR, sent_at TIMESTAMP, dismissed_at TIMESTAMP) AS $$
 BEGIN
+    RETURN QUERY
     SELECT
-        [id],
-        [alert_type],
-        [threshold_percent],
-        [current_usage_percent],
-        [current_balance],
-        [total_credits],
-        [alert_status],
-        [sent_at],
-        [dismissed_at]
-    FROM [dbo].[credit_alerts]
-    WHERE client_id = @ClientId
-    AND alert_status = 'active'
-    ORDER BY sent_at DESC;
+        ca.id,
+        ca.alert_type,
+        ca.threshold_percent,
+        ca.current_usage_percent,
+        ca.current_balance,
+        ca.total_credits,
+        ca.alert_status,
+        ca.sent_at,
+        ca.dismissed_at
+    FROM credit_alerts ca
+    WHERE ca.client_id = client_id_param
+    AND ca.alert_status = 'active'
+    ORDER BY ca.sent_at DESC;
 END;
-GO
+$$ LANGUAGE plpgsql;
 
 -- ==========================
 -- 8. INITIALIZE CREDIT CONSUMPTION RULES
 -- ==========================
 
-INSERT INTO [dbo].[credit_consumption_rules] (
+INSERT INTO credit_consumption_rules (
     id, rule_name, credits_per_gb_data, credits_per_execution,
     credits_per_report, credits_per_100_alerts, storage_months_included,
     storage_cost_per_gb_per_month_brl, backup_multiplier,
@@ -443,22 +430,22 @@ INSERT INTO [dbo].[credit_consumption_rules] (
 VALUES (
     1,
     'Standard Pricing Model',
-    0.002,    -- R$2/GB = 0.002 credits
-    1.0,      -- 1 credit base per execution
-    0.25,     -- 0.25 credits per report
-    0.1,      -- 0.1 credits per 100 alerts
-    12,       -- 12 months storage included
-    0.20,     -- R$0.20/GB/month
-    0.5,      -- Backups = 50% of original
-    GETUTCDATE(),
-    1
+    0.002,
+    1.0,
+    0.25,
+    0.1,
+    12,
+    0.20,
+    0.5,
+    NOW(),
+    TRUE
 );
 
 -- ==========================
 -- 9. INITIALIZE CREDIT PLANS
 -- ==========================
 
-INSERT INTO [dbo].[credit_plan_reference] (
+INSERT INTO credit_plan_reference (
     plan_id, plan_name, monthly_credits, annual_credits,
     price_monthly_brl, price_annual_brl, annual_discount_percent,
     min_sites, max_sites, max_storage_gb,

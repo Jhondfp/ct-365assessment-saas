@@ -6,350 +6,346 @@
 -- TEAMS ANALYSIS TABLE
 -- ==========================
 
-CREATE TABLE [dbo].[teams_analysis] (
-    [id] BIGINT IDENTITY(1,1) NOT NULL,
-    [team_id] NVARCHAR(256) NOT NULL UNIQUE,
-    [display_name] NVARCHAR(512) NOT NULL,
-    [description] NVARCHAR(MAX) NULL,
-    [created_date] DATETIME2 NULL,
-    [team_owner] NVARCHAR(256) NULL,
-    [owner_email] NVARCHAR(256) NULL,
-    [is_archived] BIT DEFAULT 0,
-    [is_public] BIT DEFAULT 0,
-    [member_count] INT DEFAULT 0,
-    [guest_count] INT DEFAULT 0,
-    [channel_count] INT DEFAULT 0,
-    [storage_gb] DECIMAL(18,2) DEFAULT 0,
-    [days_old] INT DEFAULT 0,
-    [days_inactive] INT DEFAULT 0,
-    [risk_score] INT DEFAULT 0, -- 0-100
-    [risk_level] NVARCHAR(32) DEFAULT 'Baixo', -- Crítico, Alto, Médio, Baixo
-    [has_retention_policy] BIT DEFAULT 0,
-    [last_activity] DATETIME2 NULL,
-    [coletado_em] DATETIME2 DEFAULT GETUTCDATE() NOT NULL,
-    CONSTRAINT [PK_teams_analysis] PRIMARY KEY CLUSTERED ([team_id])
+CREATE TABLE teams_analysis (
+    id BIGSERIAL NOT NULL,
+    team_id VARCHAR(256) NOT NULL UNIQUE,
+    display_name VARCHAR(512) NOT NULL,
+    description TEXT NULL,
+    created_date TIMESTAMP NULL,
+    team_owner VARCHAR(256) NULL,
+    owner_email VARCHAR(256) NULL,
+    is_archived BOOLEAN DEFAULT FALSE,
+    is_public BOOLEAN DEFAULT FALSE,
+    member_count INTEGER DEFAULT 0,
+    guest_count INTEGER DEFAULT 0,
+    channel_count INTEGER DEFAULT 0,
+    storage_gb DECIMAL(18,2) DEFAULT 0,
+    days_old INTEGER DEFAULT 0,
+    days_inactive INTEGER DEFAULT 0,
+    risk_score INTEGER DEFAULT 0,
+    risk_level VARCHAR(32) DEFAULT 'Baixo',
+    has_retention_policy BOOLEAN DEFAULT FALSE,
+    last_activity TIMESTAMP NULL,
+    coletado_em TIMESTAMP DEFAULT NOW() NOT NULL,
+    PRIMARY KEY (team_id)
 );
-CREATE NONCLUSTERED INDEX [IX_teams_risk] ON [dbo].[teams_analysis] ([risk_score] DESC);
-CREATE NONCLUSTERED INDEX [IX_teams_owner] ON [dbo].[teams_analysis] ([team_owner]);
-CREATE NONCLUSTERED INDEX [IX_teams_archived] ON [dbo].[teams_analysis] ([is_archived]);
-CREATE NONCLUSTERED INDEX [IX_teams_inactive] ON [dbo].[teams_analysis] ([days_inactive] DESC);
+CREATE INDEX ix_teams_risk ON teams_analysis (risk_score DESC);
+CREATE INDEX ix_teams_owner ON teams_analysis (team_owner);
+CREATE INDEX ix_teams_archived ON teams_analysis (is_archived);
+CREATE INDEX ix_teams_inactive ON teams_analysis (days_inactive DESC);
 
 -- ==========================
 -- TEAMS CHANNELS TABLE
 -- ==========================
 
-CREATE TABLE [dbo].[teams_channels] (
-    [id] BIGINT IDENTITY(1,1) NOT NULL,
-    [channel_id] NVARCHAR(256) NOT NULL,
-    [team_id] NVARCHAR(256) NOT NULL,
-    [display_name] NVARCHAR(512) NOT NULL,
-    [channel_type] NVARCHAR(64) DEFAULT 'standard', -- standard, private
-    [description] NVARCHAR(MAX) NULL,
-    [is_favorite_by_default] BIT DEFAULT 0,
-    [has_messages] BIT DEFAULT 0,
-    [last_message_date] DATETIME2 NULL,
-    [days_since_last_message] INT DEFAULT -1,
-    [message_count] INT DEFAULT 0,
-    [member_count] INT DEFAULT 0,
-    [coletado_em] DATETIME2 DEFAULT GETUTCDATE() NOT NULL,
-    CONSTRAINT [PK_teams_channels] PRIMARY KEY CLUSTERED ([id]),
-    CONSTRAINT [FK_channels_team] FOREIGN KEY ([team_id]) REFERENCES [dbo].[teams_analysis]([team_id])
+CREATE TABLE teams_channels (
+    id BIGSERIAL NOT NULL,
+    channel_id VARCHAR(256) NOT NULL,
+    team_id VARCHAR(256) NOT NULL,
+    display_name VARCHAR(512) NOT NULL,
+    channel_type VARCHAR(64) DEFAULT 'standard',
+    description TEXT NULL,
+    is_favorite_by_default BOOLEAN DEFAULT FALSE,
+    has_messages BOOLEAN DEFAULT FALSE,
+    last_message_date TIMESTAMP NULL,
+    days_since_last_message INTEGER DEFAULT -1,
+    message_count INTEGER DEFAULT 0,
+    member_count INTEGER DEFAULT 0,
+    coletado_em TIMESTAMP DEFAULT NOW() NOT NULL,
+    PRIMARY KEY (id),
+    FOREIGN KEY (team_id) REFERENCES teams_analysis(team_id)
 );
-CREATE NONCLUSTERED INDEX [IX_channels_team] ON [dbo].[teams_channels] ([team_id]);
-CREATE NONCLUSTERED INDEX [IX_channels_activity] ON [dbo].[teams_channels] ([last_message_date] DESC);
+CREATE INDEX ix_channels_team ON teams_channels (team_id);
+CREATE INDEX ix_channels_activity ON teams_channels (last_message_date DESC);
 
 -- ==========================
 -- TEAMS MEMBERS TABLE
 -- ==========================
 
-CREATE TABLE [dbo].[teams_members] (
-    [id] BIGINT IDENTITY(1,1) NOT NULL,
-    [member_id] NVARCHAR(256) NOT NULL,
-    [team_id] NVARCHAR(256) NOT NULL,
-    [display_name] NVARCHAR(256) NOT NULL,
-    [email] NVARCHAR(256) NOT NULL,
-    [user_principal_name] NVARCHAR(256) NULL,
-    [role] NVARCHAR(64) DEFAULT 'member', -- owner, member
-    [member_type] NVARCHAR(32) DEFAULT 'user', -- user, guest
-    [last_activity] DATETIME2 NULL,
-    [coletado_em] DATETIME2 DEFAULT GETUTCDATE() NOT NULL,
-    CONSTRAINT [PK_teams_members] PRIMARY KEY CLUSTERED ([id]),
-    CONSTRAINT [FK_members_team] FOREIGN KEY ([team_id]) REFERENCES [dbo].[teams_analysis]([team_id])
+CREATE TABLE teams_members (
+    id BIGSERIAL NOT NULL,
+    member_id VARCHAR(256) NOT NULL,
+    team_id VARCHAR(256) NOT NULL,
+    display_name VARCHAR(256) NOT NULL,
+    email VARCHAR(256) NOT NULL,
+    user_principal_name VARCHAR(256) NULL,
+    role VARCHAR(64) DEFAULT 'member',
+    member_type VARCHAR(32) DEFAULT 'user',
+    last_activity TIMESTAMP NULL,
+    coletado_em TIMESTAMP DEFAULT NOW() NOT NULL,
+    PRIMARY KEY (id),
+    FOREIGN KEY (team_id) REFERENCES teams_analysis(team_id)
 );
-CREATE NONCLUSTERED INDEX [IX_members_team] ON [dbo].[teams_members] ([team_id]);
-CREATE NONCLUSTERED INDEX [IX_members_email] ON [dbo].[teams_members] ([email]);
-CREATE NONCLUSTERED INDEX [IX_members_role] ON [dbo].[teams_members] ([role]);
+CREATE INDEX ix_members_team ON teams_members (team_id);
+CREATE INDEX ix_members_email ON teams_members (email);
+CREATE INDEX ix_members_role ON teams_members (role);
 
 -- ==========================
 -- TEAMS GUESTS TABLE
 -- ==========================
 
-CREATE TABLE [dbo].[teams_guests] (
-    [id] BIGINT IDENTITY(1,1) NOT NULL,
-    [guest_id] NVARCHAR(256) NOT NULL,
-    [team_id] NVARCHAR(256) NOT NULL,
-    [display_name] NVARCHAR(256) NOT NULL,
-    [email] NVARCHAR(256) NOT NULL,
-    [guest_domain] NVARCHAR(256) NULL,
-    [added_date] DATETIME2 NULL,
-    [last_activity] DATETIME2 NULL,
-    [days_as_guest] INT DEFAULT 0,
-    [is_external] BIT DEFAULT 1,
-    [coletado_em] DATETIME2 DEFAULT GETUTCDATE() NOT NULL,
-    CONSTRAINT [PK_teams_guests] PRIMARY KEY CLUSTERED ([id]),
-    CONSTRAINT [FK_guests_team] FOREIGN KEY ([team_id]) REFERENCES [dbo].[teams_analysis]([team_id])
+CREATE TABLE teams_guests (
+    id BIGSERIAL NOT NULL,
+    guest_id VARCHAR(256) NOT NULL,
+    team_id VARCHAR(256) NOT NULL,
+    display_name VARCHAR(256) NOT NULL,
+    email VARCHAR(256) NOT NULL,
+    guest_domain VARCHAR(256) NULL,
+    added_date TIMESTAMP NULL,
+    last_activity TIMESTAMP NULL,
+    days_as_guest INTEGER DEFAULT 0,
+    is_external BOOLEAN DEFAULT TRUE,
+    coletado_em TIMESTAMP DEFAULT NOW() NOT NULL,
+    PRIMARY KEY (id),
+    FOREIGN KEY (team_id) REFERENCES teams_analysis(team_id)
 );
-CREATE NONCLUSTERED INDEX [IX_guests_team] ON [dbo].[teams_guests] ([team_id]);
-CREATE NONCLUSTERED INDEX [IX_guests_domain] ON [dbo].[teams_guests] ([guest_domain]);
+CREATE INDEX ix_guests_team ON teams_guests (team_id);
+CREATE INDEX ix_guests_domain ON teams_guests (guest_domain);
 
 -- ==========================
 -- TEAMS RECOMMENDATIONS TABLE
 -- ==========================
 
-CREATE TABLE [dbo].[teams_recommendations] (
-    [id] BIGINT IDENTITY(1,1) NOT NULL,
-    [recommendation_id] NVARCHAR(256) NOT NULL UNIQUE,
-    [team_id] NVARCHAR(256) NOT NULL,
-    [recommendation_type] NVARCHAR(64) NOT NULL, -- orphaned, inactive, public, many_guests, no_retention, no_owner
-    [recommendation_text] NVARCHAR(MAX) NOT NULL,
-    [severity] NVARCHAR(32) DEFAULT 'medium', -- critical, high, medium, low
-    [remediation_steps] NVARCHAR(MAX) NULL,
-    [status] NVARCHAR(32) DEFAULT 'open', -- open, in_progress, resolved, ignored
-    [created_date] DATETIME2 DEFAULT GETUTCDATE() NOT NULL,
-    [resolved_date] DATETIME2 NULL,
-    [coletado_em] DATETIME2 DEFAULT GETUTCDATE() NOT NULL,
-    CONSTRAINT [PK_teams_recommendations] PRIMARY KEY CLUSTERED ([id]),
-    CONSTRAINT [FK_recommendations_team] FOREIGN KEY ([team_id]) REFERENCES [dbo].[teams_analysis]([team_id])
+CREATE TABLE teams_recommendations (
+    id BIGSERIAL NOT NULL,
+    recommendation_id VARCHAR(256) NOT NULL UNIQUE,
+    team_id VARCHAR(256) NOT NULL,
+    recommendation_type VARCHAR(64) NOT NULL,
+    recommendation_text TEXT NOT NULL,
+    severity VARCHAR(32) DEFAULT 'medium',
+    remediation_steps TEXT NULL,
+    status VARCHAR(32) DEFAULT 'open',
+    created_date TIMESTAMP DEFAULT NOW() NOT NULL,
+    resolved_date TIMESTAMP NULL,
+    coletado_em TIMESTAMP DEFAULT NOW() NOT NULL,
+    PRIMARY KEY (id),
+    FOREIGN KEY (team_id) REFERENCES teams_analysis(team_id)
 );
-CREATE NONCLUSTERED INDEX [IX_recs_team] ON [dbo].[teams_recommendations] ([team_id]);
-CREATE NONCLUSTERED INDEX [IX_recs_severity] ON [dbo].[teams_recommendations] ([severity]);
-CREATE NONCLUSTERED INDEX [IX_recs_status] ON [dbo].[teams_recommendations] ([status]);
+CREATE INDEX ix_recs_team ON teams_recommendations (team_id);
+CREATE INDEX ix_recs_severity ON teams_recommendations (severity);
+CREATE INDEX ix_recs_status ON teams_recommendations (status);
 
 -- ==========================
 -- TEAMS STORAGE ANALYSIS TABLE
 -- ==========================
 
-CREATE TABLE [dbo].[teams_storage_analysis] (
-    [id] BIGINT IDENTITY(1,1) NOT NULL,
-    [team_id] NVARCHAR(256) NOT NULL,
-    [total_storage_gb] DECIMAL(18,2) DEFAULT 0,
-    [shared_drive_gb] DECIMAL(18,2) DEFAULT 0,
-    [files_count] INT DEFAULT 0,
-    [largest_file_size_mb] DECIMAL(18,2) DEFAULT 0,
-    [oldest_file_date] DATETIME2 NULL,
-    [stale_files_30days] INT DEFAULT 0,
-    [stale_files_90days] INT DEFAULT 0,
-    [stale_files_180days] INT DEFAULT 0,
-    [coletado_em] DATETIME2 DEFAULT GETUTCDATE() NOT NULL,
-    CONSTRAINT [PK_teams_storage] PRIMARY KEY CLUSTERED ([id]),
-    CONSTRAINT [FK_storage_team] FOREIGN KEY ([team_id]) REFERENCES [dbo].[teams_analysis]([team_id])
+CREATE TABLE teams_storage_analysis (
+    id BIGSERIAL NOT NULL,
+    team_id VARCHAR(256) NOT NULL,
+    total_storage_gb DECIMAL(18,2) DEFAULT 0,
+    shared_drive_gb DECIMAL(18,2) DEFAULT 0,
+    files_count INTEGER DEFAULT 0,
+    largest_file_size_mb DECIMAL(18,2) DEFAULT 0,
+    oldest_file_date TIMESTAMP NULL,
+    stale_files_30days INTEGER DEFAULT 0,
+    stale_files_90days INTEGER DEFAULT 0,
+    stale_files_180days INTEGER DEFAULT 0,
+    coletado_em TIMESTAMP DEFAULT NOW() NOT NULL,
+    PRIMARY KEY (id),
+    FOREIGN KEY (team_id) REFERENCES teams_analysis(team_id)
 );
-CREATE NONCLUSTERED INDEX [IX_storage_team] ON [dbo].[teams_storage_analysis] ([team_id]);
+CREATE INDEX ix_storage_team ON teams_storage_analysis (team_id);
 
 -- ==========================
 -- AGGREGATION TABLES
 -- ==========================
 
-CREATE TABLE [dbo].[agg_teams_summary] (
-    [id] BIGINT IDENTITY(1,1) NOT NULL,
-    [summary_date] DATE NOT NULL UNIQUE,
-    [total_teams] INT DEFAULT 0,
-    [teams_archived] INT DEFAULT 0,
-    [teams_orphaned] INT DEFAULT 0,
-    [teams_inactive] INT DEFAULT 0,
-    [teams_public] INT DEFAULT 0,
-    [teams_high_risk] INT DEFAULT 0,
-    [total_members] INT DEFAULT 0,
-    [total_guests] INT DEFAULT 0,
-    [total_channels] INT DEFAULT 0,
-    [total_storage_gb] DECIMAL(18,2) DEFAULT 0,
-    [risk_score_avg] DECIMAL(5,2) DEFAULT 0,
-    [coletado_em] DATETIME2 DEFAULT GETUTCDATE() NOT NULL,
-    CONSTRAINT [PK_agg_teams_summary] PRIMARY KEY CLUSTERED ([summary_date])
+CREATE TABLE agg_teams_summary (
+    id BIGSERIAL NOT NULL,
+    summary_date DATE NOT NULL UNIQUE,
+    total_teams INTEGER DEFAULT 0,
+    teams_archived INTEGER DEFAULT 0,
+    teams_orphaned INTEGER DEFAULT 0,
+    teams_inactive INTEGER DEFAULT 0,
+    teams_public INTEGER DEFAULT 0,
+    teams_high_risk INTEGER DEFAULT 0,
+    total_members INTEGER DEFAULT 0,
+    total_guests INTEGER DEFAULT 0,
+    total_channels INTEGER DEFAULT 0,
+    total_storage_gb DECIMAL(18,2) DEFAULT 0,
+    risk_score_avg DECIMAL(5,2) DEFAULT 0,
+    coletado_em TIMESTAMP DEFAULT NOW() NOT NULL,
+    PRIMARY KEY (summary_date)
 );
 
 -- ==========================
 -- STORED PROCEDURES
 -- ==========================
 
--- Procedure to aggregate Teams data daily
-CREATE PROCEDURE [dbo].[sp_AggregateTeamsSummary]
-    @summaryDate DATE = NULL
-AS
+-- Function to aggregate Teams data daily
+CREATE OR REPLACE FUNCTION sp_aggregate_teams_summary(summary_date_param DATE DEFAULT NULL)
+RETURNS void AS $$
+DECLARE
+    v_summary_date DATE;
 BEGIN
-    SET @summaryDate = ISNULL(@summaryDate, CAST(GETUTCDATE() AS DATE));
+    v_summary_date := COALESCE(summary_date_param, CAST(NOW() AS DATE));
 
-    INSERT INTO [dbo].[agg_teams_summary] (
+    INSERT INTO agg_teams_summary (
         summary_date, total_teams, teams_archived, teams_orphaned,
         teams_inactive, teams_public, teams_high_risk, total_members,
         total_guests, total_channels, total_storage_gb, risk_score_avg
     )
     SELECT
-        @summaryDate,
-        COUNT(DISTINCT [team_id]),
-        SUM(CASE WHEN [is_archived] = 1 THEN 1 ELSE 0 END),
-        SUM(CASE WHEN [team_owner] IS NULL THEN 1 ELSE 0 END),
-        SUM(CASE WHEN [days_inactive] > 180 THEN 1 ELSE 0 END),
-        SUM(CASE WHEN [is_public] = 1 THEN 1 ELSE 0 END),
-        SUM(CASE WHEN [risk_score] >= 50 THEN 1 ELSE 0 END),
-        SUM([member_count]),
-        SUM([guest_count]),
-        SUM([channel_count]),
-        SUM([storage_gb]),
-        AVG(CAST([risk_score] AS DECIMAL(5,2)))
-    FROM [dbo].[teams_analysis]
-    WHERE CAST([coletado_em] AS DATE) = @summaryDate;
+        v_summary_date,
+        COUNT(DISTINCT team_id),
+        SUM(CASE WHEN is_archived = TRUE THEN 1 ELSE 0 END),
+        SUM(CASE WHEN team_owner IS NULL THEN 1 ELSE 0 END),
+        SUM(CASE WHEN days_inactive > 180 THEN 1 ELSE 0 END),
+        SUM(CASE WHEN is_public = TRUE THEN 1 ELSE 0 END),
+        SUM(CASE WHEN risk_score >= 50 THEN 1 ELSE 0 END),
+        SUM(member_count),
+        SUM(guest_count),
+        SUM(channel_count),
+        SUM(storage_gb),
+        AVG(CAST(risk_score AS DECIMAL(5,2)))
+    FROM teams_analysis
+    WHERE CAST(coletado_em AS DATE) = v_summary_date;
 END;
-GO
+$$ LANGUAGE plpgsql;
 
--- Procedure to calculate Teams risk scores
-CREATE PROCEDURE [dbo].[sp_CalculateTeamsRiskScore]
-    @teamId NVARCHAR(256)
-AS
+-- Function to calculate Teams risk scores
+CREATE OR REPLACE FUNCTION sp_calculate_teams_risk_score(team_id_param VARCHAR(256))
+RETURNS void AS $$
+DECLARE
+    v_risk_score INTEGER := 0;
+    v_days_inactive INTEGER;
+    v_member_count INTEGER;
+    v_guest_count INTEGER;
+    v_is_orphaned BOOLEAN;
+    v_is_public BOOLEAN;
+    v_is_archived BOOLEAN;
 BEGIN
-    DECLARE @riskScore INT = 0;
-    DECLARE @daysInactive INT;
-    DECLARE @memberCount INT;
-    DECLARE @guestCount INT;
-    DECLARE @isOrphaned BIT;
-    DECLARE @isPublic BIT;
-    DECLARE @isArchived BIT;
-
     SELECT
-        @daysInactive = [days_inactive],
-        @memberCount = [member_count],
-        @guestCount = [guest_count],
-        @isOrphaned = CASE WHEN [team_owner] IS NULL THEN 1 ELSE 0 END,
-        @isPublic = [is_public],
-        @isArchived = [is_archived]
-    FROM [dbo].[teams_analysis]
-    WHERE [team_id] = @teamId;
+        days_inactive,
+        member_count,
+        guest_count,
+        CASE WHEN team_owner IS NULL THEN TRUE ELSE FALSE END,
+        is_public,
+        is_archived
+    INTO v_days_inactive, v_member_count, v_guest_count, v_is_orphaned, v_is_public, v_is_archived
+    FROM teams_analysis
+    WHERE team_id = team_id_param;
 
     -- Orphaned team (no owner): 40 points
-    IF @isOrphaned = 1 SET @riskScore = @riskScore + 40;
+    IF v_is_orphaned = TRUE THEN v_risk_score := v_risk_score + 40; END IF;
 
     -- Inactive >180 days: 35 points
-    IF @daysInactive > 180 SET @riskScore = @riskScore + 35;
+    IF v_days_inactive > 180 THEN v_risk_score := v_risk_score + 35; END IF;
 
     -- Public team: 20 points
-    IF @isPublic = 1 SET @riskScore = @riskScore + 20;
+    IF v_is_public = TRUE THEN v_risk_score := v_risk_score + 20; END IF;
 
     -- Many guests (>50): 15 points
-    IF @guestCount > 50 SET @riskScore = @riskScore + 15;
+    IF v_guest_count > 50 THEN v_risk_score := v_risk_score + 15; END IF;
 
     -- Mitigating factor: archived team: -50 points
-    IF @isArchived = 1 SET @riskScore = CASE WHEN @riskScore >= 50 THEN @riskScore - 50 ELSE 0 END;
+    IF v_is_archived = TRUE THEN v_risk_score := CASE WHEN v_risk_score >= 50 THEN v_risk_score - 50 ELSE 0 END; END IF;
 
     -- Cap at 100
-    SET @riskScore = CASE WHEN @riskScore > 100 THEN 100 ELSE @riskScore END;
+    v_risk_score := CASE WHEN v_risk_score > 100 THEN 100 ELSE v_risk_score END;
 
-    UPDATE [dbo].[teams_analysis]
+    UPDATE teams_analysis
     SET
-        [risk_score] = @riskScore,
-        [risk_level] = CASE
-            WHEN @riskScore >= 70 THEN 'Crítico'
-            WHEN @riskScore >= 50 THEN 'Alto'
-            WHEN @riskScore >= 30 THEN 'Médio'
+        risk_score = v_risk_score,
+        risk_level = CASE
+            WHEN v_risk_score >= 70 THEN 'Crítico'
+            WHEN v_risk_score >= 50 THEN 'Alto'
+            WHEN v_risk_score >= 30 THEN 'Médio'
             ELSE 'Baixo'
         END
-    WHERE [team_id] = @teamId;
+    WHERE team_id = team_id_param;
 END;
-GO
+$$ LANGUAGE plpgsql;
 
--- Procedure to generate Teams recommendations
-CREATE PROCEDURE [dbo].[sp_GenerateTeamsRecommendations]
-    @teamId NVARCHAR(256)
-AS
+-- Function to generate Teams recommendations
+CREATE OR REPLACE FUNCTION sp_generate_teams_recommendations(team_id_param VARCHAR(256))
+RETURNS void AS $$
+DECLARE
+    v_team_name VARCHAR(512);
+    v_days_inactive INTEGER;
+    v_guest_count INTEGER;
+    v_is_orphaned BOOLEAN;
+    v_is_public BOOLEAN;
+    v_has_retention BOOLEAN;
 BEGIN
-    DECLARE @teamName NVARCHAR(512);
-    DECLARE @daysInactive INT;
-    DECLARE @guestCount INT;
-    DECLARE @isOrphaned BIT;
-    DECLARE @isPublic BIT;
-    DECLARE @hasRetention BIT;
-
     SELECT
-        @teamName = [display_name],
-        @daysInactive = [days_inactive],
-        @guestCount = [guest_count],
-        @isOrphaned = CASE WHEN [team_owner] IS NULL THEN 1 ELSE 0 END,
-        @isPublic = [is_public],
-        @hasRetention = [has_retention_policy]
-    FROM [dbo].[teams_analysis]
-    WHERE [team_id] = @teamId;
+        display_name,
+        days_inactive,
+        guest_count,
+        CASE WHEN team_owner IS NULL THEN TRUE ELSE FALSE END,
+        is_public,
+        has_retention_policy
+    INTO v_team_name, v_days_inactive, v_guest_count, v_is_orphaned, v_is_public, v_has_retention
+    FROM teams_analysis
+    WHERE team_id = team_id_param;
 
     -- Delete existing recommendations for this team
-    DELETE FROM [dbo].[teams_recommendations]
-    WHERE [team_id] = @teamId AND [status] = 'open';
+    DELETE FROM teams_recommendations
+    WHERE team_id = team_id_param AND status = 'open';
 
     -- Orphaned team recommendation
-    IF @isOrphaned = 1
-    BEGIN
-        INSERT INTO [dbo].[teams_recommendations] (
+    IF v_is_orphaned = TRUE THEN
+        INSERT INTO teams_recommendations (
             recommendation_id, team_id, recommendation_type,
             recommendation_text, severity, remediation_steps
         ) VALUES (
-            NEWID(), @teamId, 'orphaned',
+            gen_random_uuid()::VARCHAR, team_id_param, 'orphaned',
             'Este Time não possui proprietário designado',
             'critical',
             'Acesse configurações do Time > Membros > Designar um proprietário'
         );
-    END
+    END IF;
 
     -- Inactive team recommendation
-    IF @daysInactive > 180
-    BEGIN
-        INSERT INTO [dbo].[teams_recommendations] (
+    IF v_days_inactive > 180 THEN
+        INSERT INTO teams_recommendations (
             recommendation_id, team_id, recommendation_type,
             recommendation_text, severity, remediation_steps
         ) VALUES (
-            NEWID(), @teamId, 'inactive',
+            gen_random_uuid()::VARCHAR, team_id_param, 'inactive',
             'Este Time está inativo há mais de 6 meses',
             'high',
             'Considere arquivar o Time se não for mais utilizado > Configurações > Arquivar este Time'
         );
-    END
+    END IF;
 
     -- Public team recommendation
-    IF @isPublic = 1
-    BEGIN
-        INSERT INTO [dbo].[teams_recommendations] (
+    IF v_is_public = TRUE THEN
+        INSERT INTO teams_recommendations (
             recommendation_id, team_id, recommendation_type,
             recommendation_text, severity, remediation_steps
         ) VALUES (
-            NEWID(), @teamId, 'public',
+            gen_random_uuid()::VARCHAR, team_id_param, 'public',
             'Este é um Time público - qualquer usuário pode se juntar',
             'high',
             'Verifique dados sensíveis > Configurações > Alterar para Privado se necessário'
         );
-    END
+    END IF;
 
     -- Many guests recommendation
-    IF @guestCount > 50
-    BEGIN
-        INSERT INTO [dbo].[teams_recommendations] (
+    IF v_guest_count > 50 THEN
+        INSERT INTO teams_recommendations (
             recommendation_id, team_id, recommendation_type,
             recommendation_text, severity, remediation_steps
         ) VALUES (
-            NEWID(), @teamId, 'many_guests',
-            'Este Time possui muitos convidados externos (' + CAST(@guestCount AS NVARCHAR(10)) + ')',
+            gen_random_uuid()::VARCHAR, team_id_param, 'many_guests',
+            'Este Time possui muitos convidados externos (' || CAST(v_guest_count AS VARCHAR) || ')',
             'medium',
             'Revise o acesso de convidados > Configurações > Membros > Gerenciar convidados'
         );
-    END
+    END IF;
 
     -- No retention policy recommendation
-    IF @hasRetention = 0
-    BEGIN
-        INSERT INTO [dbo].[teams_recommendations] (
+    IF v_has_retention = FALSE THEN
+        INSERT INTO teams_recommendations (
             recommendation_id, team_id, recommendation_type,
             recommendation_text, severity, remediation_steps
         ) VALUES (
-            NEWID(), @teamId, 'no_retention',
+            gen_random_uuid()::VARCHAR, team_id_param, 'no_retention',
             'Nenhuma política de retenção de mensagens configurada',
             'medium',
             'Configure política de retenção > Centro de Conformidade > Políticas de Retenção'
         );
-    END
+    END IF;
 END;
-GO
+$$ LANGUAGE plpgsql;

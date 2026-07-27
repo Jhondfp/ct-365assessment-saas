@@ -6,6 +6,7 @@ const session = require('express-session');
 const passport = require('passport');
 const logger = require('./config/logger');
 const config = require('./config');
+const { runMigrations } = require('./migrations');
 const rotasAutenticacao = require('./routes/auth');
 const rotasClientes = require('./routes/clients');
 const rotasInquilinos = require('./routes/tenants');
@@ -162,19 +163,38 @@ app.use((req, res) => {
 // INICIALIZAÇÃO
 // ======================================
 const PORTA = process.env.PORT || 3000;
-const servidor = app.listen(PORTA, () => {
-  logger.info(`✓ Plano de Controle iniciado na porta ${PORTA}`);
-  logger.info(`  Ambiente: ${process.env.NODE_ENV}`);
-  logger.info(`  Banco de dados: ${config.CP_DB_SERVER}`);
-});
 
-// Encerramento gracioso
-process.on('SIGTERM', () => {
-  logger.info('SIGTERM recebido, encerrando graciosamente...');
-  servidor.close(() => {
-    logger.info('Servidor encerrado');
-    process.exit(0);
-  });
-});
+async function startServer() {
+  try {
+    // Run database migrations
+    logger.info('Running database migrations...');
+    const migrationsOk = await runMigrations();
+    if (!migrationsOk) {
+      logger.error('Database migrations failed');
+      process.exit(1);
+    }
+
+    // Start server after migrations complete
+    const servidor = app.listen(PORTA, () => {
+      logger.info(`✓ Plano de Controle iniciado na porta ${PORTA}`);
+      logger.info(`  Ambiente: ${process.env.NODE_ENV}`);
+      logger.info(`  Banco de dados: ${config.CP_DB_SERVER}:${config.CP_DB_PORT}`);
+    });
+
+    // Graceful shutdown
+    process.on('SIGTERM', () => {
+      logger.info('SIGTERM recebido, encerrando graciosamente...');
+      servidor.close(() => {
+        logger.info('Servidor encerrado');
+        process.exit(0);
+      });
+    });
+  } catch (err) {
+    logger.error(`Erro ao iniciar servidor: ${err.message}`);
+    process.exit(1);
+  }
+}
+
+startServer();
 
 module.exports = app;

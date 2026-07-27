@@ -1,38 +1,67 @@
-const sql = require('mssql');
+const { Pool, Client } = require('pg');
 const config = require('../config');
 const logger = require('../config/logger');
 
-let connectionPool = null;
+// Pool de conexão para Control Plane (banco único)
+let controlPlanePool = null;
 
-const dbConfig = {
-  server: config.CP_DB_SERVER,
+// Pools de conexão para tenants isolados (cada cliente tem seu banco)
+const tenantPools = new Map();
+
+const cpDbConfig = {
+  host: config.CP_DB_SERVER,
+  port: config.CP_DB_PORT || 5432,
   database: config.CP_DB_NAME,
   user: config.CP_DB_USER,
   password: config.CP_DB_PASSWORD,
-  port: 1433,
-  pool: {
-    max: 10,
-    min: 2,
-    idleTimeoutMillis: 30000
-  },
-  options: {
-    encrypt: true,
-    trustServerCertificate: false,
-    enableKeepAlive: true,
-    keepAliveInitialDelayMs: 30000
+  max: 10,
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 2000,
+  ssl: {
+    rejectUnauthorized: false
   }
 };
 
-const getConnection = async () => {
+const getControlPlaneConnection = async () => {
   try {
-    if (!connectionPool) {
-      connectionPool = new sql.ConnectionPool(dbConfig);
-      await connectionPool.connect();
-      logger.info('✓ Connected to SQL Database (Control Plane)');
+    if (!controlPlanePool) {
+      controlPlanePool = new Pool(cpDbConfig);
+      await controlPlanePool.query('SELECT NOW()');
+      logger.info('✓ Connected to PostgreSQL Database (Control Plane)');
     }
-    return connectionPool;
+    return controlPlanePool;
   } catch (err) {
-    logger.error(`Database connection error: ${err.message}`);
+    logger.error(`Control Plane database connection error: ${err.message}`);
+    throw err;
+  }
+};
+
+const getTenantConnection = async (tenantId) => {
+  try {
+    if (tenantPools.has(tenantId)) {
+      return tenantPools.get(tenantId);
+    }
+
+    // Buscar credenciais do tenant do banco de controle
+    const cpPool = await getControlPlaneConnection();
+    const result = await cpPool.query(
+      'SELECT db_connection_string FROM tenants WHERE id = $1',
+      [tenantId]
+    );
+
+    if (!result.rows[0]) {
+      throw new Error(`Tenant ${tenantId} not found`);
+    }
+
+    const connectionString = result.rows[0].db_connection_string;
+    const tenantPool = new Pool({ connectionString });
+    await tenantPool.query('SELECT NOW()');
+
+    tenantPools.set(tenantId, tenantPool);
+    logger.info(`✓ Connected to PostgreSQL Database (Tenant: ${tenantId})`);
+    return tenantPool;
+  } catch (err) {
+    logger.error(`Tenant database connection error: ${err.message}`);
     throw err;
   }
 };
@@ -42,12 +71,12 @@ const getConnection = async () => {
 // ======================================
 const getUserByEntraId = async (entraObjectId) => {
   try {
-    const pool = await getConnection();
-    const result = await pool
-      .request()
-      .input('entraObjectId', sql.UniqueIdentifier, entraObjectId)
-      .query('SELECT * FROM [dbo].[users] WHERE [entra_object_id] = @entraObjectId AND [ativo] = 1');
-    return result.recordset[0] || null;
+    const pool = await getControlPlaneConnection();
+    const result = await pool.query(
+      'SELECT * FROM users WHERE entra_object_id = $1 AND ativo = true',
+      [entraObjectId]
+    );
+    return result.rows[0] || null;
   } catch (err) {
     logger.error(`Error getting user by Entra ID: ${err.message}`);
     throw err;
@@ -56,12 +85,12 @@ const getUserByEntraId = async (entraObjectId) => {
 
 const getUserById = async (userId) => {
   try {
-    const pool = await getConnection();
-    const result = await pool
-      .request()
-      .input('userId', sql.UniqueIdentifier, userId)
-      .query('SELECT * FROM [dbo].[users] WHERE [id] = @userId AND [ativo] = 1');
-    return result.recordset[0] || null;
+    const pool = await getControlPlaneConnection();
+    const result = await pool.query(
+      'SELECT * FROM users WHERE id = $1 AND ativo = true',
+      [userId]
+    );
+    return result.rows[0] || null;
   } catch (err) {
     logger.error(`Error getting user: ${err.message}`);
     throw err;
@@ -70,19 +99,12 @@ const getUserById = async (userId) => {
 
 const createUser = async (user) => {
   try {
-    const pool = await getConnection();
-    await pool
-      .request()
-      .input('id', sql.UniqueIdentifier, user.id)
-      .input('entraObjectId', sql.UniqueIdentifier, user.entra_object_id)
-      .input('nome', sql.NVarChar(255), user.nome)
-      .input('email', sql.NVarChar(255), user.email)
-      .input('papel', sql.VarChar(20), user.papel)
-      .query(
-        `INSERT INTO [dbo].[users]
-         ([id], [entra_object_id], [nome], [email], [papel])
-         VALUES (@id, @entraObjectId, @nome, @email, @papel)`
-      );
+    const pool = await getControlPlaneConnection();
+    await pool.query(
+      `INSERT INTO users (id, entra_object_id, nome, email, papel)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [user.id, user.entra_object_id, user.nome, user.email, user.papel]
+    );
     logger.info(`User created: ${user.email}`);
   } catch (err) {
     logger.error(`Error creating user: ${err.message}`);
@@ -92,11 +114,11 @@ const createUser = async (user) => {
 
 const updateUserLastAccess = async (userId) => {
   try {
-    const pool = await getConnection();
-    await pool
-      .request()
-      .input('userId', sql.UniqueIdentifier, userId)
-      .query('UPDATE [dbo].[users] SET [ultimo_acesso] = GETUTCDATE() WHERE [id] = @userId');
+    const pool = await getControlPlaneConnection();
+    await pool.query(
+      'UPDATE users SET ultimo_acesso = NOW() WHERE id = $1',
+      [userId]
+    );
   } catch (err) {
     logger.error(`Error updating last access: ${err.message}`);
     throw err;
@@ -108,19 +130,16 @@ const updateUserLastAccess = async (userId) => {
 // ======================================
 const listClients = async (page = 0, limit = 20) => {
   try {
-    const pool = await getConnection();
+    const pool = await getControlPlaneConnection();
     const offset = page * limit;
-    const result = await pool
-      .request()
-      .input('offset', sql.Int, offset)
-      .input('limit', sql.Int, limit)
-      .query(
-        `SELECT * FROM [dbo].[clients]
-         WHERE [status] != 'terminated'
-         ORDER BY [criado_em] DESC
-         OFFSET @offset ROWS FETCH NEXT @limit ROWS ONLY`
-      );
-    return result.recordset;
+    const result = await pool.query(
+      `SELECT * FROM clients
+       WHERE status != 'terminated'
+       ORDER BY criado_em DESC
+       LIMIT $1 OFFSET $2`,
+      [limit, offset]
+    );
+    return result.rows;
   } catch (err) {
     logger.error(`Error listing clients: ${err.message}`);
     throw err;
@@ -129,12 +148,9 @@ const listClients = async (page = 0, limit = 20) => {
 
 const getClientById = async (clientId) => {
   try {
-    const pool = await getConnection();
-    const result = await pool
-      .request()
-      .input('clientId', sql.UniqueIdentifier, clientId)
-      .query('SELECT * FROM [dbo].[clients] WHERE [id] = @clientId');
-    return result.recordset[0] || null;
+    const pool = await getControlPlaneConnection();
+    const result = await pool.query('SELECT * FROM clients WHERE id = $1', [clientId]);
+    return result.rows[0] || null;
   } catch (err) {
     logger.error(`Error getting client: ${err.message}`);
     throw err;
@@ -143,20 +159,14 @@ const getClientById = async (clientId) => {
 
 const createClient = async (client) => {
   try {
-    const pool = await getConnection();
-    const result = await pool
-      .request()
-      .input('razaoSocial', sql.NVarChar(255), client.razao_social)
-      .input('cnpj', sql.VarChar(14), client.cnpj)
-      .input('emailContato', sql.NVarChar(255), client.email_contato)
-      .input('regiao', sql.VarChar(20), client.regiao || 'brazilsouth')
-      .query(
-        `INSERT INTO [dbo].[clients]
-         ([razao_social], [cnpj], [email_contato], [regiao])
-         VALUES (@razaoSocial, @cnpj, @emailContato, @regiao);
-         SELECT * FROM [dbo].[clients] WHERE [cnpj] = @cnpj`
-      );
-    return result.recordset[0];
+    const pool = await getControlPlaneConnection();
+    const result = await pool.query(
+      `INSERT INTO clients (razao_social, cnpj, email_contato, regiao)
+       VALUES ($1, $2, $3, $4)
+       RETURNING *`,
+      [client.razao_social, client.cnpj, client.email_contato, client.regiao || 'brazilsouth']
+    );
+    return result.rows[0];
   } catch (err) {
     logger.error(`Error creating client: ${err.message}`);
     throw err;
@@ -168,12 +178,12 @@ const createClient = async (client) => {
 // ======================================
 const listTenantsByClient = async (clientId) => {
   try {
-    const pool = await getConnection();
-    const result = await pool
-      .request()
-      .input('clientId', sql.UniqueIdentifier, clientId)
-      .query('SELECT * FROM [dbo].[tenants] WHERE [client_id] = @clientId ORDER BY [criado_em] DESC');
-    return result.recordset;
+    const pool = await getControlPlaneConnection();
+    const result = await pool.query(
+      'SELECT * FROM tenants WHERE client_id = $1 ORDER BY criado_em DESC',
+      [clientId]
+    );
+    return result.rows;
   } catch (err) {
     logger.error(`Error listing tenants: ${err.message}`);
     throw err;
@@ -182,12 +192,9 @@ const listTenantsByClient = async (clientId) => {
 
 const getTenantById = async (tenantId) => {
   try {
-    const pool = await getConnection();
-    const result = await pool
-      .request()
-      .input('tenantId', sql.UniqueIdentifier, tenantId)
-      .query('SELECT * FROM [dbo].[tenants] WHERE [id] = @tenantId');
-    return result.recordset[0] || null;
+    const pool = await getControlPlaneConnection();
+    const result = await pool.query('SELECT * FROM tenants WHERE id = $1', [tenantId]);
+    return result.rows[0] || null;
   } catch (err) {
     logger.error(`Error getting tenant: ${err.message}`);
     throw err;
@@ -199,17 +206,15 @@ const getTenantById = async (tenantId) => {
 // ======================================
 const listExecutionsByTenant = async (tenantId, limit = 20) => {
   try {
-    const pool = await getConnection();
-    const result = await pool
-      .request()
-      .input('tenantId', sql.UniqueIdentifier, tenantId)
-      .input('limit', sql.Int, limit)
-      .query(
-        `SELECT TOP (@limit) * FROM [dbo].[executions]
-         WHERE [tenant_id] = @tenantId
-         ORDER BY [iniciado_em] DESC`
-      );
-    return result.recordset;
+    const pool = await getControlPlaneConnection();
+    const result = await pool.query(
+      `SELECT * FROM executions
+       WHERE tenant_id = $1
+       ORDER BY iniciado_em DESC
+       LIMIT $2`,
+      [tenantId, limit]
+    );
+    return result.rows;
   } catch (err) {
     logger.error(`Error listing executions: ${err.message}`);
     throw err;
@@ -218,12 +223,9 @@ const listExecutionsByTenant = async (tenantId, limit = 20) => {
 
 const getExecutionById = async (executionId) => {
   try {
-    const pool = await getConnection();
-    const result = await pool
-      .request()
-      .input('executionId', sql.UniqueIdentifier, executionId)
-      .query('SELECT * FROM [dbo].[executions] WHERE [id] = @executionId');
-    return result.recordset[0] || null;
+    const pool = await getControlPlaneConnection();
+    const result = await pool.query('SELECT * FROM executions WHERE id = $1', [executionId]);
+    return result.rows[0] || null;
   } catch (err) {
     logger.error(`Error getting execution: ${err.message}`);
     throw err;
@@ -235,21 +237,20 @@ const getExecutionById = async (executionId) => {
 // ======================================
 const logAudit = async (auditEntry) => {
   try {
-    const pool = await getConnection();
-    await pool
-      .request()
-      .input('userId', sql.UniqueIdentifier, auditEntry.user_id)
-      .input('acao', sql.VarChar(50), auditEntry.acao)
-      .input('alvoTipo', sql.VarChar(30), auditEntry.alvo_tipo)
-      .input('alvoId', sql.UniqueIdentifier, auditEntry.alvo_id)
-      .input('detalhes', sql.NVarChar(sql.MAX), auditEntry.detalhes_json ? JSON.stringify(auditEntry.detalhes_json) : null)
-      .input('endereco', sql.VarChar(45), auditEntry.endereco_ip)
-      .input('userAgent', sql.NVarChar(sql.MAX), auditEntry.user_agent)
-      .query(
-        `INSERT INTO [dbo].[audit_log]
-         ([user_id], [acao], [alvo_tipo], [alvo_id], [detalhes_json], [endereco_ip], [user_agent])
-         VALUES (@userId, @acao, @alvoTipo, @alvoId, @detalhes, @endereco, @userAgent)`
-      );
+    const pool = await getControlPlaneConnection();
+    await pool.query(
+      `INSERT INTO audit_log (user_id, acao, alvo_tipo, alvo_id, detalhes_json, endereco_ip, user_agent)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+      [
+        auditEntry.user_id,
+        auditEntry.acao,
+        auditEntry.alvo_tipo,
+        auditEntry.alvo_id,
+        auditEntry.detalhes_json ? JSON.stringify(auditEntry.detalhes_json) : null,
+        auditEntry.endereco_ip,
+        auditEntry.user_agent
+      ]
+    );
   } catch (err) {
     logger.error(`Error logging audit: ${err.message}`);
     // Não throw - audit log falho não deve quebrar a operação principal
@@ -257,7 +258,8 @@ const logAudit = async (auditEntry) => {
 };
 
 module.exports = {
-  getConnection,
+  getControlPlaneConnection,
+  getTenantConnection,
 
   // Users
   getUserByEntraId,

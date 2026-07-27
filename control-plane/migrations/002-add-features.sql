@@ -5,205 +5,208 @@
 -- ======================================
 -- 01. EXECUTION SNAPSHOTS - Versionamento de Execuções
 -- ======================================
-CREATE TABLE [dbo].[execution_snapshots] (
-    [id] UNIQUEIDENTIFIER NOT NULL PRIMARY KEY DEFAULT NEWID(),
-    [execution_id] UNIQUEIDENTIFIER NOT NULL,
-    [version_number] INT NOT NULL,
-    [snapshot_data] NVARCHAR(MAX) NOT NULL, -- JSON completo da execução
-    [criado_em] DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
-    FOREIGN KEY ([execution_id]) REFERENCES [dbo].[executions]([id]) ON DELETE CASCADE,
-    UNIQUE ([execution_id], [version_number])
+CREATE TABLE execution_snapshots (
+    id UUID NOT NULL PRIMARY KEY DEFAULT gen_random_uuid(),
+    execution_id UUID NOT NULL,
+    version_number INTEGER NOT NULL,
+    snapshot_data JSONB NOT NULL,
+    criado_em TIMESTAMP NOT NULL DEFAULT NOW(),
+    FOREIGN KEY (execution_id) REFERENCES executions(id) ON DELETE CASCADE,
+    UNIQUE (execution_id, version_number)
 );
 
-CREATE INDEX [idx_execution_snapshots_execution_id] ON [dbo].[execution_snapshots]([execution_id]);
-CREATE INDEX [idx_execution_snapshots_version] ON [dbo].[execution_snapshots]([execution_id], [version_number]);
+CREATE INDEX idx_execution_snapshots_execution_id ON execution_snapshots(execution_id);
+CREATE INDEX idx_execution_snapshots_version ON execution_snapshots(execution_id, version_number);
 
 -- ======================================
 -- 02. EMAIL QUEUE - Fila de Emails
 -- ======================================
-CREATE TABLE [dbo].[email_queue] (
-    [id] UNIQUEIDENTIFIER NOT NULL PRIMARY KEY DEFAULT NEWID(),
-    [execution_id] UNIQUEIDENTIFIER NOT NULL,
-    [recipient_email] NVARCHAR(255) NOT NULL,
-    [assunto] NVARCHAR(255) NOT NULL,
-    [corpo_html] NVARCHAR(MAX) NOT NULL,
-    [status] VARCHAR(20) NOT NULL DEFAULT 'pending'
-        CHECK ([status] IN ('pending', 'sent', 'failed', 'bounced')),
-    [tentativas] INT DEFAULT 0,
-    [max_tentativas] INT DEFAULT 5,
-    [mensagem_erro] NVARCHAR(MAX) NULL,
-    [criado_em] DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
-    [enviado_em] DATETIME2 NULL,
-    [proxima_tentativa_em] DATETIME2 NULL,
-    FOREIGN KEY ([execution_id]) REFERENCES [dbo].[executions]([id]) ON DELETE CASCADE
+CREATE TABLE email_queue (
+    id UUID NOT NULL PRIMARY KEY DEFAULT gen_random_uuid(),
+    execution_id UUID NOT NULL,
+    recipient_email VARCHAR(255) NOT NULL,
+    assunto VARCHAR(255) NOT NULL,
+    corpo_html TEXT NOT NULL,
+    status VARCHAR(20) NOT NULL DEFAULT 'pending'
+        CHECK (status IN ('pending', 'sent', 'failed', 'bounced')),
+    tentativas INTEGER DEFAULT 0,
+    max_tentativas INTEGER DEFAULT 5,
+    mensagem_erro TEXT NULL,
+    criado_em TIMESTAMP NOT NULL DEFAULT NOW(),
+    enviado_em TIMESTAMP NULL,
+    proxima_tentativa_em TIMESTAMP NULL,
+    FOREIGN KEY (execution_id) REFERENCES executions(id) ON DELETE CASCADE
 );
 
-CREATE INDEX [idx_email_queue_status] ON [dbo].[email_queue]([status]);
-CREATE INDEX [idx_email_queue_execution_id] ON [dbo].[email_queue]([execution_id]);
-CREATE INDEX [idx_email_queue_criado_em] ON [dbo].[email_queue]([criado_em]);
+CREATE INDEX idx_email_queue_status ON email_queue(status);
+CREATE INDEX idx_email_queue_execution_id ON email_queue(execution_id);
+CREATE INDEX idx_email_queue_criado_em ON email_queue(criado_em);
 
 -- ======================================
 -- 03. PDF STORAGE - Cache de PDFs Gerados
 -- ======================================
-CREATE TABLE [dbo].[pdf_reports] (
-    [id] UNIQUEIDENTIFIER NOT NULL PRIMARY KEY DEFAULT NEWID(),
-    [execution_id] UNIQUEIDENTIFIER NOT NULL,
-    [blob_url] NVARCHAR(MAX) NOT NULL, -- URL do Azure Blob Storage
-    [blob_sas_token] NVARCHAR(MAX) NULL, -- Token SAS para acesso público
-    [tamanho_bytes] BIGINT NULL,
-    [hash_md5] VARCHAR(32) NULL,
-    [criado_em] DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
-    [expira_em] DATETIME2 NULL, -- Quando o SAS expira
-    FOREIGN KEY ([execution_id]) REFERENCES [dbo].[executions]([id]) ON DELETE CASCADE,
-    UNIQUE ([execution_id])
+CREATE TABLE pdf_reports (
+    id UUID NOT NULL PRIMARY KEY DEFAULT gen_random_uuid(),
+    execution_id UUID NOT NULL,
+    blob_url TEXT NOT NULL,
+    blob_sas_token TEXT NULL,
+    tamanho_bytes BIGINT NULL,
+    hash_md5 VARCHAR(32) NULL,
+    criado_em TIMESTAMP NOT NULL DEFAULT NOW(),
+    expira_em TIMESTAMP NULL,
+    FOREIGN KEY (execution_id) REFERENCES executions(id) ON DELETE CASCADE,
+    UNIQUE (execution_id)
 );
 
-CREATE INDEX [idx_pdf_reports_execution_id] ON [dbo].[pdf_reports]([execution_id]);
-CREATE INDEX [idx_pdf_reports_criado_em] ON [dbo].[pdf_reports]([criado_em]);
+CREATE INDEX idx_pdf_reports_execution_id ON pdf_reports(execution_id);
+CREATE INDEX idx_pdf_reports_criado_em ON pdf_reports(criado_em);
 
 -- ======================================
 -- 04. EXECUTION TEMPLATES - Templates de Customização
 -- ======================================
-CREATE TABLE [dbo].[execution_templates] (
-    [id] UNIQUEIDENTIFIER NOT NULL PRIMARY KEY DEFAULT NEWID(),
-    [tenant_id] UNIQUEIDENTIFIER NOT NULL,
-    [template_nome] NVARCHAR(255) NOT NULL,
-    [descricao] NVARCHAR(MAX) NULL,
-    [config_json] NVARCHAR(MAX) NOT NULL, -- { includeDeleted, maxFileSize, scanExternalShares, etc }
-    [criado_por] UNIQUEIDENTIFIER NOT NULL,
-    [ativo] BIT NOT NULL DEFAULT 1,
-    [criado_em] DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
-    [atualizado_em] DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
-    FOREIGN KEY ([tenant_id]) REFERENCES [dbo].[tenants]([id]) ON DELETE CASCADE,
-    FOREIGN KEY ([criado_por]) REFERENCES [dbo].[users]([id]),
-    UNIQUE ([tenant_id], [template_nome])
+CREATE TABLE execution_templates (
+    id UUID NOT NULL PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id UUID NOT NULL,
+    template_nome VARCHAR(255) NOT NULL,
+    descricao TEXT NULL,
+    config_json JSONB NOT NULL,
+    criado_por UUID NOT NULL,
+    ativo BOOLEAN NOT NULL DEFAULT true,
+    criado_em TIMESTAMP NOT NULL DEFAULT NOW(),
+    atualizado_em TIMESTAMP NOT NULL DEFAULT NOW(),
+    FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE,
+    FOREIGN KEY (criado_por) REFERENCES users(id),
+    UNIQUE (tenant_id, template_nome)
 );
 
-CREATE INDEX [idx_execution_templates_tenant_id] ON [dbo].[execution_templates]([tenant_id]);
-CREATE INDEX [idx_execution_templates_ativo] ON [dbo].[execution_templates]([ativo]);
+CREATE INDEX idx_execution_templates_tenant_id ON execution_templates(tenant_id);
+CREATE INDEX idx_execution_templates_ativo ON execution_templates(ativo);
 
 -- ======================================
 -- 05. ADICIONAR COLUNAS À EXECUTIONS
 -- ======================================
--- Versioning
-ALTER TABLE [dbo].[executions]
-ADD [version_number] INT NULL; -- Auto-incremento por tenant
+ALTER TABLE executions
+ADD version_number INTEGER NULL;
 
--- Configuração utilizada
-ALTER TABLE [dbo].[executions]
-ADD [config_json] NVARCHAR(MAX) NULL; -- Cópia da config utilizada na execução
+ALTER TABLE executions
+ADD config_json JSONB NULL;
 
--- Template usado (audit trail)
-ALTER TABLE [dbo].[executions]
-ADD [execution_template_id] UNIQUEIDENTIFIER NULL;
+ALTER TABLE executions
+ADD execution_template_id UUID NULL;
 
--- Resultado/Findings
-ALTER TABLE [dbo].[executions]
-ADD [findings_json] NVARCHAR(MAX) NULL; -- Resultados estruturados
+ALTER TABLE executions
+ADD findings_json JSONB NULL;
 
--- SharePoint sites analisados
-ALTER TABLE [dbo].[executions]
-ADD [sites_analisados] NVARCHAR(MAX) NULL; -- JSON array de site URLs
+ALTER TABLE executions
+ADD sites_analisados JSONB NULL;
 
--- GB processado
-ALTER TABLE [dbo].[executions]
-ADD [gb_processado] DECIMAL(10, 2) NULL;
+ALTER TABLE executions
+ADD gb_processado DECIMAL(10, 2) NULL;
 
-ALTER TABLE [dbo].[executions]
-ADD FOREIGN KEY ([execution_template_id]) REFERENCES [dbo].[execution_templates]([id]);
+ALTER TABLE executions
+ADD CONSTRAINT fk_executions_template
+FOREIGN KEY (execution_template_id) REFERENCES execution_templates(id);
 
 -- ======================================
--- STORED PROCEDURES
+-- FUNCTIONS / STORED PROCEDURES
 -- ======================================
 
--- Procedure: Salvar Snapshot de Execução (para histórico)
-CREATE PROCEDURE [dbo].[sp_SaveExecutionSnapshot]
-    @ExecutionId UNIQUEIDENTIFIER,
-    @SnapshotData NVARCHAR(MAX)
-AS
+-- Function: Salvar Snapshot de Execução (para histórico)
+CREATE FUNCTION sp_save_execution_snapshot(
+    p_execution_id UUID,
+    p_snapshot_data JSONB
+) RETURNS INTEGER AS $$
+DECLARE
+    v_version_number INTEGER;
 BEGIN
-    SET NOCOUNT ON;
-
-    DECLARE @VersionNumber INT;
-
     -- Calcular próxima versão
-    SELECT @VersionNumber = ISNULL(MAX([version_number]), 0) + 1
-    FROM [dbo].[execution_snapshots]
-    WHERE [execution_id] = @ExecutionId;
+    SELECT COALESCE(MAX(version_number), 0) + 1 INTO v_version_number
+    FROM execution_snapshots
+    WHERE execution_id = p_execution_id;
 
-    INSERT INTO [dbo].[execution_snapshots]
-        ([execution_id], [version_number], [snapshot_data])
+    INSERT INTO execution_snapshots
+        (execution_id, version_number, snapshot_data)
     VALUES
-        (@ExecutionId, @VersionNumber, @SnapshotData);
+        (p_execution_id, v_version_number, p_snapshot_data);
 
     -- Atualizar version_number na execution
-    UPDATE [dbo].[executions]
-    SET [version_number] = @VersionNumber
-    WHERE [id] = @ExecutionId;
+    UPDATE executions
+    SET version_number = v_version_number
+    WHERE id = p_execution_id;
 
-    SELECT @VersionNumber AS [version_number];
+    RETURN v_version_number;
 END;
+$$ LANGUAGE plpgsql;
 
--- Procedure: Enfileirar Email
-CREATE PROCEDURE [dbo].[sp_EnqueueEmail]
-    @ExecutionId UNIQUEIDENTIFIER,
-    @RecipientEmail NVARCHAR(255),
-    @Assunto NVARCHAR(255),
-    @CorpoHtml NVARCHAR(MAX)
-AS
+-- Function: Enfileirar Email
+CREATE FUNCTION sp_enqueue_email(
+    p_execution_id UUID,
+    p_recipient_email VARCHAR(255),
+    p_assunto VARCHAR(255),
+    p_corpo_html TEXT
+) RETURNS UUID AS $$
+DECLARE
+    v_queue_id UUID;
 BEGIN
-    SET NOCOUNT ON;
+    v_queue_id := gen_random_uuid();
 
-    INSERT INTO [dbo].[email_queue]
-        ([execution_id], [recipient_email], [assunto], [corpo_html], [status])
+    INSERT INTO email_queue
+        (id, execution_id, recipient_email, assunto, corpo_html, status)
     VALUES
-        (@ExecutionId, @RecipientEmail, @Assunto, @CorpoHtml, 'pending');
+        (v_queue_id, p_execution_id, p_recipient_email, p_assunto, p_corpo_html, 'pending');
 
-    SELECT SCOPE_IDENTITY() AS [queue_id];
+    RETURN v_queue_id;
 END;
+$$ LANGUAGE plpgsql;
 
--- Procedure: Registrar PDF Gerado
-CREATE PROCEDURE [dbo].[sp_RegisterPdfReport]
-    @ExecutionId UNIQUEIDENTIFIER,
-    @BlobUrl NVARCHAR(MAX),
-    @BlobSasToken NVARCHAR(MAX),
-    @TamanhoBytes BIGINT,
-    @HashMd5 VARCHAR(32),
-    @ExpiresAt DATETIME2
-AS
+-- Function: Registrar PDF Gerado
+CREATE FUNCTION sp_register_pdf_report(
+    p_execution_id UUID,
+    p_blob_url TEXT,
+    p_blob_sas_token TEXT,
+    p_tamanho_bytes BIGINT,
+    p_hash_md5 VARCHAR(32),
+    p_expires_at TIMESTAMP
+) RETURNS VOID AS $$
 BEGIN
-    SET NOCOUNT ON;
-
     -- Remover PDF anterior se existir
-    DELETE FROM [dbo].[pdf_reports]
-    WHERE [execution_id] = @ExecutionId;
+    DELETE FROM pdf_reports
+    WHERE execution_id = p_execution_id;
 
-    INSERT INTO [dbo].[pdf_reports]
-        ([execution_id], [blob_url], [blob_sas_token], [tamanho_bytes], [hash_md5], [expira_em])
+    INSERT INTO pdf_reports
+        (execution_id, blob_url, blob_sas_token, tamanho_bytes, hash_md5, expira_em)
     VALUES
-        (@ExecutionId, @BlobUrl, @BlobSasToken, @TamanhoBytes, @HashMd5, @ExpiresAt);
+        (p_execution_id, p_blob_url, p_blob_sas_token, p_tamanho_bytes, p_hash_md5, p_expires_at);
 END;
+$$ LANGUAGE plpgsql;
 
--- Procedure: Comparar Snapshots (helper para delta)
-CREATE PROCEDURE [dbo].[sp_CompareSnapshots]
-    @ExecutionId UNIQUEIDENTIFIER,
-    @Version1 INT,
-    @Version2 INT
-AS
+-- Function: Comparar Snapshots (helper para delta)
+CREATE FUNCTION sp_compare_snapshots(
+    p_execution_id UUID,
+    p_version1 INTEGER,
+    p_version2 INTEGER
+) RETURNS TABLE (
+    v1 INTEGER,
+    v2 INTEGER,
+    data_v1 JSONB,
+    data_v2 JSONB,
+    created_v1 TIMESTAMP,
+    created_v2 TIMESTAMP
+) AS $$
 BEGIN
-    SET NOCOUNT ON;
-
+    RETURN QUERY
     SELECT
-        s1.[version_number] AS [v1],
-        s2.[version_number] AS [v2],
-        s1.[snapshot_data] AS [data_v1],
-        s2.[snapshot_data] AS [data_v2],
-        s1.[criado_em] AS [created_v1],
-        s2.[criado_em] AS [created_v2]
-    FROM [dbo].[execution_snapshots] s1
-    INNER JOIN [dbo].[execution_snapshots] s2
-        ON s1.[execution_id] = s2.[execution_id]
-    WHERE s1.[execution_id] = @ExecutionId
-        AND s1.[version_number] = @Version1
-        AND s2.[version_number] = @Version2;
+        s1.version_number,
+        s2.version_number,
+        s1.snapshot_data,
+        s2.snapshot_data,
+        s1.criado_em,
+        s2.criado_em
+    FROM execution_snapshots s1
+    INNER JOIN execution_snapshots s2
+        ON s1.execution_id = s2.execution_id
+    WHERE s1.execution_id = p_execution_id
+        AND s1.version_number = p_version1
+        AND s2.version_number = p_version2;
 END;
+$$ LANGUAGE plpgsql;

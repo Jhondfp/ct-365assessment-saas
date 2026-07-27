@@ -8,8 +8,9 @@ module.exports = {
   AZURE_CLIENT_SECRET: process.env.AZURE_CLIENT_SECRET,
   AZURE_SUBSCRIPTION_ID: process.env.AZURE_SUBSCRIPTION_ID,
 
-  // Database (Control Plane)
+  // Database (Control Plane) - PostgreSQL
   CP_DB_SERVER: process.env.CP_DB_SERVER,
+  CP_DB_PORT: process.env.CP_DB_PORT || 5432,
   CP_DB_NAME: process.env.CP_DB_NAME,
   CP_DB_USER: process.env.CP_DB_USER,
   CP_DB_PASSWORD: process.env.CP_DB_PASSWORD,

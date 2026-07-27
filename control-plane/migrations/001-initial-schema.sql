@@ -7,196 +7,190 @@
 -- ======================================
 -- 01. CLIENTES
 -- ======================================
-CREATE TABLE [dbo].[clients] (
-    [id] UNIQUEIDENTIFIER NOT NULL PRIMARY KEY DEFAULT NEWID(),
-    [razao_social] NVARCHAR(255) NOT NULL,
-    [cnpj] VARCHAR(14) NOT NULL UNIQUE,
-    [email_contato] NVARCHAR(255) NOT NULL,
-    [status] VARCHAR(20) NOT NULL DEFAULT 'active' CHECK ([status] IN ('active', 'suspended', 'terminated')),
-    [regiao] VARCHAR(20) DEFAULT 'brazilsouth',
-    [criado_em] DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
-    [atualizado_em] DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
-    [encerrado_em] DATETIME2 NULL
+CREATE TABLE clients (
+    id UUID NOT NULL PRIMARY KEY DEFAULT gen_random_uuid(),
+    razao_social VARCHAR(255) NOT NULL,
+    cnpj VARCHAR(14) NOT NULL UNIQUE,
+    email_contato VARCHAR(255) NOT NULL,
+    status VARCHAR(20) NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'suspended', 'terminated')),
+    regiao VARCHAR(20) DEFAULT 'brazilsouth',
+    criado_em TIMESTAMP NOT NULL DEFAULT NOW(),
+    atualizado_em TIMESTAMP NOT NULL DEFAULT NOW(),
+    encerrado_em TIMESTAMP NULL
 );
 
-CREATE INDEX [idx_clients_status] ON [dbo].[clients]([status]);
-CREATE INDEX [idx_clients_cnpj] ON [dbo].[clients]([cnpj]);
+CREATE INDEX idx_clients_status ON clients(status);
+CREATE INDEX idx_clients_cnpj ON clients(cnpj);
 
 -- ======================================
 -- 02. TENANTS (M365 de cada cliente)
 -- ======================================
-CREATE TABLE [dbo].[tenants] (
-    [id] UNIQUEIDENTIFIER NOT NULL PRIMARY KEY DEFAULT NEWID(),
-    [client_id] UNIQUEIDENTIFIER NOT NULL,
-    [m365_tenant_id] NVARCHAR(36) NOT NULL UNIQUE,
-    [spo_domain] NVARCHAR(255) NOT NULL, -- contoso.sharepoint.com
-    [app_registration_id] UNIQUEIDENTIFIER NOT NULL,
-    [key_vault_uri] NVARCHAR(255) NOT NULL, -- https://tenant-kv.vault.azure.net
-    [sql_server] NVARCHAR(255) NOT NULL,   -- tenant.database.windows.net
-    [sql_database] NVARCHAR(128) NOT NULL, -- ct_tenant_xxx
-    [regiao] VARCHAR(20) NOT NULL DEFAULT 'brazilsouth',
-    [status] VARCHAR(20) NOT NULL DEFAULT 'active' CHECK ([status] IN ('active', 'provisioning', 'suspended', 'deprovisioning')),
-    [sso_consentido_em] DATETIME2 NULL,
-    [criado_em] DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
-    [atualizado_em] DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
-    [encerrado_em] DATETIME2 NULL,
-    FOREIGN KEY ([client_id]) REFERENCES [dbo].[clients]([id]) ON DELETE CASCADE
+CREATE TABLE tenants (
+    id UUID NOT NULL PRIMARY KEY DEFAULT gen_random_uuid(),
+    client_id UUID NOT NULL,
+    m365_tenant_id VARCHAR(36) NOT NULL UNIQUE,
+    spo_domain VARCHAR(255) NOT NULL,
+    app_registration_id UUID NOT NULL,
+    key_vault_uri VARCHAR(255) NOT NULL,
+    db_connection_string VARCHAR(500) NOT NULL,
+    regiao VARCHAR(20) NOT NULL DEFAULT 'brazilsouth',
+    status VARCHAR(20) NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'provisioning', 'suspended', 'deprovisioning')),
+    sso_consentido_em TIMESTAMP NULL,
+    criado_em TIMESTAMP NOT NULL DEFAULT NOW(),
+    atualizado_em TIMESTAMP NOT NULL DEFAULT NOW(),
+    encerrado_em TIMESTAMP NULL,
+    FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE CASCADE
 );
 
-CREATE INDEX [idx_tenants_client_id] ON [dbo].[tenants]([client_id]);
-CREATE INDEX [idx_tenants_status] ON [dbo].[tenants]([status]);
-CREATE INDEX [idx_tenants_m365_tenant_id] ON [dbo].[tenants]([m365_tenant_id]);
+CREATE INDEX idx_tenants_client_id ON tenants(client_id);
+CREATE INDEX idx_tenants_status ON tenants(status);
+CREATE INDEX idx_tenants_m365_tenant_id ON tenants(m365_tenant_id);
 
 -- ======================================
 -- 03. EXECUÇÕES
 -- ======================================
-CREATE TABLE [dbo].[executions] (
-    [id] UNIQUEIDENTIFIER NOT NULL PRIMARY KEY DEFAULT NEWID(),
-    [tenant_id] UNIQUEIDENTIFIER NOT NULL,
-    [client_id] UNIQUEIDENTIFIER NOT NULL,
-    [iniciado_em] DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
-    [finalizado_em] DATETIME2 NULL,
-    [status] VARCHAR(20) NOT NULL DEFAULT 'queued'
-        CHECK ([status] IN ('queued', 'running', 'completed', 'failed', 'cancelled')),
-    [disparado_por] UNIQUEIDENTIFIER NOT NULL, -- referência a [users]
-    [container_instance_id] NVARCHAR(255) NULL, -- para rastreamento do job
-    [mensagem_erro] NVARCHAR(MAX) NULL,
-    [custo_estimado] DECIMAL(10, 2) NULL,
-    [custo_real] DECIMAL(10, 2) NULL,
-    [tempo_execucao_segundos] INT NULL,
-    [tags_finops] NVARCHAR(MAX) NULL, -- JSON: {gb_analisado, sites_visitados, taxa_compressao}
-    FOREIGN KEY ([tenant_id]) REFERENCES [dbo].[tenants]([id]) ON DELETE CASCADE,
-    FOREIGN KEY ([client_id]) REFERENCES [dbo].[clients]([id]) ON DELETE CASCADE,
-    FOREIGN KEY ([disparado_por]) REFERENCES [dbo].[users]([id])
+CREATE TABLE executions (
+    id UUID NOT NULL PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id UUID NOT NULL,
+    client_id UUID NOT NULL,
+    iniciado_em TIMESTAMP NOT NULL DEFAULT NOW(),
+    finalizado_em TIMESTAMP NULL,
+    status VARCHAR(20) NOT NULL DEFAULT 'queued'
+        CHECK (status IN ('queued', 'running', 'completed', 'failed', 'cancelled')),
+    disparado_por UUID NOT NULL,
+    container_instance_id VARCHAR(255) NULL,
+    mensagem_erro TEXT NULL,
+    custo_estimado DECIMAL(10, 2) NULL,
+    custo_real DECIMAL(10, 2) NULL,
+    tempo_execucao_segundos INTEGER NULL,
+    tags_finops JSONB NULL,
+    FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE,
+    FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE CASCADE,
+    FOREIGN KEY (disparado_por) REFERENCES users(id)
 );
 
-CREATE INDEX [idx_executions_tenant_id] ON [dbo].[executions]([tenant_id]);
-CREATE INDEX [idx_executions_client_id] ON [dbo].[executions]([client_id]);
-CREATE INDEX [idx_executions_status] ON [dbo].[executions]([status]);
-CREATE INDEX [idx_executions_iniciado_em] ON [dbo].[executions]([iniciado_em]);
+CREATE INDEX idx_executions_tenant_id ON executions(tenant_id);
+CREATE INDEX idx_executions_client_id ON executions(client_id);
+CREATE INDEX idx_executions_status ON executions(status);
+CREATE INDEX idx_executions_iniciado_em ON executions(iniciado_em);
 
 -- ======================================
 -- 04. USUÁRIOS (Painel administrativo)
 -- ======================================
-CREATE TABLE [dbo].[users] (
-    [id] UNIQUEIDENTIFIER NOT NULL PRIMARY KEY DEFAULT NEWID(),
-    [entra_object_id] UNIQUEIDENTIFIER NOT NULL UNIQUE,
-    [nome] NVARCHAR(255) NOT NULL,
-    [email] NVARCHAR(255) NOT NULL UNIQUE,
-    [papel] VARCHAR(20) NOT NULL DEFAULT 'viewer'
-        CHECK ([papel] IN ('superadmin', 'analista', 'viewer', 'viewer_cliente')),
-    [clientes_atribuidos] NVARCHAR(MAX) NULL, -- JSON array de client_ids
-    [ativo] BIT NOT NULL DEFAULT 1,
-    [ultimo_acesso] DATETIME2 NULL,
-    [criado_em] DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
-    [atualizado_em] DATETIME2 NOT NULL DEFAULT GETUTCDATE()
+CREATE TABLE users (
+    id UUID NOT NULL PRIMARY KEY DEFAULT gen_random_uuid(),
+    entra_object_id UUID NOT NULL UNIQUE,
+    nome VARCHAR(255) NOT NULL,
+    email VARCHAR(255) NOT NULL UNIQUE,
+    papel VARCHAR(20) NOT NULL DEFAULT 'viewer'
+        CHECK (papel IN ('superadmin', 'analista', 'viewer', 'viewer_cliente')),
+    clientes_atribuidos JSONB NULL,
+    ativo BOOLEAN NOT NULL DEFAULT true,
+    ultimo_acesso TIMESTAMP NULL,
+    criado_em TIMESTAMP NOT NULL DEFAULT NOW(),
+    atualizado_em TIMESTAMP NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX [idx_users_email] ON [dbo].[users]([email]);
-CREATE INDEX [idx_users_papel] ON [dbo].[users]([papel]);
+CREATE INDEX idx_users_email ON users(email);
+CREATE INDEX idx_users_papel ON users(papel);
 
 -- ======================================
 -- 05. AUDIT LOG (Imutável)
 -- ======================================
-CREATE TABLE [dbo].[audit_log] (
-    [id] UNIQUEIDENTIFIER NOT NULL PRIMARY KEY DEFAULT NEWID(),
-    [user_id] UNIQUEIDENTIFIER NOT NULL,
-    [acao] VARCHAR(50) NOT NULL, -- create_client, update_tenant, start_execution, etc
-    [alvo_tipo] VARCHAR(30) NOT NULL, -- client, tenant, execution, user
-    [alvo_id] UNIQUEIDENTIFIER NOT NULL,
-    [detalhes_json] NVARCHAR(MAX) NULL, -- contexto da ação
-    [endereco_ip] VARCHAR(45) NULL,
-    [user_agent] NVARCHAR(MAX) NULL,
-    [quando] DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
-    FOREIGN KEY ([user_id]) REFERENCES [dbo].[users]([id])
+CREATE TABLE audit_log (
+    id UUID NOT NULL PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL,
+    acao VARCHAR(50) NOT NULL,
+    alvo_tipo VARCHAR(30) NOT NULL,
+    alvo_id UUID NOT NULL,
+    detalhes_json JSONB NULL,
+    endereco_ip VARCHAR(45) NULL,
+    user_agent TEXT NULL,
+    quando TIMESTAMP NOT NULL DEFAULT NOW(),
+    FOREIGN KEY (user_id) REFERENCES users(id)
 );
 
-CREATE INDEX [idx_audit_log_user_id] ON [dbo].[audit_log]([user_id]);
-CREATE INDEX [idx_audit_log_alvo_tipo_id] ON [dbo].[audit_log]([alvo_tipo], [alvo_id]);
-CREATE INDEX [idx_audit_log_quando] ON [dbo].[audit_log]([quando]);
+CREATE INDEX idx_audit_log_user_id ON audit_log(user_id);
+CREATE INDEX idx_audit_log_alvo_tipo_id ON audit_log(alvo_tipo, alvo_id);
+CREATE INDEX idx_audit_log_quando ON audit_log(quando);
 
 -- ======================================
 -- 06. JOBS / FILAS (Orquestração)
 -- ======================================
-CREATE TABLE [dbo].[job_queue] (
-    [id] UNIQUEIDENTIFIER NOT NULL PRIMARY KEY DEFAULT NEWID(),
-    [execution_id] UNIQUEIDENTIFIER NOT NULL UNIQUE,
-    [status] VARCHAR(20) NOT NULL DEFAULT 'pending'
-        CHECK ([status] IN ('pending', 'assigned', 'running', 'completed', 'failed', 'retrying')),
-    [tentativas] INT DEFAULT 0,
-    [max_tentativas] INT DEFAULT 3,
-    [prioridade] INT DEFAULT 0, -- maior = mais urgente
-    [criado_em] DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
-    [atribuido_em] DATETIME2 NULL,
-    [completo_em] DATETIME2 NULL,
-    [proxima_tentativa_em] DATETIME2 NULL,
-    FOREIGN KEY ([execution_id]) REFERENCES [dbo].[executions]([id]) ON DELETE CASCADE
+CREATE TABLE job_queue (
+    id UUID NOT NULL PRIMARY KEY DEFAULT gen_random_uuid(),
+    execution_id UUID NOT NULL UNIQUE,
+    status VARCHAR(20) NOT NULL DEFAULT 'pending'
+        CHECK (status IN ('pending', 'assigned', 'running', 'completed', 'failed', 'retrying')),
+    tentativas INTEGER DEFAULT 0,
+    max_tentativas INTEGER DEFAULT 3,
+    prioridade INTEGER DEFAULT 0,
+    criado_em TIMESTAMP NOT NULL DEFAULT NOW(),
+    atribuido_em TIMESTAMP NULL,
+    completo_em TIMESTAMP NULL,
+    proxima_tentativa_em TIMESTAMP NULL,
+    FOREIGN KEY (execution_id) REFERENCES executions(id) ON DELETE CASCADE
 );
 
-CREATE INDEX [idx_job_queue_status] ON [dbo].[job_queue]([status]);
-CREATE INDEX [idx_job_queue_prioridade] ON [dbo].[job_queue]([prioridade] DESC, [criado_em]);
+CREATE INDEX idx_job_queue_status ON job_queue(status);
+CREATE INDEX idx_job_queue_prioridade ON job_queue(prioridade DESC, criado_em);
 
 -- ======================================
 -- 07. POLICIES (Configurações por Cliente)
 -- ======================================
-CREATE TABLE [dbo].[policies] (
-    [id] UNIQUEIDENTIFIER NOT NULL PRIMARY KEY DEFAULT NEWID(),
-    [tenant_id] UNIQUEIDENTIFIER NOT NULL,
-    [tipo] VARCHAR(50) NOT NULL, -- max_execution_time, cpu_limit, memory_limit, etc
-    [valor] NVARCHAR(MAX) NOT NULL,
-    [ativo] BIT NOT NULL DEFAULT 1,
-    [criado_em] DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
-    [atualizado_em] DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
-    FOREIGN KEY ([tenant_id]) REFERENCES [dbo].[tenants]([id]) ON DELETE CASCADE
+CREATE TABLE policies (
+    id UUID NOT NULL PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id UUID NOT NULL,
+    tipo VARCHAR(50) NOT NULL,
+    valor TEXT NOT NULL,
+    ativo BOOLEAN NOT NULL DEFAULT true,
+    criado_em TIMESTAMP NOT NULL DEFAULT NOW(),
+    atualizado_em TIMESTAMP NOT NULL DEFAULT NOW(),
+    FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
 );
 
-CREATE INDEX [idx_policies_tenant_id] ON [dbo].[policies]([tenant_id]);
+CREATE INDEX idx_policies_tenant_id ON policies(tenant_id);
 
 -- ======================================
--- STORED PROCEDURES ÚTEIS
+-- STORED PROCEDURES / FUNCTIONS
 -- ======================================
 
--- Procedure: Criar novo tenant com onboarding
-CREATE PROCEDURE [dbo].[sp_CreateTenant]
-    @ClientId UNIQUEIDENTIFIER,
-    @M365TenantId NVARCHAR(36),
-    @SpoDomain NVARCHAR(255),
-    @AppRegistrationId UNIQUEIDENTIFIER,
-    @KeyVaultUri NVARCHAR(255),
-    @SqlServer NVARCHAR(255),
-    @SqlDatabase NVARCHAR(128),
-    @Regiao VARCHAR(20) = 'brazilsouth'
-AS
+-- Function: Criar novo tenant com onboarding
+CREATE FUNCTION sp_create_tenant(
+    p_client_id UUID,
+    p_m365_tenant_id VARCHAR(36),
+    p_spo_domain VARCHAR(255),
+    p_app_registration_id UUID,
+    p_key_vault_uri VARCHAR(255),
+    p_db_connection_string VARCHAR(500),
+    p_regiao VARCHAR(20) DEFAULT 'brazilsouth'
+) RETURNS UUID AS $$
+DECLARE
+    v_new_tenant_id UUID;
 BEGIN
-    SET NOCOUNT ON;
-    DECLARE @NewTenantId UNIQUEIDENTIFIER = NEWID();
+    v_new_tenant_id := gen_random_uuid();
 
-    INSERT INTO [dbo].[tenants]
-        ([id], [client_id], [m365_tenant_id], [spo_domain], [app_registration_id],
-         [key_vault_uri], [sql_server], [sql_database], [regiao], [status])
+    INSERT INTO tenants
+        (id, client_id, m365_tenant_id, spo_domain, app_registration_id,
+         key_vault_uri, db_connection_string, regiao, status)
     VALUES
-        (@NewTenantId, @ClientId, @M365TenantId, @SpoDomain, @AppRegistrationId,
-         @KeyVaultUri, @SqlServer, @SqlDatabase, @Regiao, 'provisioning');
+        (v_new_tenant_id, p_client_id, p_m365_tenant_id, p_spo_domain, p_app_registration_id,
+         p_key_vault_uri, p_db_connection_string, p_regiao, 'provisioning');
 
-    SELECT @NewTenantId AS [tenant_id];
+    RETURN v_new_tenant_id;
 END;
+$$ LANGUAGE plpgsql;
 
--- Procedure: Encerrar tenant (LGPD - direito ao esquecimento)
-CREATE PROCEDURE [dbo].[sp_TerminateTenant]
-    @TenantId UNIQUEIDENTIFIER,
-    @MotivoCancelamento NVARCHAR(MAX)
-AS
+-- Function: Encerrar tenant (LGPD - direito ao esquecimento)
+CREATE FUNCTION sp_terminate_tenant(
+    p_tenant_id UUID,
+    p_motivo_cancelamento TEXT
+) RETURNS VOID AS $$
 BEGIN
-    SET NOCOUNT ON;
-
-    UPDATE [dbo].[tenants]
-    SET [status] = 'deprovisioning',
-        [encerrado_em] = GETUTCDATE(),
-        [atualizado_em] = GETUTCDATE()
-    WHERE [id] = @TenantId;
-
-    -- Nota: O job de deprovisioning vai:
-    -- 1. Dropar o database isolado
-    -- 2. Deletar o Key Vault
-    -- 3. Limpar os registros aqui após confirmação
+    UPDATE tenants
+    SET status = 'deprovisioning',
+        encerrado_em = NOW(),
+        atualizado_em = NOW()
+    WHERE id = p_tenant_id;
 END;
+$$ LANGUAGE plpgsql;

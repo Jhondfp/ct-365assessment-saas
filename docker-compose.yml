@@ -1,99 +1,134 @@
-version: '3.8'
+# ============================================================================
+# CT Assessment SaaS - Docker Compose (Local Development)
+# PostgreSQL + Backend API + Frontend
+# ============================================================================
+
+version: '3.9'
 
 services:
-  # ======================================
-  # SQL Server (Control Plane Database)
-  # ======================================
-  sqlserver:
-    image: mcr.microsoft.com/mssql/server:2022-latest
-    container_name: ct-cp-sql
+  # ========================================================================
+  # PostgreSQL - Control Plane Database
+  # ========================================================================
+  postgres-control-plane:
+    image: postgres:15-alpine
+    container_name: ct-assessment-pg-control
     environment:
-      ACCEPT_EULA: 'Y'
-      SA_PASSWORD: '@Secure!Pass123456'
-      MSSQL_PID: Developer
+      POSTGRES_DB: ct_assessment_control_plane
+      POSTGRES_USER: ct_user
+      POSTGRES_PASSWORD: ct_secure_password_123
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=pt_BR.UTF-8"
     ports:
-      - "1433:1433"
+      - "5432:5432"
     volumes:
-      - sqldata:/var/opt/mssql
+      - postgres-cp-data:/var/lib/postgresql/data
+      - ./control-plane/migrations:/docker-entrypoint-initdb.d
     healthcheck:
-      test: ["CMD", "/opt/mssql-tools/bin/sqlcmd", "-S", "localhost", "-U", "sa", "-P", "@Secure!Pass123456", "-Q", "SELECT 1"]
+      test: ["CMD-SHELL", "pg_isready -U ct_user -d ct_assessment_control_plane"]
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - ct-network
 
-  # ======================================
-  # Backend (Node.js — Control Plane API)
-  # ======================================
-  api:
+  # ========================================================================
+  # Backend API
+  # ========================================================================
+  backend:
     build:
       context: ./control-plane/backend
       dockerfile: Dockerfile
-    container_name: ct-cp-api
+    container_name: ct-assessment-api
     environment:
       NODE_ENV: development
       LOG_LEVEL: debug
-
-      # Azure
-      AZURE_TENANT_ID: ${AZURE_TENANT_ID}
-      AZURE_CLIENT_ID: ${AZURE_CLIENT_ID}
-      AZURE_CLIENT_SECRET: ${AZURE_CLIENT_SECRET}
+      PORT: 3000
 
       # Database
-      CP_DB_SERVER: sqlserver
-      CP_DB_NAME: ct_control_plane
-      CP_DB_USER: sa
-      CP_DB_PASSWORD: '@Secure!Pass123456'
+      CP_DB_SERVER: postgres-control-plane
+      CP_DB_PORT: 5432
+      CP_DB_NAME: ct_assessment_control_plane
+      CP_DB_USER: ct_user
+      CP_DB_PASSWORD: ct_secure_password_123
 
-      # Keys
-      JWT_SECRET: dev-jwt-secret-change-in-prod
-      SESSION_SECRET: dev-session-secret-change-in-prod
+      # Security
+      JWT_SECRET: dev_jwt_secret_key_at_least_32_characters_long_for_testing
+      SESSION_SECRET: dev_session_secret_key_at_least_32_characters_long
+      CORS_ORIGINS: http://localhost:5173,http://localhost:3001
 
-      # URLs
-      CORS_ORIGINS: http://localhost:3000,http://localhost:3001
-      APP_URL: http://localhost:3001
-    ports:
-      - "3001:3000"
-    depends_on:
-      sqlserver:
-        condition: service_healthy
-    volumes:
-      - ./control-plane/backend:/app
-      - /app/node_modules
-    command: npm run dev
+      # Optional Services (Mocks)
+      AZURE_STORAGE_CONNECTION_STRING: UseDevelopmentStorage=true
+      SENDGRID_API_KEY: SG.test_key
+      SENDGRID_FROM_EMAIL: noreply@ctassessment.local
 
-  # ======================================
-  # Frontend (React — Dashboard)
-  # ======================================
-  frontend:
-    build:
-      context: ./control-plane/frontend
-      dockerfile: Dockerfile
-    container_name: ct-cp-frontend
-    environment:
-      REACT_APP_API_URL: http://localhost:3001/api
     ports:
       - "3000:3000"
     depends_on:
-      - api
+      postgres-control-plane:
+        condition: service_healthy
     volumes:
-      - ./control-plane/frontend:/app
+      - ./control-plane/backend/src:/app/src
       - /app/node_modules
+    networks:
+      - ct-network
+    command: npm run dev
 
-  # ======================================
-  # PgAdmin (opcional, para gerenciar SQL)
-  # ======================================
-  pgadmin:
-    image: dpage/pgadmin4:latest
-    container_name: ct-pgadmin
+  # ========================================================================
+  # Frontend (React + Vite)
+  # ========================================================================
+  frontend:
+    build:
+      context: ./control-plane/frontend
+      dockerfile: Dockerfile.dev
+    container_name: ct-assessment-frontend
     environment:
-      PGADMIN_DEFAULT_EMAIL: admin@example.com
-      PGADMIN_DEFAULT_PASSWORD: admin
+      VITE_API_URL: http://localhost:3000
+      NODE_ENV: development
     ports:
-      - "5050:80"
+      - "5173:5173"
+    volumes:
+      - ./control-plane/frontend/src:/app/src
+      - ./control-plane/frontend/public:/app/public
+      - /app/node_modules
+    networks:
+      - ct-network
+    depends_on:
+      - backend
+
+  # ========================================================================
+  # Adminer - PostgreSQL Web UI (Optional)
+  # ========================================================================
+  adminer:
+    image: adminer:latest
+    container_name: ct-assessment-adminer
+    ports:
+      - "8080:8080"
+    environment:
+      ADMINER_DEFAULT_SERVER: postgres-control-plane
+    depends_on:
+      - postgres-control-plane
+    networks:
+      - ct-network
 
 volumes:
-  sqldata:
+  postgres-cp-data:
+    driver: local
 
 networks:
-  default:
-    name: ct-network
+  ct-network:
+    driver: bridge
+
+# ============================================================================
+# Commands
+# ============================================================================
+# Start:     docker-compose up -d
+# Stop:      docker-compose down
+# Logs:      docker-compose logs -f backend
+# Shell:     docker-compose exec backend sh
+# DB Shell:  docker-compose exec postgres-control-plane psql -U ct_user
+# Clean:     docker-compose down -v (remove volumes)
+#
+# Access Points:
+# - Frontend:  http://localhost:5173
+# - API:       http://localhost:3000
+# - Adminer:   http://localhost:8080 (PostgreSQL admin UI)
+# - API Docs:  http://localhost:3000/api/docs (if available)

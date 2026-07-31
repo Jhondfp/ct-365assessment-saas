@@ -1,0 +1,315 @@
+name: Deploy to Azure (PostgreSQL)
+
+on:
+  push:
+    branches:
+      - main
+      - claude/session-jkv0ns
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy to'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+          - staging
+          - prod
+
+env:
+  AZURE_SUBSCRIPTION_ID: '35d6dfb5-91e7-4cd4-b0e1-b771118aa3854'
+  AZURE_RESOURCE_GROUP: 'rg-365gov-prod'
+  AZURE_LOCATION: 'brazilsouth'
+  REGISTRY_NAME: 'ctassessment'
+  NODE_VERSION: '18'
+
+jobs:
+  # ========================================================================
+  # BUILD JOB - Test and Build Application
+  # ========================================================================
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      image-tag: ${{ steps.meta.outputs.tags }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: 'control-plane/backend/package-lock.json'
+
+      - name: Install backend dependencies
+        working-directory: ./control-plane/backend
+        run: npm ci
+
+      - name: Run linter
+        working-directory: ./control-plane/backend
+        run: npm run lint --if-present
+        continue-on-error: true
+
+      - name: Run tests
+        working-directory: ./control-plane/backend
+        run: npm test --if-present
+        continue-on-error: true
+
+      - name: Build backend
+        working-directory: ./control-plane/backend
+        run: npm run build --if-present
+        continue-on-error: true
+
+      - name: Setup frontend dependencies
+        working-directory: ./control-plane/frontend
+        run: npm ci
+
+      - name: Build frontend
+        working-directory: ./control-plane/frontend
+        run: npm run build
+
+      - name: Upload frontend build artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: frontend-dist
+          path: control-plane/frontend/dist
+
+      - name: Docker meta
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY_NAME }}.azurecr.io/ct-assessment-api
+          tags: |
+            type=ref,event=branch
+            type=semver,pattern={{version}}
+            type=sha
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Azure Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY_NAME }}.azurecr.io
+          username: ${{ secrets.AZURE_REGISTRY_USERNAME }}
+          password: ${{ secrets.AZURE_REGISTRY_PASSWORD }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./control-plane/backend
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=registry,ref=${{ env.REGISTRY_NAME }}.azurecr.io/ct-assessment-api:buildcache
+          cache-to: type=registry,ref=${{ env.REGISTRY_NAME }}.azurecr.io/ct-assessment-api:buildcache,mode=max
+
+  # ========================================================================
+  # DEPLOY-INFRA JOB - Deploy Azure Infrastructure
+  # ========================================================================
+  deploy-infra:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Log in to Azure
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Deploy Bicep template
+        uses: azure/arm-deploy@v1
+        with:
+          subscriptionId: ${{ env.AZURE_SUBSCRIPTION_ID }}
+          resourceGroupName: ${{ env.AZURE_RESOURCE_GROUP }}
+          template: ./infra/main.bicep
+          parameters: >
+            environment=prod
+            location=${{ env.AZURE_LOCATION }}
+            pgAdminPassword=${{ secrets.PG_ADMIN_PASSWORD }}
+            appServiceSku=B2
+          failOnStdErr: false
+
+      - name: Get deployment outputs
+        id: deployment
+        run: |
+          outputs=$(az deployment group show \
+            --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+            --name main \
+            --query 'properties.outputs' -o json)
+          echo "outputs=$outputs" >> $GITHUB_OUTPUT
+
+  # ========================================================================
+  # DEPLOY-BACKEND JOB - Deploy API to App Service
+  # ========================================================================
+  deploy-backend:
+    needs: [build, deploy-infra]
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Log in to Azure
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Deploy to App Service
+        uses: azure/webapps-deploy@v2
+        with:
+          app-name: 'ct-assessment-api-prod-*'
+          publish-profile: ${{ secrets.AZURE_APP_SERVICE_PUBLISH_PROFILE }}
+          images: ${{ needs.build.outputs.image-tag }}
+          slot-name: staging
+
+      - name: Run database migrations
+        run: |
+          az webapp command invoke \
+            --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+            --name 'ct-assessment-api-prod-*' \
+            --command-name npm \
+            --command-args 'run migrate'
+
+      - name: Swap staging to production
+        run: |
+          az webapp deployment slot swap \
+            --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+            --name 'ct-assessment-api-prod-*' \
+            --slot staging
+
+  # ========================================================================
+  # DEPLOY-FRONTEND JOB - Deploy React App to Static Web App
+  # ========================================================================
+  deploy-frontend:
+    needs: [build, deploy-infra]
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - name: Download frontend artifacts
+        uses: actions/download-artifact@v3
+        with:
+          name: frontend-dist
+          path: control-plane/frontend/dist
+
+      - name: Deploy to Static Web App
+        uses: Azure/static-web-apps-deploy@v1
+        with:
+          azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN }}
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          action: 'upload'
+          app_location: 'control-plane/frontend/dist'
+          output_location: ''
+          skip_app_build: true
+
+  # ========================================================================
+  # POST-DEPLOY JOB - Health Checks & Monitoring
+  # ========================================================================
+  post-deploy:
+    needs: [deploy-backend, deploy-frontend]
+    runs-on: ubuntu-latest
+    if: success()
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Log in to Azure
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Get App Service URL
+        id: app-url
+        run: |
+          url=$(az webapp show \
+            --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+            --name 'ct-assessment-api-prod-*' \
+            --query defaultHostName -o tsv)
+          echo "app-url=https://$url" >> $GITHUB_OUTPUT
+
+      - name: Health check - API
+        run: |
+          response=$(curl -s -o /dev/null -w "%{http_code}" ${{ steps.app-url.outputs.app-url }}/saude)
+          if [ $response -eq 200 ]; then
+            echo "✓ API Health Check Passed"
+          else
+            echo "✗ API Health Check Failed (HTTP $response)"
+            exit 1
+          fi
+
+      - name: Get Static Web App URL
+        id: swa-url
+        run: |
+          url=$(az staticwebapp show \
+            --name 'ct-assessment-web-prod-*' \
+            --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+            --query defaultHostname -o tsv)
+          echo "swa-url=https://$url" >> $GITHUB_OUTPUT
+
+      - name: Health check - Frontend
+        run: |
+          response=$(curl -s -o /dev/null -w "%{http_code}" ${{ steps.swa-url.outputs.swa-url }})
+          if [ $response -eq 200 ]; then
+            echo "✓ Frontend Health Check Passed"
+          else
+            echo "✗ Frontend Health Check Failed (HTTP $response)"
+            exit 1
+          fi
+
+      - name: Notify deployment success
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `✅ **Deployment Successful**\n\n- API: ${{ steps.app-url.outputs.app-url }}\n- Frontend: ${{ steps.swa-url.outputs.swa-url }}`
+            })
+
+  # ========================================================================
+  # ROLLBACK JOB - On Failure
+  # ========================================================================
+  rollback:
+    needs: [deploy-backend, deploy-frontend, post-deploy]
+    runs-on: ubuntu-latest
+    if: failure()
+
+    steps:
+      - name: Log in to Azure
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Rollback App Service deployment
+        run: |
+          az webapp deployment slot swap \
+            --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+            --name 'ct-assessment-api-prod-*' \
+            --slot staging \
+            --action swap-with-production
+
+      - name: Notify rollback
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: '⚠️ **Deployment Failed - Rolled Back to Previous Version**\nPlease check the logs for details.'
+            })

@@ -3,3 +3,4 @@ src/progress
 src/done
 src/misc
 *.pfx
+tests

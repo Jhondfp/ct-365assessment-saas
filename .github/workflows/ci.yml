@@ -29,6 +29,9 @@ jobs:
             $e | ForEach-Object { "$($f.FullName):$($_.Extent.StartLineNumber) $($_.Message)" }
           }
           if ($errs) { $errs; exit 1 }
+      - name: Pipeline do entrypoint (StrictMode, cenários simulados)
+        shell: pwsh
+        run: ./job/tests/Test-Pipeline.ps1
       - run: docker build -t ctassessment-job:ci job
 
   infra:

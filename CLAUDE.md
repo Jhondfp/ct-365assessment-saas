@@ -37,6 +37,10 @@ pwsh -NoProfile -c 'Get-ChildItem job -Recurse -Filter *.ps1 | % { $e=$null; [Sy
 bicep build infra/main.bicep --stdout > /dev/null
 ```
 
+```bash
+pwsh -File job/tests/Test-Pipeline.ps1   # pipeline do entrypoint sob StrictMode, com Graph/PnP/banco simulados
+```
+
 Teste de ponta a ponta local: `docker compose up -d db`, portal com `JOB_RUNNER=docker` e a imagem `ctassessment-job:dev`. Cadastre um cliente com "criar o banco agora" e rode uma coleta. Sem um tenant M365 real, a coleta falha no token do Graph, mas valida o disparo, o callback, o log e o status.
 
 ## Pendências conhecidas

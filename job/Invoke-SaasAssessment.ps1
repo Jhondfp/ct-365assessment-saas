@@ -228,6 +228,8 @@ $workloadDefs = @(
     @{ id = 'files';        flag = 'process_sites';          label = 'Arquivos';             spo = $true; needsSites = $true }
     @{ id = 'trash';        flag = 'process_recycle_bin';    label = 'Lixeira';              spo = $true; needsSites = $true }
 )
+# StrictMode: toda definição precisa ter todas as chaves lidas adiante (spo, graph, needsSites)
+foreach ($w in $workloadDefs) { foreach ($k in 'spo','needsSites') { if (-not $w.ContainsKey($k)) { $w[$k] = $false } }; if (-not $w.ContainsKey('graph')) { $w.graph = @() } }
 $workloads = [ordered]@{}
 foreach ($w in $workloadDefs) {
     $on = [bool]$global:params[$w.flag]

@@ -203,8 +203,9 @@ try {
 
     # Retomada: a mesma execução já tem linha em execution_history (o container anterior caiu no meio)
     $isResume = $false
-    $prev = @(Invoke-DbReader -Connection $dbConn -Query 'SELECT status FROM dbo.execution_history WHERE execution_id = @exec' -Parameters @{ '@exec' = $global:executionId })
-    if ($prev.Count -gt 0) {
+    # Invoke-DbReader ja devolve array (virgula unaria): NAO envolver em @(), senao 0 linhas vira [ [] ] (Count=1)
+    $prev = Invoke-DbReader -Connection $dbConn -Query 'SELECT status FROM dbo.execution_history WHERE execution_id = @exec' -Parameters @{ '@exec' = $global:executionId }
+    if ($null -ne $prev -and $prev.Count -gt 0) {
         $isResume = $true
         Invoke-DbNonQuery -Connection $dbConn -Query "UPDATE dbo.execution_history SET status = 'running', end_time = NULL WHERE execution_id = @exec" -Parameters @{ '@exec' = $global:executionId } | Out-Null
         Write-Log -Level WARNING -Module 'Main' -Message "Retomando execucao $($global:executionId) (status anterior: $($prev[0].status))." -DbConnection $dbConn

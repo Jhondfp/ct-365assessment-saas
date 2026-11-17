@@ -1,0 +1,2464 @@
+﻿<!DOCTYPE html>
+<html lang="pt-BR" data-theme="dark">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>CT Assessment – Dashboard</title>
+<script>(function(){const t=localStorage.getItem('ct-theme')||'dark';document.documentElement.setAttribute('data-theme',t)})()</script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root,[data-theme="dark"]{
+  --bg:#0d1117;--sidebar:#111418;--card:#161b22;--card2:#1c2128;
+  --border:#2d333b;--text:#e6edf3;--muted:#7d8590;--text2:#adbac7;
+  --ct-orange:#EA5A1C;--ct-green:#95C11F;--ct-purple:#662483;
+  --blue:#EA5A1C;--green:#95C11F;--yellow:#d29922;--red:#f85149;--purple:#c273e2;
+  --hero-text:#fff;--shadow:0 1px 3px rgba(0,0,0,.4);
+  --theme-icon-sun:none;--theme-icon-moon:block;
+}
+[data-theme="light"]{
+  --bg:#f2f0ec;--sidebar:#fff;--card:#fff;--card2:#f7f6f3;
+  --border:#e0ddd8;--text:#111318;--muted:#64748b;--text2:#374151;
+  --ct-orange:#EA5A1C;--ct-green:#78a000;--ct-purple:#662483;
+  --blue:#EA5A1C;--green:#78a000;--yellow:#b45309;--red:#dc2626;--purple:#9333ea;
+  --hero-text:#fff;--shadow:0 1px 4px rgba(0,0,0,.1);
+  --theme-icon-sun:block;--theme-icon-moon:none;
+}
+body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;display:flex;min-height:100vh;font-size:14px;line-height:1.5;transition:background .2s,color .2s}
+a{color:inherit;text-decoration:none}
+
+/* Sidebar */
+.sidebar{width:210px;background:var(--sidebar);border-right:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0;position:sticky;top:0;height:100vh;overflow-y:auto}
+.logo{padding:18px 16px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px}
+.logo-mark{width:32px;height:32px;background:var(--ct-orange);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:900;color:#fff;flex-shrink:0}
+.logo-name{font-size:13.5px;font-weight:700;line-height:1.2}
+.logo-sub{font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:1px}
+.nav-sect{padding:14px 16px 3px;font-size:9.5px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:1.4px}
+.nav-item{display:flex;align-items:center;gap:8px;padding:7px 16px;font-size:12.5px;color:var(--muted);cursor:pointer;border-left:2px solid transparent;transition:all .15s}
+.nav-item:hover{color:var(--text);background:rgba(255,255,255,.04)}
+[data-theme="light"] .nav-item:hover{background:rgba(0,0,0,.04)}
+.nav-item.active{color:var(--ct-orange);background:rgba(234,90,28,.08);border-left-color:var(--ct-orange)}
+.nav-item svg{width:14px;height:14px;flex-shrink:0;opacity:.65}
+.nav-item.active svg{opacity:1}
+.sidebar-foot{margin-top:auto;padding:12px;border-top:1px solid var(--border)}
+.sidebar-card{background:var(--card2);border:1px solid var(--border);border-radius:9px;padding:10px 11px;display:flex;align-items:center;gap:9px}
+.sidebar-card-icon{width:28px;height:28px;border-radius:7px;background:var(--ct-orange);display:flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:800;flex-shrink:0}
+.sidebar-card-text{min-width:0}
+.sidebar-card-title{font-size:10.5px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sidebar-card-sub{font-size:9px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px}
+
+/* Main */
+.main{flex:1;display:flex;flex-direction:column;min-width:0}
+
+/* Topbar row 1: filter bar (execução, tema, exportar) */
+.topbar-filters{padding:9px 24px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;background:var(--sidebar);gap:12px;flex-wrap:wrap}
+.exec-wrap{display:flex;align-items:center;gap:6px}
+.exec-label{font-size:10.5px;color:var(--muted);white-space:nowrap}
+.exec-select{background:var(--card2);border:1px solid var(--border);color:var(--text);padding:5px 10px;border-radius:7px;font-size:11.5px;cursor:pointer;outline:none;max-width:280px}
+.exec-select:focus{border-color:var(--ct-orange)}
+.topbar-right{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.theme-btn{width:30px;height:30px;border-radius:7px;border:1px solid var(--border);background:var(--card2);cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--muted);transition:all .15s;flex-shrink:0}
+.theme-btn:hover{color:var(--text);border-color:var(--ct-orange)}
+.theme-btn svg{width:14px;height:14px}
+.icon-sun{display:var(--theme-icon-sun)}.icon-moon{display:var(--theme-icon-moon)}
+
+/* Topbar row 2: page header (título + filtros/pills) */
+.page-header{padding:16px 24px;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;background:var(--bg);border-bottom:1px solid var(--border)}
+.page-header-left{display:flex;align-items:center;gap:12px;min-width:0}
+.page-header-icon{width:38px;height:38px;border-radius:10px;background:rgba(234,90,28,.12);display:flex;align-items:center;justify-content:center;color:var(--ct-orange);flex-shrink:0}
+.page-header-icon svg{width:18px;height:18px}
+.page-header-title{font-size:18px;font-weight:800;letter-spacing:-.3px}
+.page-header-sub{font-size:11.5px;color:var(--muted);margin-top:2px}
+.page-header-right{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.date-badge{font-size:11px;color:var(--text2);background:var(--card2);border:1px solid var(--border);border-radius:8px;padding:6px 12px;display:flex;align-items:center;gap:6px;white-space:nowrap}
+.date-badge svg{width:12px;height:12px;opacity:.7;flex-shrink:0}
+.delta-badge{font-size:10.5px;font-weight:700;padding:6px 11px;border-radius:8px;display:flex;align-items:center;gap:4px;white-space:nowrap}
+.delta-badge.up{background:rgba(149,193,31,.14);color:var(--green)}
+.delta-badge.down{background:rgba(248,81,73,.14);color:var(--red)}
+.delta-badge.flat{background:var(--card2);color:var(--muted)}
+
+.content{flex:1;padding:22px 24px;overflow-y:auto}
+
+/* Hero */
+.hero{border-radius:14px;background:linear-gradient(135deg,var(--ct-orange) 0%,#c04010 40%,var(--ct-purple) 100%);padding:30px 38px;margin-bottom:18px;position:relative;overflow:hidden;color:#fff}
+.hero::before{content:'';position:absolute;right:-50px;top:-70px;width:300px;height:300px;border-radius:50%;background:rgba(255,255,255,.05);pointer-events:none}
+.hero::after{content:'';position:absolute;right:100px;bottom:-90px;width:240px;height:240px;border-radius:50%;background:rgba(255,255,255,.04);pointer-events:none}
+.hero-layout{display:grid;grid-template-columns:1fr auto;align-items:flex-end;gap:28px;position:relative;z-index:1}
+@media(max-width:900px){.hero-layout{grid-template-columns:1fr}}
+.hero-eyebrow{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:2px;opacity:.7;margin-bottom:10px}
+.hero-amount{font-size:58px;font-weight:900;line-height:1;letter-spacing:-2px;margin-bottom:6px}
+.hero-amount span{font-size:20px;font-weight:400;opacity:.65;margin-left:4px}
+.hero-desc{font-size:13px;opacity:.75;line-height:1.5;max-width:480px}
+.hero-pills{display:flex;gap:9px;flex-wrap:wrap;justify-content:flex-end}
+.hero-pill{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);border-radius:9px;padding:9px 14px;text-align:center;min-width:90px}
+.hero-pill-label{font-size:9px;text-transform:uppercase;letter-spacing:.8px;opacity:.65;margin-bottom:4px}
+.hero-pill-value{font-size:17px;font-weight:800;letter-spacing:-.5px;line-height:1}
+.hero-pill-period{font-size:9px;opacity:.5;margin-top:2px}
+
+/* KPI strip */
+.kpi-strip{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:18px}
+@media(max-width:1100px){.kpi-strip{grid-template-columns:repeat(2,1fr)}}
+.kpi-card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px 16px;transition:border-color .2s,box-shadow .2s}
+.kpi-card:hover{border-color:var(--ct-orange);box-shadow:var(--shadow)}
+.kpi-top{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:10px}
+.kpi-icon{width:30px;height:30px;border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.kpi-icon svg{width:15px;height:15px}
+.kpi-delta{font-size:10px;font-weight:700;display:flex;align-items:center;gap:2px;white-space:nowrap}
+.kpi-delta.up{color:var(--green)}.kpi-delta.down{color:var(--red)}
+.kpi-label{font-size:9.5px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;margin-bottom:4px}
+.kpi-value{font-size:22px;font-weight:900;line-height:1;letter-spacing:-.5px}
+.kpi-sub{font-size:10px;color:var(--muted);margin-top:5px}
+.kpi-spark{display:block;margin-top:8px}
+.c-orange{color:var(--ct-orange)}.c-green{color:var(--green)}.c-yellow{color:var(--yellow)}
+.c-red{color:var(--red)}.c-purple{color:var(--purple)}.c-muted{color:var(--muted)}
+
+/* Trend line/area charts (SVG, sem dependências externas) */
+.chart-card-body{padding:12px 15px 6px}
+.chart-legend{display:flex;gap:14px;padding:0 15px 12px;flex-wrap:wrap}
+.chart-legend-item{display:flex;align-items:center;gap:6px;font-size:10.5px;color:var(--muted)}
+.chart-legend-dot{width:9px;height:9px;border-radius:2px;flex-shrink:0}
+.chart-legend-line{width:12px;height:2px;border-radius:1px;flex-shrink:0}
+.line-chart{overflow:visible}
+.chart-hit{cursor:crosshair}
+.chart-guide{pointer-events:none;transition:opacity .1s ease}
+.chart-dot{transition:r .1s ease}
+.chart-dot.hover{r:4.5}
+.chart-tooltip{
+  position:fixed;z-index:50;pointer-events:none;opacity:0;transition:opacity .1s ease;
+  background:var(--card);border:1px solid var(--border);border-radius:8px;padding:8px 11px;
+  box-shadow:var(--shadow,0 4px 16px rgba(0,0,0,.25));font-size:11.5px;min-width:130px;
+}
+.chart-tooltip.show{opacity:1}
+.chart-tooltip-label{font-weight:700;margin-bottom:5px;color:var(--text)}
+.chart-tooltip-row{display:flex;align-items:center;gap:6px;justify-content:space-between;padding:1.5px 0}
+.chart-tooltip-row+.chart-tooltip-row{margin-top:1px}
+.chart-tooltip-name{display:flex;align-items:center;gap:6px;color:var(--muted)}
+.chart-tooltip-dot{width:8px;height:8px;border-radius:2px;flex-shrink:0}
+.chart-tooltip-val{font-weight:700;font-variant-numeric:tabular-nums;margin-left:10px;color:var(--text)}
+
+/* Histórico de execuções */
+.exec-hist-grid{display:grid;grid-template-columns:1fr 250px;gap:14px;margin-bottom:22px}
+@media(max-width:1000px){.exec-hist-grid{grid-template-columns:1fr}}
+
+/* Section header */
+.sec-hd{font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:1.4px;margin-bottom:12px;display:flex;align-items:center;gap:8px;position:relative;padding-right:24px;cursor:pointer;user-select:none;border-radius:6px}
+.sec-hd:hover{color:var(--text)}
+.sec-hd::after{content:'';flex:1;height:1px;background:var(--border)}
+.sec-hd-accent{width:3px;height:13px;background:var(--ct-orange);border-radius:2px;flex-shrink:0}
+.sec-chevron{position:absolute;right:2px;top:50%;transform:translateY(-50%);width:13px;height:13px;flex-shrink:0;transition:transform .18s ease}
+.sec-chevron svg{width:100%;height:100%;display:block}
+.sec-hd.collapsed .sec-chevron{transform:translateY(-50%) rotate(-90deg)}
+.sec-collapsed-content{display:none!important}
+
+/* Two-col */
+.two-col{display:grid;grid-template-columns:1fr 290px;gap:14px;margin-bottom:22px}
+@media(max-width:1100px){.two-col{grid-template-columns:1fr}}
+
+/* Maturity table */
+.mat-card{background:var(--card);border:1px solid var(--border);border-radius:11px;overflow:hidden}
+.mat-table{width:100%;border-collapse:collapse}
+.mat-table th{background:var(--card2);padding:8px 13px;font-size:9.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;text-align:left;border-bottom:1px solid var(--border)}
+.mat-table th:not(:first-child){text-align:center}
+.mat-table td{padding:9px 13px;border-bottom:1px solid var(--border);font-size:12px}
+.mat-table td:not(:first-child){text-align:center}
+.mat-table tr:last-child td{border-bottom:0}
+.mat-table tr:hover td{background:rgba(234,90,28,.03)}
+.score-cell{display:inline-flex;align-items:center;justify-content:center;width:38px;height:22px;border-radius:5px;font-size:10.5px;font-weight:700}
+.score-5{background:rgba(149,193,31,.18);color:#95C11F}.score-4{background:rgba(149,193,31,.1);color:#aad435}
+.score-3{background:rgba(210,153,34,.18);color:#d29922}.score-2{background:rgba(248,81,73,.14);color:#f85149}
+.score-1{background:rgba(248,81,73,.22);color:#ff4444}.score-na{background:rgba(125,133,144,.08);color:var(--muted)}
+
+/* Risk card */
+.risk-card{background:var(--card);border:1px solid var(--border);border-radius:11px;overflow:hidden;display:flex;flex-direction:column}
+.risk-hd{padding:11px 15px;border-bottom:1px solid var(--border);background:var(--card2)}
+.risk-hd-title{font-size:12px;font-weight:600}
+.risk-hd-sub{font-size:10.5px;color:var(--muted);margin-top:1px}
+.risk-list{list-style:none;flex:1}
+.risk-item{display:flex;align-items:flex-start;gap:9px;padding:9px 13px;border-bottom:1px solid rgba(45,51,59,.6)}
+[data-theme="light"] .risk-item{border-bottom-color:var(--border)}
+.risk-item:last-child{border-bottom:0}
+.risk-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;margin-top:5px}
+.risk-dot.high{background:var(--red)}.risk-dot.medium{background:var(--yellow)}.risk-dot.low{background:var(--ct-orange)}.risk-dot.info{background:var(--muted)}
+.risk-title{font-size:11.5px;font-weight:500;margin-bottom:1px}
+.risk-desc{font-size:10.5px;color:var(--muted);line-height:1.4}
+.risk-badge{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;padding:1px 5px;border-radius:3px;margin-right:4px}
+.risk-badge.high{background:rgba(248,81,73,.18);color:var(--red)}
+.risk-badge.medium{background:rgba(210,153,34,.18);color:var(--yellow)}
+.risk-badge.low{background:rgba(234,90,28,.15);color:var(--ct-orange)}
+.no-risk{padding:22px;color:var(--muted);font-size:12px;text-align:center}
+
+/* Critical sites */
+.crit-table{width:100%;border-collapse:collapse}
+.crit-table th{background:var(--card2);padding:7px 13px;font-size:9.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;text-align:left;border-bottom:1px solid var(--border)}
+.crit-table td{padding:9px 13px;border-bottom:1px solid var(--border);font-size:12px;vertical-align:middle}
+.crit-table tr:last-child td{border-bottom:0}
+.crit-table tr:hover td{background:rgba(248,81,73,.03)}
+.crit-title{font-weight:500;display:flex;align-items:center;gap:6px}
+.crit-url{font-size:10.5px;color:var(--muted);margin-top:1px;word-break:break-all}
+.crit-badge{font-size:9px;font-weight:700;padding:2px 6px;border-radius:3px;background:rgba(248,81,73,.18);color:var(--red);white-space:nowrap;flex-shrink:0}
+.kw-tag{font-size:9px;background:rgba(234,90,28,.15);color:var(--ct-orange);padding:1px 5px;border-radius:3px;font-weight:600}
+.crit-cap{font-size:10.5px;color:var(--muted)}
+.empty-crit{padding:20px;text-align:center;color:var(--muted);font-size:12px}
+
+/* Sites toolbar (all sites tables) */
+.sites-toolbar{display:flex;align-items:center;justify-content:space-between;padding:10px 13px;background:var(--card2);border-bottom:1px solid var(--border);gap:10px;flex-wrap:wrap}
+.sites-count{font-size:11px;color:var(--muted)}
+.sites-order-select{background:var(--bg);border:1px solid var(--border);color:var(--text);padding:5px 9px;border-radius:6px;font-size:11px;cursor:pointer;outline:none}
+.sites-order-select:focus{border-color:var(--ct-orange)}
+
+/* Diag cards (cost reduction) */
+.diag-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:22px}
+@media(max-width:1100px){.diag-grid{grid-template-columns:1fr 1fr}}
+@media(max-width:760px){.diag-grid{grid-template-columns:1fr}}
+.diag-card{background:var(--card);border:1px solid var(--border);border-radius:11px;overflow:hidden;display:flex;flex-direction:column;transition:border-color .2s,box-shadow .2s}
+.diag-card:hover{border-color:var(--ct-orange);box-shadow:0 0 0 1px rgba(234,90,28,.15)}
+.diag-stripe{height:3px;flex-shrink:0}
+.diag-body{padding:20px 20px 14px;flex:1}
+.diag-type{font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:1.6px;color:var(--muted);margin-bottom:12px;display:flex;align-items:center;gap:6px}
+.diag-headline{font-size:12.5px;font-weight:600;color:var(--text);line-height:1.45;margin-bottom:16px}
+.diag-stat{font-size:36px;font-weight:900;letter-spacing:-1.5px;line-height:1;margin-bottom:3px}
+.diag-stat-sub{font-size:11px;color:var(--muted);line-height:1.4}
+.diag-footer{padding:12px 20px;border-top:1px solid var(--border);background:var(--card2);display:flex;align-items:baseline;gap:7px;margin-top:auto}
+.diag-sav-label{font-size:9.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.6px;flex:1}
+.diag-sav-amount{font-size:22px;font-weight:900;color:var(--green);letter-spacing:-1px}
+.diag-sav-period{font-size:10px;color:var(--muted)}
+
+/* Metric cards */
+.metric-card{background:var(--card);border:1px solid var(--border);border-radius:11px;overflow:hidden}
+.metric-card-hd{padding:10px 15px;border-bottom:1px solid var(--border);background:var(--card2);display:flex;align-items:center;gap:7px}
+.metric-card-hd svg{width:14px;height:14px;opacity:.8;flex-shrink:0}
+.metric-card-title{font-size:11.5px;font-weight:600}
+.mrow{display:flex;align-items:center;justify-content:space-between;padding:7px 15px;border-bottom:1px solid rgba(45,51,59,.5)}
+[data-theme="light"] .mrow{border-bottom-color:var(--border)}
+.mrow:last-child{border-bottom:0}
+.mrow-lbl{font-size:11.5px;color:var(--muted)}
+.mrow-val{font-size:12px;font-weight:600;text-align:right}
+.storage-row{display:grid;grid-template-columns:1.1fr 1fr 1fr;gap:14px;margin-bottom:22px}
+@media(max-width:1000px){.storage-row{grid-template-columns:1fr 1fr}}
+.storage-visual{display:flex;align-items:center;gap:16px;padding:12px 15px}
+.storage-stats{flex:1}
+.storage-stat{display:flex;align-items:center;gap:7px;margin-bottom:7px}
+.storage-stat:last-child{margin-bottom:0}
+.storage-stat-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.storage-stat-label{font-size:10.5px;color:var(--muted);flex:1}
+.storage-stat-val{font-size:11.5px;font-weight:600}
+.pbar-wrap{padding:4px 15px 11px}
+.pbar-lbl{display:flex;justify-content:space-between;font-size:10px;color:var(--muted);margin-bottom:4px}
+.pbar{height:4px;background:var(--border);border-radius:2px;overflow:hidden}
+.pbar-fill{height:100%;border-radius:2px;transition:width .8s ease}
+
+/* File types grouped */
+.ftype-groups{padding:10px 15px 14px}
+.ftype-group{margin-bottom:10px}
+.ftype-lbl{display:flex;justify-content:space-between;align-items:baseline;font-size:11px;margin-bottom:4px}
+.ftype-name{font-weight:600;color:var(--text)}
+.ftype-exts{font-size:9.5px;color:var(--muted);margin-left:4px}
+.ftype-cnt{color:var(--muted);font-size:10.5px}
+.ftype-bar{height:5px;background:var(--border);border-radius:3px;overflow:hidden}
+.ftype-fill{height:100%;border-radius:3px;transition:width .9s ease}
+
+/* Year filter */
+.yf-bar{display:flex;gap:4px;margin-bottom:14px}
+.yf-btn{font-size:10px;font-weight:700;padding:4px 10px;border-radius:5px;border:1px solid var(--border);background:transparent;color:var(--muted);cursor:pointer;transition:all .15s;text-transform:uppercase;letter-spacing:.5px}
+.yf-btn:hover{border-color:var(--ct-orange);color:var(--ct-orange)}
+.yf-btn.active{background:var(--ct-orange);border-color:var(--ct-orange);color:#fff}
+
+/* Waterfall / reduction */
+.waterfall{padding:14px 15px}
+.wf-row{margin-bottom:12px}
+.wf-row:last-child{margin-bottom:0}
+.wf-lbl{display:flex;justify-content:space-between;align-items:baseline;font-size:11px;margin-bottom:4px}
+.wf-title{font-weight:500}
+.wf-value{font-weight:700;font-size:12px}
+.wf-bar{height:8px;background:var(--border);border-radius:4px;overflow:hidden;position:relative}
+.wf-fill{height:100%;border-radius:4px;transition:width .9s ease}
+.wf-delta{font-size:9.5px;color:var(--green);margin-top:2px}
+.runway-panel{padding:14px 15px}
+.runway-stat{margin-bottom:14px}
+.runway-stat:last-child{margin-bottom:0}
+.runway-big{font-size:32px;font-weight:900;letter-spacing:-1.5px;line-height:1;margin-bottom:2px}
+.runway-sub{font-size:11px;color:var(--muted)}
+.runway-divider{height:1px;background:var(--border);margin:12px 0}
+
+/* Organic growth */
+.growth-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:22px}
+@media(max-width:900px){.growth-grid{grid-template-columns:1fr}}
+.og-table{width:100%;border-collapse:collapse}
+.og-table th{background:var(--card2);padding:7px 13px;font-size:9.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;text-align:left;border-bottom:1px solid var(--border)}
+.og-table th:not(:first-child){text-align:right}
+.og-table td{padding:8px 13px;border-bottom:1px solid var(--border);font-size:12px}
+.og-table td:not(:first-child){text-align:right;font-weight:600}
+.og-table tr:last-child td{border-bottom:0}
+.og-table tr:hover td{background:rgba(234,90,28,.03)}
+.og-year{font-weight:500;font-size:12px}
+.og-bar-cell{padding:6px 13px!important;width:220px}
+.og-bar-wrap{position:relative;height:14px;background:var(--border);border-radius:3px;overflow:visible}
+.og-bar-fill{position:absolute;top:0;left:0;height:100%;border-radius:3px;transition:width .8s ease}
+.og-bar-clean{position:absolute;top:0;left:0;height:100%;border-radius:3px;transition:width .8s ease;opacity:.55}
+.og-quota-line{position:absolute;top:-2px;bottom:-2px;width:2px;background:var(--red);border-radius:1px;opacity:.8;z-index:2}
+.og-rate{padding:12px 15px;border-top:1px solid var(--border);font-size:11px;color:var(--muted);display:flex;gap:20px;flex-wrap:wrap}
+.og-rate-item{display:flex;flex-direction:column;gap:2px}
+.og-rate-val{font-size:15px;font-weight:700;color:var(--text)}
+.og-legend{display:flex;gap:14px;padding:10px 13px;border-bottom:1px solid var(--border)}
+.og-legend-dot{width:10px;height:10px;border-radius:2px;flex-shrink:0;margin-top:2px}
+.og-legend-lbl{font-size:10.5px;color:var(--muted)}
+
+/* Donut */
+.donut-wrap{position:relative;display:inline-block}
+
+/* States */
+.loading{display:flex;align-items:center;justify-content:center;height:200px;color:var(--muted);gap:10px}
+.spinner{width:16px;height:16px;border:2px solid var(--border);border-top-color:var(--ct-orange);border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.error-box{background:rgba(248,81,73,.08);border:1px solid rgba(248,81,73,.22);border-radius:9px;padding:13px 15px;color:var(--red);font-size:12px;margin-bottom:14px}
+.empty-msg{color:var(--muted);font-size:12px;padding:14px;text-align:center}
+
+/* Export PDF button */
+.export-btn{width:auto;padding:0 12px;gap:6px;display:flex;align-items:center;font-size:11.5px;font-weight:600;color:var(--text)}
+.export-btn svg{width:13px;height:13px}
+.export-btn:disabled{opacity:.55;cursor:default}
+
+/* Tabs (Visão Geral / SharePoint / OneDrive) */
+.tab-bar{display:flex;gap:6px;margin-bottom:18px;border-bottom:1px solid var(--border);padding-bottom:0}
+.tab-btn{font-size:12.5px;font-weight:600;padding:9px 16px;border:none;background:transparent;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;transition:all .15s;display:flex;align-items:center;gap:7px}
+.tab-btn:hover{color:var(--text)}
+.tab-btn.active{color:var(--ct-orange);border-bottom-color:var(--ct-orange)}
+.tab-btn svg{width:13px;height:13px}
+.tab-count{font-size:9.5px;font-weight:700;background:var(--card2);color:var(--muted);border-radius:9px;padding:1px 7px}
+.tab-btn.active .tab-count{background:rgba(234,90,28,.14);color:var(--ct-orange)}
+.tab-panel{display:none}
+.tab-panel.active{display:block}
+.tab-print-title{display:none}
+
+/* Documentos com mais versões (SharePoint/OneDrive) */
+.doc-table{width:100%;border-collapse:collapse}
+.doc-table th{background:var(--card2);padding:7px 13px;font-size:9.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;text-align:left;border-bottom:1px solid var(--border)}
+.doc-table th:not(:first-child){text-align:right}
+.doc-table td{padding:8px 13px;border-bottom:1px solid var(--border);font-size:12px;vertical-align:middle}
+.doc-table td:not(:first-child){text-align:right}
+.doc-table tr:last-child td{border-bottom:0}
+.doc-table tr:hover td{background:rgba(234,90,28,.03)}
+.doc-name{font-weight:500;display:block}
+.doc-name a{color:var(--ct-orange)}
+.doc-name a:hover{text-decoration:underline}
+.doc-site{font-size:10.5px;color:var(--muted);margin-top:1px}
+.ver-badge{display:inline-flex;align-items:center;justify-content:center;min-width:32px;padding:2px 6px;border-radius:5px;font-size:10.5px;font-weight:700;background:rgba(210,153,34,.16);color:var(--yellow)}
+
+/* Print header (visible only when printing/exporting) */
+.print-header{display:none}
+
+/* Print stylesheet: turns the live dashboard into a clean PDF-ready report */
+@media print{
+  :root,[data-theme="dark"],[data-theme="light"]{
+    --bg:#fff;--sidebar:#fff;--card:#fff;--card2:#f7f6f3;
+    --border:#d7d7d7;--text:#14161a;--muted:#57606a;--text2:#2b2f36;
+  }
+  @page{margin:14mm 12mm}
+  body{display:block!important}
+  .sidebar,.topbar-filters,.page-header,.loading,.yf-bar,.tab-bar{display:none!important}
+  .main{width:100%!important}
+  .content{padding:0!important;overflow:visible!important}
+  .tab-panel{display:block!important}
+  .print-header{display:block;margin-bottom:16px;padding-bottom:10px;border-bottom:2px solid var(--ct-orange)}
+  .print-header-logo{font-size:18px;font-weight:900;color:#14161a}
+  .print-header-meta{font-size:11px;color:#57606a;margin-top:4px}
+  .kpi-card,.risk-card,.metric-card,.diag-card,.storage-row>*,.growth-grid>*,.exec-hist-grid>*{break-inside:avoid;box-shadow:none!important}
+  .mat-card{box-shadow:none!important}
+  .hero{break-inside:avoid;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .diag-stripe,.risk-dot,.kpi-icon{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .sec-hd{break-after:avoid;margin-top:18px;cursor:default}
+  .sec-chevron{display:none!important}
+  .sec-collapsed-content{display:block!important}
+  .tab-print-title{display:block!important;font-size:16px;font-weight:800;margin:26px 0 14px;padding-bottom:8px;border-bottom:1px solid #d7d7d7}
+
+  /* Tabelas longas (Todos os Sites, Top 20 Documentos etc.) precisam poder
+     quebrar entre paginas - o card que as envolve (.mat-card) NAO pode ter
+     break-inside:avoid, senao o navegador tenta forcar a tabela inteira
+     numa pagina so e corta o que nao coube. Em compensacao, uma LINHA
+     nunca deve ser partida ao meio, e o cabecalho repete em cada pagina. */
+  table{break-inside:auto}
+  thead{display:table-header-group}
+  tfoot{display:table-footer-group}
+  tr{break-inside:avoid;break-after:auto}
+  .sites-toolbar{break-after:avoid;break-inside:avoid}
+
+  /* Grids lado a lado (ex: "Top 10 Sites" - duas crit-table com URL longa)
+     espremem cada tabela pra menos da metade da largura da pagina impressa,
+     cortando a ultima coluna. Empilha em 1 coluna so na impressao - a
+     regra de quebra de pagina acima ja deixa cada tabela paginar limpo. */
+  .two-col,.growth-grid,.storage-row,.exec-hist-grid{grid-template-columns:1fr!important}
+}
+</style>
+</head>
+<body>
+
+<nav class="sidebar">
+  <div class="logo">
+    <div class="logo-mark">CT</div>
+    <div class="logo-text">
+      <div class="logo-name">CT Assessment</div>
+      <div class="logo-sub">Cloud Target</div>
+    </div>
+  </div>
+  <span class="nav-sect">Navegação</span>
+  <a class="nav-item" href="/">
+    <svg viewBox="0 0 16 16" fill="currentColor"><path d="M1.5 1a.5.5 0 0 0-.5.5v4a.5.5 0 0 1-1 0v-4A1.5 1.5 0 0 1 1.5 0h4a.5.5 0 0 1 0 1zM10 .5a.5.5 0 0 1 .5-.5h4A1.5 1.5 0 0 1 16 1.5v4a.5.5 0 0 1-1 0v-4a.5.5 0 0 0-.5-.5h-4a.5.5 0 0 1-.5-.5M.5 10a.5.5 0 0 1 .5.5v4a.5.5 0 0 0 .5.5h4a.5.5 0 0 1 0 1h-4A1.5 1.5 0 0 1 0 14.5v-4a.5.5 0 0 1 .5-.5m15 0a.5.5 0 0 1 .5.5v4a1.5 1.5 0 0 1-1.5 1.5h-4a.5.5 0 0 1 0-1h4a.5.5 0 0 0 .5-.5v-4a.5.5 0 0 1 .5-.5"/></svg>
+    Monitor de Execução
+  </a>
+  <a class="nav-item active" href="/dashboard">
+    <svg viewBox="0 0 16 16" fill="currentColor"><path d="M0 1.5A1.5 1.5 0 0 1 1.5 0h2A1.5 1.5 0 0 1 5 1.5v2A1.5 1.5 0 0 1 3.5 5h-2A1.5 1.5 0 0 1 0 3.5zM6.5 0A1.5 1.5 0 0 0 5 1.5v2A1.5 1.5 0 0 0 6.5 5h2A1.5 1.5 0 0 0 10 3.5v-2A1.5 1.5 0 0 0 8.5 0zm5 0A1.5 1.5 0 0 0 10 1.5v2A1.5 1.5 0 0 0 11.5 5h2A1.5 1.5 0 0 0 15 3.5v-2A1.5 1.5 0 0 0 13.5 0zM0 6.5A1.5 1.5 0 0 1 1.5 5h2A1.5 1.5 0 0 1 5 6.5v2A1.5 1.5 0 0 1 3.5 10h-2A1.5 1.5 0 0 1 0 8.5zm5 0A1.5 1.5 0 0 1 6.5 5h2A1.5 1.5 0 0 1 10 6.5v2A1.5 1.5 0 0 1 8.5 10h-2A1.5 1.5 0 0 1 5 8.5zm5 0A1.5 1.5 0 0 1 11.5 5h2A1.5 1.5 0 0 1 15 6.5v2A1.5 1.5 0 0 1 13.5 10h-2A1.5 1.5 0 0 1 10 8.5zM0 11.5A1.5 1.5 0 0 1 1.5 10h2A1.5 1.5 0 0 1 5 11.5v2A1.5 1.5 0 0 1 3.5 15h-2A1.5 1.5 0 0 1 0 13.5zm5 0A1.5 1.5 0 0 1 6.5 10h2A1.5 1.5 0 0 1 10 11.5v2A1.5 1.5 0 0 1 8.5 15h-2A1.5 1.5 0 0 1 5 13.5zm5 0A1.5 1.5 0 0 1 11.5 10h2A1.5 1.5 0 0 1 15 11.5v2A1.5 1.5 0 0 1 13.5 15h-2A1.5 1.5 0 0 1 10 13.5z"/></svg>
+    Dashboard
+  </a>
+  <div class="sidebar-foot">
+    <div class="sidebar-card">
+      <div class="sidebar-card-icon">CT</div>
+      <div class="sidebar-card-text">
+        <div class="sidebar-card-title" id="last-update-title">Sem execuções</div>
+        <div class="sidebar-card-sub" id="last-update-sub">—</div>
+      </div>
+    </div>
+  </div>
+</nav>
+
+<div class="main">
+  <div class="topbar-filters">
+    <div class="exec-wrap">
+      <span class="exec-label">Execução</span>
+      <select class="exec-select" id="exec-select"><option value="">Carregando...</option></select>
+    </div>
+    <div class="topbar-right">
+      <button class="theme-btn export-btn" id="export-pdf-btn" title="Exportar relatório em PDF">
+        <svg viewBox="0 0 16 16" fill="currentColor"><path d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 1 0v2.5a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2v-2.5a.5.5 0 0 1 .5-.5"/><path d="M7.646 11.854a.5.5 0 0 0 .708 0l3-3a.5.5 0 0 0-.708-.708L8.5 10.293V1.5a.5.5 0 0 0-1 0v8.793L5.354 8.146a.5.5 0 1 0-.708.708z"/></svg>
+        <span>Exportar PDF</span>
+      </button>
+      <button class="theme-btn export-btn" id="export-html-btn" title="Exportar relatório em HTML (arquivo único, sem depender do banco)">
+        <svg viewBox="0 0 16 16" fill="currentColor"><path d="M14 4.5V14a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V2a2 2 0 0 1 2-2h5.5zm-3 0A1.5 1.5 0 0 1 9.5 3V1H4a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V4.5z"/><path d="M4.5 9.5a.5.5 0 0 1 .5-.5h6a.5.5 0 0 1 0 1H5a.5.5 0 0 1-.5-.5m0 2a.5.5 0 0 1 .5-.5h6a.5.5 0 0 1 0 1H5a.5.5 0 0 1-.5-.5m0-4a.5.5 0 0 1 .5-.5h3a.5.5 0 0 1 0 1H5a.5.5 0 0 1-.5-.5"/></svg>
+        <span>Exportar HTML</span>
+      </button>
+      <button class="theme-btn" id="theme-toggle" title="Alternar tema">
+        <svg class="icon-sun" viewBox="0 0 16 16" fill="currentColor"><path d="M8 11a3 3 0 1 1 0-6 3 3 0 0 1 0 6m0 1a4 4 0 1 0 0-8 4 4 0 0 0 0 8M8 0a.5.5 0 0 1 .5.5v2a.5.5 0 0 1-1 0v-2A.5.5 0 0 1 8 0m0 13a.5.5 0 0 1 .5.5v2a.5.5 0 0 1-1 0v-2A.5.5 0 0 1 8 13m8-5a.5.5 0 0 1-.5.5h-2a.5.5 0 0 1 0-1h2a.5.5 0 0 1 .5.5M3 8a.5.5 0 0 1-.5.5h-2a.5.5 0 0 1 0-1h2A.5.5 0 0 1 3 8m10.657-5.657a.5.5 0 0 1 0 .707l-1.414 1.415a.5.5 0 1 1-.707-.708l1.414-1.414a.5.5 0 0 1 .707 0m-9.193 9.193a.5.5 0 0 1 0 .707L3.05 13.657a.5.5 0 0 1-.707-.707l1.414-1.414a.5.5 0 0 1 .707 0zm9.193 2.121a.5.5 0 0 1-.707 0l-1.414-1.414a.5.5 0 0 1 .707-.707l1.414 1.414a.5.5 0 0 1 0 .707M4.464 4.465a.5.5 0 0 1-.707 0L2.343 3.05a.5.5 0 1 1 .707-.707l1.414 1.414a.5.5 0 0 1 0 .708z"/></svg>
+        <svg class="icon-moon" viewBox="0 0 16 16" fill="currentColor"><path d="M6 .278a.77.77 0 0 1 .08.858 7.2 7.2 0 0 0-.878 3.46c0 4.021 3.278 7.277 7.318 7.277q.792-.001 1.533-.16a.79.79 0 0 1 .81.316.73.73 0 0 1-.031.893A8.35 8.35 0 0 1 8.344 16C3.734 16 0 12.286 0 7.71 0 4.266 2.114 1.312 5.124.06A.75.75 0 0 1 6 .278"/></svg>
+      </button>
+    </div>
+  </div>
+  <div class="page-header">
+    <div class="page-header-left">
+      <div class="page-header-icon">
+        <svg viewBox="0 0 16 16" fill="currentColor"><path d="M0 1.5A1.5 1.5 0 0 1 1.5 0h2A1.5 1.5 0 0 1 5 1.5v2A1.5 1.5 0 0 1 3.5 5h-2A1.5 1.5 0 0 1 0 3.5zM6.5 0A1.5 1.5 0 0 0 5 1.5v2A1.5 1.5 0 0 0 6.5 5h2A1.5 1.5 0 0 0 10 3.5v-2A1.5 1.5 0 0 0 8.5 0zm5 0A1.5 1.5 0 0 0 10 1.5v2A1.5 1.5 0 0 0 11.5 5h2A1.5 1.5 0 0 0 15 3.5v-2A1.5 1.5 0 0 0 13.5 0zM0 6.5A1.5 1.5 0 0 1 1.5 5h2A1.5 1.5 0 0 1 5 6.5v2A1.5 1.5 0 0 1 3.5 10h-2A1.5 1.5 0 0 1 0 8.5zm5 0A1.5 1.5 0 0 1 6.5 5h2A1.5 1.5 0 0 1 10 6.5v2A1.5 1.5 0 0 1 8.5 10h-2A1.5 1.5 0 0 1 5 8.5zm5 0A1.5 1.5 0 0 1 11.5 5h2A1.5 1.5 0 0 1 15 6.5v2A1.5 1.5 0 0 1 13.5 10h-2A1.5 1.5 0 0 1 10 8.5zM0 11.5A1.5 1.5 0 0 1 1.5 10h2A1.5 1.5 0 0 1 5 11.5v2A1.5 1.5 0 0 1 3.5 15h-2A1.5 1.5 0 0 1 0 13.5zm5 0A1.5 1.5 0 0 1 6.5 10h2A1.5 1.5 0 0 1 10 11.5v2A1.5 1.5 0 0 1 8.5 15h-2A1.5 1.5 0 0 1 5 13.5zm5 0A1.5 1.5 0 0 1 11.5 10h2A1.5 1.5 0 0 1 15 11.5v2A1.5 1.5 0 0 1 13.5 15h-2A1.5 1.5 0 0 1 10 13.5z"/></svg>
+      </div>
+      <div>
+        <div class="page-header-title">Diagnóstico SharePoint Online</div>
+        <div class="page-header-sub">CT Assessment · Governança · Armazenamento · Segurança</div>
+      </div>
+    </div>
+    <div class="page-header-right" id="page-header-right"></div>
+  </div>
+  <div class="print-header" id="print-header">
+    <div class="print-header-logo">CT Assessment — Diagnóstico SharePoint Online</div>
+    <div class="print-header-meta" id="print-header-meta"></div>
+  </div>
+  <div class="content" id="page-content">
+    <div class="loading"><div class="spinner"></div> Carregando diagnóstico...</div>
+  </div>
+</div>
+
+<script>
+/* ── Theme ── */
+document.getElementById('theme-toggle').addEventListener('click',function(){
+  const h=document.documentElement,next=h.getAttribute('data-theme')==='dark'?'light':'dark';
+  h.setAttribute('data-theme',next);localStorage.setItem('ct-theme',next);
+});
+
+/* ── Export PDF (impressão nativa do navegador, sem dependências externas) ── */
+document.getElementById('export-pdf-btn').addEventListener('click',function(){
+  window.print();
+});
+
+/* ── Export HTML — snapshot estático do relatório em 1 arquivo só ──
+   Usa o que já está renderizado na tela (nada de nova consulta ao banco):
+   clona #page-content, expande as seções colapsadas, remove os controles que
+   só funcionam com JS (chevron, filtros de ano/versão, ordenação) e empilha
+   todas as abas, já que o arquivo exportado não tem navegação. O CSS vai
+   embutido, então o arquivo abre sozinho em qualquer lugar, offline. ── */
+function exportHtmlReport(){
+  const styleEl=document.querySelector('style');
+  const css=styleEl?styleEl.textContent:'';
+
+  const clone=document.getElementById('page-content').cloneNode(true);
+  // Colapsáveis: volta tudo a ficar visível (o dashboard abre colapsado)
+  clone.querySelectorAll('.sec-collapsed-content').forEach(el=>el.classList.remove('sec-collapsed-content'));
+  clone.querySelectorAll('.sec-hd').forEach(el=>el.classList.remove('collapsed'));
+  // Remove só o que não tem como funcionar no arquivo exportado. Os filtros
+  // de ano/versão (.yf-bar) e o tooltip dos gráficos CONTINUAM funcionando -
+  // bindReportInteractions vai junto no arquivo (ver abaixo). Já a ordenação
+  // das tabelas depende de dados em memória (SITE_TABLES), que não são
+  // exportados, então esse seletor sai.
+  clone.querySelectorAll('.sec-chevron,.sites-order-select,.tab-bar').forEach(el=>el.remove());
+
+  // Cada aba do dashboard vira um bloco colapsável no export (não há barra de
+  // abas num arquivo estático). Os rótulos saem dos próprios botões de aba,
+  // sem o contador (badge). Primeiro bloco abre expandido; os demais entram
+  // colapsados, pra dar uma visão geral compacta ao abrir o arquivo.
+  const tabLabels={};
+  document.querySelectorAll('.tab-btn').forEach(b=>{
+    const key=b.getAttribute('data-tab');
+    if(!key)return;
+    // Clona e remove o badge antes de ler o texto - mais seguro que dar
+    // replace no número (um rótulo que contivesse dígitos seria mutilado).
+    const lbl=b.cloneNode(true);
+    const badge=lbl.querySelector('.tab-count');
+    if(badge)badge.remove();
+    tabLabels[key]=(lbl.textContent||'').trim();
+  });
+  const blocksHtml=Array.from(clone.querySelectorAll('.tab-panel')).map((panel,i)=>{
+    const key=panel.getAttribute('data-tab')||'';
+    const label=tabLabels[key]||key||('Bloco '+(i+1));
+    return '<section class="xblock'+(i===0?'':' collapsed')+'">'+
+             '<button type="button" class="xblock-hd">'+label+'<span class="xblock-chev">&#9662;</span></button>'+
+             '<div class="xblock-body">'+panel.innerHTML+'</div>'+
+           '</section>';
+  }).join('');
+
+  const execSel=document.getElementById('exec-select');
+  const execTxt=execSel&&execSel.selectedIndex>=0?execSel.options[execSel.selectedIndex].text:'';
+  const now=new Date();
+  const stamp=now.toLocaleDateString('pt-BR')+' '+now.toLocaleTimeString('pt-BR');
+
+  const html=`<!doctype html>
+<html lang="pt-BR" data-theme="${document.documentElement.getAttribute('data-theme')||'light'}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>CT Assessment — Diagnóstico SharePoint Online</title>
+<style>
+${css}
+/* Ajustes do export estático (sem sidebar/topbar/abas) */
+body{display:block}
+.export-wrap{max-width:1400px;margin:0 auto;padding:24px}
+.export-head{border-bottom:2px solid var(--ct-orange);padding-bottom:12px;margin-bottom:20px}
+.export-head-title{font-size:20px;font-weight:800}
+.export-head-sub{font-size:12px;color:var(--muted);margin-top:3px}
+.tab-bar{display:none!important}
+.tab-panel{display:block!important}
+/* Cada aba vira um bloco colapsável */
+.xblock{border:1px solid var(--border);border-radius:11px;margin-bottom:14px;overflow:hidden;background:var(--card)}
+.xblock-hd{width:100%;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:13px 16px;background:var(--card2);border:0;border-bottom:1px solid var(--border);color:var(--text);font-family:inherit;font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;cursor:pointer;text-align:left}
+.xblock-hd:hover{color:var(--ct-orange)}
+.xblock-chev{font-size:12px;color:var(--muted);transition:transform .15s}
+.xblock.collapsed .xblock-chev{transform:rotate(-90deg)}
+.xblock.collapsed .xblock-body{display:none}
+.xblock.collapsed .xblock-hd{border-bottom:0}
+.xblock-body{padding:16px}
+@media print{
+  .xblock.collapsed .xblock-body{display:block}
+  .xblock-chev{display:none}
+}
+</style>
+</head>
+<body>
+<div class="export-wrap">
+  <div class="export-head">
+    <div class="export-head-title">CT Assessment — Diagnóstico SharePoint Online</div>
+    <div class="export-head-sub">${execTxt?execTxt+' · ':''}Gerado em ${stamp}</div>
+  </div>
+  ${blocksHtml}
+</div>
+<script>
+(${bindReportInteractions.toString()})();
+document.querySelectorAll('.xblock-hd').forEach(function(h){
+  h.addEventListener('click',function(){ h.parentElement.classList.toggle('collapsed'); });
+});
+<\/script>
+</body>
+</html>`;
+
+  const blob=new Blob([html],{type:'text/html;charset=utf-8'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;
+  a.download='ct-assessment-'+now.toISOString().slice(0,10)+'.html';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(()=>URL.revokeObjectURL(url),1000);
+}
+document.getElementById('export-html-btn').addEventListener('click',exportHtmlReport);
+
+/* ── Formatters ── */
+function fmtNum(n,d=0){return n!=null?Number(n).toLocaleString('pt-BR',{minimumFractionDigits:d,maximumFractionDigits:d}):'—'}
+function fmtGB(b){if(!b||b<=0)return'0 GB';const g=b/1073741824;return g>=1?fmtNum(g,2)+' GB':fmtNum(b/1048576,1)+' MB'}
+function fmtMB(m){if(!m||m<=0)return'0 GB';const g=m/1024;return g>=1?fmtNum(g,2)+' GB':fmtNum(m,0)+' MB'}
+function fmtUSD(v){if(!v||v<=0)return'$0';return'$'+Math.round(v).toLocaleString('en-US')}
+function pct(a,b){return b&&b>0?Math.round(a/b*100):0}
+function clamp(v,mn,mx){return Math.max(mn,Math.min(mx,v))}
+
+/* ── File type groups ── */
+const FILE_GROUPS={
+  'Word':       {exts:['doc','docx','odt'],color:'#2b7fd4'},
+  'Excel':      {exts:['xls','xlsx','ods','csv'],color:'#1e7f45'},
+  'PowerPoint': {exts:['ppt','pptx','odp'],color:'#c44b0b'},
+  'PDF':        {exts:['pdf'],color:'#e53e3e'},
+  'Imagem':     {exts:['jpg','jpeg','png','gif','bmp','svg','webp','tiff','tif','heic','heif'],color:'#9333ea'},
+  'Vídeo':      {exts:['mp4','avi','mov','mkv','wmv','flv','webm','mpeg','mpg','m4v'],color:'#d97706'},
+  'Áudio':      {exts:['mp3','wav','ogg','flac','aac','wma','m4a'],color:'#0891b2'},
+  'Comprimido': {exts:['zip','rar','7z','tar','gz','bz2','xz'],color:'#6b7280'},
+  'Email':      {exts:['msg','eml','pst','ost'],color:'#059669'},
+  'Código':     {exts:['js','ts','py','cs','java','cpp','c','h','php','rb','go','rs','html','css','sql','ps1','sh','bat'],color:'#7c3aed'},
+};
+function groupFileTypes(ft){
+  const groups={};
+  for(const f of ft){
+    const t=(f.type||'').toLowerCase();
+    let matched=false;
+    for(const[name,def] of Object.entries(FILE_GROUPS)){
+      if(def.exts.includes(t)){
+        if(!groups[name])groups[name]={count:0,size_bytes:0,color:def.color,exts:[]};
+        groups[name].count+=f.count;groups[name].size_bytes+=f.size_bytes;
+        if(!groups[name].exts.includes(t))groups[name].exts.push(t);
+        matched=true;break;
+      }
+    }
+    if(!matched){
+      const k='Outros';
+      if(!groups[k])groups[k]={count:0,size_bytes:0,color:'var(--muted)',exts:[]};
+      groups[k].count+=f.count;groups[k].size_bytes+=f.size_bytes;
+      groups[k].exts.push(t);
+    }
+  }
+  return Object.entries(groups).map(([n,d])=>({name:n,...d})).sort((a,b)=>b.size_bytes-a.size_bytes);
+}
+
+/* ── Interações do relatório: filtros de ano/versão (.yf-btn) e tooltip dos
+   gráficos de linha. Propositalmente SELF-CONTAINED (todo o estado dentro da
+   própria função, sem depender de nada do resto do arquivo): além de rodar no
+   dashboard, esta função é serializada via toString() dentro do HTML exportado
+   (ver exportHtmlReport), então o export mantém filtros e tooltip funcionando
+   sem duplicar código. Se mexer aqui, vale nos dois lugares. ── */
+function bindReportInteractions(){
+  let tipEl=null;
+  const ensureTip=()=>{
+    if(!tipEl){
+      tipEl=document.createElement('div');
+      tipEl.className='chart-tooltip';
+      document.body.appendChild(tipEl);
+    }
+    return tipEl;
+  };
+  const hideTip=()=>{
+    if(tipEl)tipEl.classList.remove('show');
+    document.querySelectorAll('.chart-guide').forEach(g=>g.setAttribute('opacity','0'));
+    document.querySelectorAll('.chart-dot.hover').forEach(d=>d.classList.remove('hover'));
+  };
+
+  // Filtros de ano (arquivamento) e de nº de versões (histórico de versões)
+  document.addEventListener('click',function(e){
+    const btn=e.target.closest('.yf-btn');
+    if(!btn)return;
+    const bar=btn.closest('.yf-bar');
+    if(!bar)return;
+    bar.querySelectorAll('.yf-btn').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    const yr=btn.getAttribute('data-year');
+    const card=btn.closest('.diag-card')||btn.closest('.metric-card');
+    if(!card)return;
+    card.querySelectorAll('[data-y]').forEach(el=>{
+      el.style.display=el.getAttribute('data-y')===yr?'':'none';
+    });
+  });
+
+  // Tooltip de hover nos gráficos de linha - mostra o valor de cada série
+  // (ex: mês atual + acumulado) juntos, na posição do mouse.
+  document.addEventListener('mousemove',function(e){
+    const hit=e.target.closest('.chart-hit');
+    if(!hit){ hideTip(); return; }
+    const svg=hit.closest('.line-chart');
+    if(!svg){ hideTip(); return; }
+    const idx=hit.getAttribute('data-idx');
+    const cx=hit.getAttribute('data-cx');
+    let point=null;
+    try{ point=JSON.parse(svg.getAttribute('data-tip'))[idx]; }catch(err){ point=null; }
+    if(!point){ hideTip(); return; }
+
+    svg.querySelectorAll('.chart-dot').forEach(d=>{
+      d.classList.toggle('hover', d.getAttribute('data-idx')===idx);
+    });
+    const guide=svg.querySelector('.chart-guide');
+    if(guide){ guide.setAttribute('x1',cx); guide.setAttribute('x2',cx); guide.setAttribute('opacity','1'); }
+
+    const tip=ensureTip();
+    tip.innerHTML='<div class="chart-tooltip-label">'+point.l+'</div>'+point.s.map(s=>
+      '<div class="chart-tooltip-row">'+
+        '<span class="chart-tooltip-name"><span class="chart-tooltip-dot" style="background:'+s.c+'"></span>'+s.n+'</span>'+
+        '<span class="chart-tooltip-val">'+s.v+'</span>'+
+      '</div>').join('');
+    tip.classList.add('show');
+
+    const pad=14;
+    let left=e.clientX+pad, top=e.clientY+pad;
+    const box=tip.getBoundingClientRect();
+    if(left+box.width>window.innerWidth-8) left=e.clientX-box.width-pad;
+    if(top+box.height>window.innerHeight-8) top=e.clientY-box.height-pad;
+    tip.style.left=left+'px';
+    tip.style.top=top+'px';
+  });
+  document.addEventListener('mouseout',function(e){
+    if(!e.relatedTarget)hideTip();
+  });
+}
+
+/* ── Todos os sites (segmentado SharePoint x OneDrive, ordenavel) ── */
+let SITE_TABLES={sharepoint:[],onedrive:[]};
+let DEVICE_TABLE=[];
+let LICENSING_SKUS=[];
+let ADOPTION_INACTIVE=[];
+let MAILBOX_LIST=[];
+function sortSites(arr,mode){
+  const c=arr.slice();
+  if(mode==='files')c.sort((a,b)=>(b.total_files||0)-(a.total_files||0));
+  else c.sort((a,b)=>(b.size_bytes||0)-(a.size_bytes||0));
+  return c;
+}
+function siteRowsHTML(sites){
+  if(!sites.length)return`<tr><td colspan="4"><div class="empty-crit">Nenhum site encontrado.</div></td></tr>`;
+  return sites.map(s=>`<tr>
+    <td>
+      <div class="crit-title">${s.external_sharing?'<span class="crit-badge">Externo</span>':''}${s.title||'(sem nome)'}</div>
+      <div class="crit-url">${s.url}</div>
+    </td>
+    <td class="crit-cap">${s.capability||'—'}</td>
+    <td style="text-align:right;font-size:12px">${fmtNum(s.total_files)}</td>
+    <td style="text-align:right;font-size:12px;font-weight:600">${fmtGB(s.size_bytes)}</td>
+  </tr>`).join('');
+}
+function renderSitesTable(id,sites,emptyMsg){
+  const totalGB=sites.reduce((a,s)=>a+(s.size_bytes||0),0);
+  return`
+  <div class="mat-card" style="margin-bottom:22px">
+    <div class="sites-toolbar">
+      <span class="sites-count">${sites.length?`${fmtNum(sites.length)} site(s) · ${fmtGB(totalGB)}`:emptyMsg}</span>
+      <select class="sites-order-select" data-target="${id}">
+        <option value="size">Ordenar por tamanho</option>
+        <option value="files">Ordenar por qtde. de arquivos</option>
+      </select>
+    </div>
+    <table class="crit-table">
+      <thead><tr><th>Site</th><th>Compartilhamento</th><th style="text-align:right">Arquivos</th><th style="text-align:right">Tamanho</th></tr></thead>
+      <tbody id="${id}">${siteRowsHTML(sortSites(sites,'size'))}</tbody>
+    </table>
+  </div>`;
+}
+/* Ranking fixo (Top N), sem toolbar de reordenação — evita conflito com o
+   handler global de ".sites-order-select" que assume a lista completa */
+function topSitesTableHTML(sites,emptyMsg,siteColumnLabel='Site'){
+  if(!sites.length)return`<div class="mat-card" style="margin-bottom:22px"><div class="empty-crit">${emptyMsg}</div></div>`;
+  return`
+  <div class="mat-card" style="margin-bottom:22px">
+    <table class="crit-table">
+      <thead><tr><th>${siteColumnLabel}</th><th>Compartilhamento</th><th style="text-align:right">Arquivos</th><th style="text-align:right">Tamanho</th></tr></thead>
+      <tbody>${siteRowsHTML(sites)}</tbody>
+    </table>
+  </div>`;
+}
+
+/* ── Critical site keywords ── */
+const CRIT_KW=['rh','hr','contrat','juridic','financ','folha','payroll','legal','compliance','fiscal','salary',' dp'];
+function critKeyword(url,title){
+  const s=(url+' '+title).toLowerCase();
+  return CRIT_KW.find(k=>s.includes(k))||'';
+}
+
+/* ── Donut SVG ── */
+function donut(p,color,label,size=70){
+  const pv=clamp(Math.round(p),0,100);
+  return`<svg width="${size}" height="${size}" viewBox="0 0 36 36">
+    <circle cx="18" cy="18" r="15.9" fill="none" stroke="var(--border)" stroke-width="2.5"/>
+    <circle cx="18" cy="18" r="15.9" fill="none" stroke="${color}" stroke-width="2.5"
+      stroke-dasharray="${pv} ${100-pv}" stroke-linecap="round" transform="rotate(-90 18 18)"
+      style="transition:stroke-dasharray .8s ease"/>
+    ${label?`<text x="18" y="20.5" text-anchor="middle" fill="var(--text)" font-size="7" font-weight="700" font-family="-apple-system,sans-serif">${label}</text>`:''}
+  </svg>`;
+}
+
+/* ── Sparkline SVG (usada nos KPI cards, alimentada por histórico real de execuções) ── */
+function sparkline(values,color,w=110,h=28){
+  if(!values||values.length<2)return'';
+  const min=Math.min(...values),max=Math.max(...values);
+  const span=Math.max(1,max-min);
+  const step=w/(values.length-1);
+  const pts=values.map((v,i)=>`${(i*step).toFixed(1)},${(h-2-((v-min)/span)*(h-4)).toFixed(1)}`);
+  const areaPts=`0,${h} ${pts.join(' ')} ${w},${h}`;
+  return`<svg class="kpi-spark" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none">
+    <polygon points="${areaPts}" fill="${color}" opacity=".12"/>
+    <polyline points="${pts.join(' ')}" fill="none" stroke="${color}" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+  </svg>`;
+}
+
+/* ── Line/área chart multi-série (SVG puro, sem libs) ── */
+function lineChart(series,labels,opts={}){
+  const w=opts.w||560,h=opts.h||190,padL=opts.padL||42,padB=opts.padB||20,padT=opts.padT||10,padR=opts.padR||10;
+  const innerW=w-padL-padR,innerH=h-padT-padB;
+  const allVals=series.flatMap(s=>s.values);
+  let max=opts.max!=null?opts.max:Math.max(...allVals,1);
+  let min=opts.min!=null?opts.min:Math.min(0,...allVals);
+  if(max===min)max=min+1;
+  const n=labels.length;
+  const x=i=>padL+(n>1?i*(innerW/(n-1)):innerW/2);
+  const y=v=>padT+innerH-((v-min)/(max-min))*innerH;
+  const fmt=opts.fmt||(v=>fmtNum(Math.round(v)));
+  const gridN=4;
+  const gridLines=Array.from({length:gridN+1},(_,i)=>{
+    const gv=min+(max-min)*i/gridN;
+    const gy=y(gv);
+    return`<line x1="${padL}" y1="${gy.toFixed(1)}" x2="${w-padR}" y2="${gy.toFixed(1)}" stroke="var(--border)" stroke-width="1"/>
+      <text x="${padL-6}" y="${(gy+3).toFixed(1)}" text-anchor="end" font-size="9" fill="var(--muted)" font-family="-apple-system,sans-serif">${opts.fmt?opts.fmt(gv):Math.round(gv)}</text>`;
+  }).join('');
+  const labelEls=labels.map((lb,i)=>`<text x="${x(i).toFixed(1)}" y="${h-4}" text-anchor="middle" font-size="9" fill="var(--muted)" font-family="-apple-system,sans-serif">${lb}</text>`).join('');
+  const seriesEls=series.map(s=>{
+    const pts=s.values.map((v,i)=>`${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' ');
+    const area=s.area?`<polygon points="${x(0).toFixed(1)},${y(min).toFixed(1)} ${pts} ${x(n-1).toFixed(1)},${y(min).toFixed(1)}" fill="${s.color}" opacity=".12"/>`:'';
+    const dots=s.values.map((v,i)=>`<circle class="chart-dot" data-idx="${i}" data-color="${s.color}" cx="${x(i).toFixed(1)}" cy="${y(v).toFixed(1)}" r="2.5" fill="${s.color}"/>`).join('');
+    return`${area}<polyline points="${pts}" fill="none" stroke="${s.color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>${dots}`;
+  }).join('');
+
+  // Dados do tooltip: 1 entrada por indice (mes/label), com o valor de CADA
+  // serie formatado (ex: criado no mes + acumulado juntos), lido pelo hover.
+  const tipData=labels.map((lb,i)=>({
+    l:lb,
+    s:series.map(s=>({n:s.name||'',v:fmt(s.values[i]),c:s.color}))
+  }));
+  const colW=n>1?innerW/(n-1):innerW;
+  const hitCols=labels.map((lb,i)=>{
+    const cx=x(i);
+    const left=Math.max(padL,cx-colW/2).toFixed(1);
+    const width=(Math.min(w-padR,cx+colW/2)-Math.max(padL,cx-colW/2)).toFixed(1);
+    return`<rect class="chart-hit" data-idx="${i}" data-cx="${cx.toFixed(1)}" x="${left}" y="${padT}" width="${width}" height="${innerH.toFixed(1)}" fill="transparent"/>`;
+  }).join('');
+
+  return`<svg class="line-chart" data-tip='${JSON.stringify(tipData).replace(/'/g,'&#39;')}' width="100%" height="${h}" viewBox="0 0 ${w} ${h}" preserveAspectRatio="xMidYMid meet">
+    ${gridLines}${seriesEls}${labelEls}
+    <line class="chart-guide" x1="0" y1="${padT}" x2="0" y2="${(padT+innerH).toFixed(1)}" stroke="var(--muted)" stroke-width="1" stroke-dasharray="2,2" opacity="0"/>
+    ${hitCols}
+  </svg>`;
+}
+
+/* ── Scores & risks ── */
+function scoreClass(s){if(s==null)return'score-na';if(s>=4.5)return'score-5';if(s>=3.5)return'score-4';if(s>=2.5)return'score-3';if(s>=1.5)return'score-2';return'score-1';}
+function renderCell(v){return`<span class="score-cell ${scoreClass(v)}">${v==null?'N/A':Number(v).toFixed(1)}</span>`}
+
+function computeScores(d){
+  const s={};
+  if(d.sites&&d.sites.total>0){
+    const ep=d.sites.external_sharing/d.sites.total,tp=d.sites.teams_connected/d.sites.total;
+    s.sharepoint={gov:+clamp(5-ep*4,0,5).toFixed(1),sec:+clamp(5-ep*3,0,5).toFixed(1),adopt:+clamp(tp*5,0,5).toFixed(1),mgmt:null};
+  }
+  if(d.files&&d.files.total>0){
+    const sp=d.files.stale_2y/d.files.total;
+    s.dados={gov:+clamp(5-sp*3,0,5).toFixed(1),sec:+(d.files.preserved>0?4.0:2.0).toFixed(1),adopt:null,mgmt:null};
+  }
+  if(d.sites&&d.sites.total>0){
+    s.colaboracao={gov:null,sec:null,adopt:+(d.sites.teams_connected/d.sites.total*5).toFixed(1),mgmt:null};
+  }
+  return s;
+}
+function overallScore(sc){
+  const v=[];Object.values(sc).forEach(d=>Object.values(d).forEach(x=>{if(x!=null)v.push(x)}));
+  return v.length?+(v.reduce((a,b)=>a+b,0)/v.length).toFixed(1):null;
+}
+
+function computeRisks(d){
+  const R=[];
+  if(d.sites&&d.sites.total>0){
+    const ep=pct(d.sites.external_sharing,d.sites.total);
+    if(ep>=50)R.push({lvl:'high',title:'Alta exposição externa de dados',desc:`${ep}% dos sites com compartilhamento externo ativo`});
+    else if(ep>=20)R.push({lvl:'medium',title:'Compartilhamento externo moderado',desc:`${d.sites.external_sharing} sites permitem acesso externo`});
+    else if(ep>0)R.push({lvl:'low',title:'Compartilhamento externo limitado',desc:`${d.sites.external_sharing} site(s) com acesso externo`});
+    if(pct(d.sites.teams_connected,d.sites.total)<30)R.push({lvl:'medium',title:'Baixa adoção do Microsoft Teams',desc:`Apenas ${pct(d.sites.teams_connected,d.sites.total)}% dos sites conectados ao Teams`});
+  }
+  if(d.files&&d.files.total>0){
+    const sp=pct(d.files.stale_2y,d.files.total);
+    if(sp>=40)R.push({lvl:'high',title:'Volume crítico de arquivos obsoletos',desc:`${sp}% dos arquivos sem modificação há mais de 2 anos`});
+    else if(sp>=20)R.push({lvl:'medium',title:'Arquivos obsoletos detectados',desc:`${fmtNum(d.files.stale_2y)} arquivos sem edição nos últimos 2 anos`});
+    const vb=d.files.versioned_bytes/Math.max(d.files.size_bytes,1);
+    if(vb>3)R.push({lvl:'medium',title:'Overhead excessivo de versionamento',desc:`Versões ocupam ${vb.toFixed(1)}× mais espaço que os arquivos ativos`});
+  }
+  if(d.critical_sites&&d.critical_sites.length>0)
+    R.push({lvl:'high',title:'Sites sensíveis com acesso externo',desc:`${d.critical_sites.length} site(s) com dados sensíveis e compartilhamento externo ativo`});
+  if(d.trash&&d.trash.size_bytes>5*1073741824)
+    R.push({lvl:'low',title:'Lixeira acima do esperado',desc:`${fmtGB(d.trash.size_bytes)} ocupando cota do tenant`});
+  R.sort((a,b)=>({'high':0,'medium':1,'low':2,'info':3}[a.lvl]-{'high':0,'medium':1,'low':2,'info':3}[b.lvl]));
+  return R.slice(0,7);
+}
+
+/* ── Savings ── recebe files/trash explicitos p/ reuso entre Visão Geral (tenant
+   inteiro) e as abas SharePoint/OneDrive (já segmentadas pelo backend) */
+function calcSavings(filesObj,trashObj,staleYears=2){
+  const STORAGE=0.20;
+  const trashGB=(trashObj&&trashObj.size_bytes||0)/1073741824;
+  const versionGB=Math.max(0,((filesObj&&filesObj.versioned_bytes||0)-(filesObj&&filesObj.size_bytes||0))/1073741824);
+  const staleKey='stale_'+staleYears+'y_bytes';
+  const archiveGB=(filesObj&&filesObj[staleKey]||0)/1073741824;
+  return{
+    trash:trashGB*STORAGE,
+    versions:versionGB*0.6*STORAGE,
+    archive:archiveGB*STORAGE,
+    total:trashGB*STORAGE+versionGB*0.6*STORAGE+archiveGB*STORAGE,
+    trashGB,versionGB,archiveGB
+  };
+}
+
+/* ── Organic growth projection ── recebe sites/files/trash explícitos p/ reuso
+   entre execuções tenant-wide e as abas SharePoint/OneDrive já segmentadas.
+   staleYears define tanto o corte de "Com arquivamento" quanto o da linha
+   "Elegível p/ arquivamento" - selecionável via os botões 1/2/3/5 anos. ── */
+function computeGrowth(s,f,t,growthMonthly,staleYears){
+  staleYears=staleYears||2;
+  s=s||{};f=f||{};t=t||{};
+  const quotaB=(s.quota_mb||0)*1048576;
+  const totalB=(s.storage_mb||0)*1048576;
+  const activeB=f.size_bytes||0;
+  // Taxa mensal: preferimos a media real dos ultimos meses (growth_monthly,
+  // por data de criacao dos documentos - mesma fonte do grafico "Crescimento
+  // Mês a Mês"). So cai pro heuristico (conteudo <2 anos / 24 meses) se ainda
+  // nao houver historico com pelo menos 2 meses de dado real.
+  const hist=(growthMonthly||[]).slice(-12).filter(r=>r&&(r.bytes_created_gb||0)>0);
+  let monthlyB,rateSource;
+  if(hist.length>=2){
+    const sumGB=hist.reduce((a,r)=>a+(r.bytes_created_gb||0),0);
+    monthlyB=(sumGB/hist.length)*1073741824;
+    rateSource='historico';
+  }else{
+    const recentB=Math.max(0,activeB-(f.stale_2y_bytes||0));
+    monthlyB=recentB/24;
+    rateSource='estimativa';
+  }
+  const annualPct=totalB>0?(monthlyB*12/totalB*100):0;
+  // "Com arquivamento" precisa refletir uma politica de arquivamento CONTINUA
+  // (tudo que cruza +N anos sai, ano apos ano), nao uma limpeza unica em
+  // "hoje" seguida do mesmo ritmo de crescimento bruto para sempre - senao os
+  // dois numeros nao conferem (ex.: arquivar 14TB no Ano 5 mas "sobrar" 19TB
+  // mesmo assim). Por isso reaproveita a MESMA previsao usada na linha
+  // "Elegível p/ arquivar" (computeArchiveForecast, por data de criação) e
+  // subtrai o volume elegível de cada ano do "sem ação" daquele ano. Lixeira
+  // e overhead de versões continuam como um corte assumido mantido (higiene
+  // contínua), nao apenas em "hoje".
+  const fc=computeArchiveForecast(growthMonthly,staleYears);
+  const vOver=Math.max(0,(f.versioned_bytes||0)-activeB);
+  const trashPlusOverheadB=(t.size_bytes||0)+vOver*0.6;
+  const years=[0,1,2,3,4,5];
+  const rows=years.map((y,i)=>{
+    const noAction=totalB+monthlyB*12*y;
+    const archivedB=fc?fc.rows[i].archivedGB*1073741824:0;
+    return{
+      year:y,
+      noAction,
+      withClean:Math.max(0,noAction-archivedB-trashPlusOverheadB),
+      archivedB,
+      overQuota:quotaB>0&&noAction>quotaB
+    };
+  });
+  // Months until quota full without action
+  let monthsToFull=null;
+  if(quotaB>0&&monthlyB>0){
+    const rem=quotaB-totalB;
+    if(rem>0)monthsToFull=Math.floor(rem/monthlyB);
+  }
+  const cleanB=rows[0].withClean;
+  return{quotaB,totalB,cleanB,monthlyB,annualPct,rows,monthsToFull,rateSource,histMonths:hist.length,fc};
+}
+
+/* ── Expectativa de arquivamento: quanto do que existe hoje (mais o que ainda
+   vai ser criado, no ritmo real observado) vai cruzar o limite de inatividade
+   de N anos em cada ano futuro. Ex.: em "Ano 2", tudo criado até 2 anos antes
+   daquela data já se qualifica - reaproveita growth_monthly (mesma fonte do
+   gráfico "Crescimento Mês a Mês", por data de criação) tanto pro histórico
+   real quanto pra extrapolar a criação futura. ──*/
+function computeArchiveForecast(growthMonthly,staleYears){
+  const hist=(growthMonthly||[])
+    .filter(r=>r&&Number.isFinite(r.year)&&Number.isFinite(r.month))
+    .map(r=>({date:new Date(r.year,r.month-1,1),cum:r.acumulado_gb||0,created:r.bytes_created_gb||0}))
+    .sort((a,b)=>a.date-b.date);
+  if(hist.length<2)return null;
+
+  const last=hist[hist.length-1];
+  const recent=hist.slice(-12).filter(h=>h.created>0);
+  const monthlyGB=recent.length>=2?recent.reduce((a,h)=>a+h.created,0)/recent.length:0;
+
+  function cumAt(date){
+    if(date<hist[0].date)return 0;
+    if(date<=last.date){
+      let v=0;
+      for(const h of hist){if(h.date<=date)v=h.cum;else break;}
+      return v;
+    }
+    const monthsBeyond=(date.getFullYear()-last.date.getFullYear())*12+(date.getMonth()-last.date.getMonth());
+    return last.cum+monthlyGB*monthsBeyond;
+  }
+
+  const today=new Date();
+  const rows=[0,1,2,3,4,5].map(y=>{
+    const target=new Date(today.getFullYear()+y,today.getMonth(),1);
+    const threshold=new Date(target.getFullYear()-staleYears,target.getMonth(),1);
+    return{year:y,archivedGB:Math.max(0,cumAt(threshold))};
+  });
+  return{rows,monthlyGB,histMonths:recent.length};
+}
+
+// Custos de referencia p/ estimativa de arquivamento (USD/GB/mes) - ordem de
+// grandeza de mercado (Azure Blob), nao e cobranca real de nenhum tenant.
+// SPO_GB_MONTH: mesma referencia ja usada em calcSavings() p/ manter os
+// numeros consistentes entre os cards do dashboard.
+const SPO_GB_MONTH=0.20;
+const COLD_GB_MONTH=0.0036;
+
+// Preco de referencia por licenca/mes (USD, tabela publica da Microsoft,
+// aproximado) - chave e o sku_part_number (campo tecnico do Graph, mais
+// estavel que o nome amigavel). E so uma estimativa de ordem de grandeza pra
+// dar ideia de custo do licenciamento ocioso - NAO reflete o contrato real do
+// cliente (descontos de EA/CSP variam bastante). SKUs fora dessa lista nao
+// entram no calculo de $ (ficam so na contagem de licencas ociosas).
+const LICENSE_REF_PRICES={
+  // Office/Microsoft 365 - planos principais
+  STANDARDPACK:10, ENTERPRISEPACK:23, ENTERPRISEPREMIUM:38,
+  OFFICESUBSCRIPTION:12, OFFICE_PRO_PLUS_SUBSCRIPTION:12,
+  M365BUSINESSBASIC:6, M365BUSINESSSTANDARD:12.5, M365BUSINESSPREMIUM:22,
+  M365F1:2.25, M365F3:8, M365E3:36, M365E5:57,
+  // Codigos alternativos de SKU pros mesmos planos M365 E3/E5/Business
+  // Premium (a Microsoft usa nomes de sku_part_number diferentes dependendo
+  // de quando/como a licenca foi provisionada no tenant)
+  SPE_E3:36, SPE_E5:57, SPB:22, DESKLESSPACK:8,
+  // Exchange / SharePoint / Teams standalone
+  EXCHANGE_S_STANDARD:4, EXCHANGE_S_ENTERPRISE:8,
+  SHAREPOINTSTANDARD:5, SHAREPOINTENTERPRISE:10,
+  TEAMS1:4, MCOEV:8, MCOMEETADV:4,
+  // Analytics / Copilot
+  POWER_BI_PRO:10, POWER_BI_PREMIUM_PER_USER:20, Microsoft_365_Copilot:30,
+  // Identidade e seguranca (add-ons comuns)
+  EMS:10.6, EMSPREMIUM:16.4, AAD_PREMIUM:6, AAD_PREMIUM_P2:9,
+  RIGHTSMANAGEMENT:2, ATP_ENTERPRISE:2, THREAT_INTELLIGENCE:5,
+  // Power Platform
+  POWERAPPS_PER_USER:20, FLOW_PER_USER:15,
+  // Project / Visio
+  PROJECTPROFESSIONAL:30, PROJECTPREMIUM:55, PROJECT_P1:10,
+  VISIOCLIENT:15, VISIOONLINE_PLAN1:5,
+  // Windows Enterprise (por usuario, add-on de licenciamento M365)
+  WIN10_PRO_ENT_SUB:7, WIN_ENT_E5:14
+};
+
+function renderGrowth(sitesObj,filesObj,trashObj,growthMonthly){
+  const yearsOpts=[1,2,3,5];
+  const variants=yearsOpts.map(n=>{
+    const g=computeGrowth(sitesObj,filesObj,trashObj,growthMonthly,n);
+    return{n,g,fc:g.fc};
+  });
+  const base=variants.find(v=>v.n===2)||variants[0];
+  if(!base.g.totalB)return'<div class="empty-msg">Sem dados de armazenamento para projeção</div>';
+
+  const labels=['Hoje','Ano 1','Ano 2','Ano 3','Ano 4','Ano 5'];
+
+  const blocks=variants.map(({n,g,fc})=>{
+    const active=n===2;
+    const maxB=g.quotaB>0?g.quotaB:Math.max(...g.rows.map(r=>r.noAction))*1.05;
+    const qPct=g.quotaB>0?Math.min(100,Math.round(g.quotaB/maxB*100)):0;
+
+    const chart=lineChart([
+      {values:g.rows.map(r=>r.noAction/1073741824),color:'var(--yellow)',area:false,name:'Sem higienização'},
+      {values:g.rows.map(r=>r.withClean/1073741824),color:'var(--ct-green)',area:true,name:'Com arquivamento'},
+      {values:g.rows.map(r=>r.archivedB/1073741824),color:'var(--purple)',area:false,name:`Elegível p/ arquivar (+${n}a)`},
+    ],labels,{h:190,fmt:v=>fmtNum(Math.round(v))+'GB'});
+
+    const tableRows=g.rows.map((r)=>{
+      const archGB=r.archivedB/1073741824;
+      const pNo=Math.min(110,Math.round(r.noAction/maxB*100));
+      const pCl=Math.min(110,Math.round(r.withClean/maxB*100));
+      const over=r.overQuota;
+      const costSpo=archGB*SPO_GB_MONTH;
+      const costCold=archGB*COLD_GB_MONTH;
+      return`<tr>
+        <td class="og-year">${r.year===0?'Hoje':'Ano '+r.year}</td>
+        <td class="og-bar-cell">
+          <div class="og-bar-wrap">
+            <div class="og-bar-fill" style="width:${pNo}%;background:${over?'var(--red)':'var(--yellow)'}"></div>
+            <div class="og-bar-clean" style="width:${pCl}%;background:var(--ct-green)"></div>
+            ${g.quotaB>0?`<div class="og-quota-line" style="left:${qPct}%"></div>`:''}
+          </div>
+        </td>
+        <td class="${over?'c-red':''}">${fmtGB(r.noAction)}${over?' ⚠':''}</td>
+        <td class="c-green">${fmtGB(r.withClean)}</td>
+        <td class="c-purple">${fmtNum(archGB,1)} GB</td>
+        <td>${fmtUSD((r.noAction-r.withClean)/1073741824*SPO_GB_MONTH)}/mês</td>
+        <td>${fmtUSD(costCold)}/mês</td>
+        <td class="c-green">${fmtUSD(Math.max(0,costSpo-costCold))}/mês</td>
+      </tr>`;
+    }).join('');
+
+    const quota2txt=g.monthsToFull!=null
+      ?(g.monthsToFull<12?`${g.monthsToFull} meses`:`${Math.floor(g.monthsToFull/12)} anos e ${g.monthsToFull%12} meses`)
+      :'N/A (cota não atingida em 5 anos)';
+
+    const rateNote=g.rateSource==='historico'
+      ?`Taxa de ${fmtGB(g.monthlyB*12)}/ano calculada com base na média real dos últimos ${g.histMonths} meses de criação de arquivos (ver "Crescimento Mês a Mês" acima).`
+      :`Taxa de ${fmtGB(g.monthlyB*12)}/ano é uma estimativa (histórico de datas de criação insuficiente) — considera o conteúdo criado nos últimos 2 anos.`;
+
+    const nowArch=g.rows[0].archivedB/1073741824;
+    const lastArch=g.rows[g.rows.length-1].archivedB/1073741824;
+    const lastCostSpo=lastArch*SPO_GB_MONTH,lastCostCold=lastArch*COLD_GB_MONTH;
+
+    return`<div class="arch-yr" data-y="${n}" style="display:${active?'':'none'}">
+      <div class="empty-msg" style="margin:0 0 10px;padding:0;text-align:left">${rateNote}</div>
+      <div class="og-legend">
+        <div style="display:flex;align-items:flex-start;gap:6px"><div class="og-legend-dot" style="background:var(--yellow)"></div><span class="og-legend-lbl">Sem higienização</span></div>
+        <div style="display:flex;align-items:flex-start;gap:6px"><div class="og-legend-dot" style="background:var(--ct-green);opacity:.7"></div><span class="og-legend-lbl">Com arquivamento completo (lixeira + versões + docs +${n} ano${n>1?'s':''})</span></div>
+        <div style="display:flex;align-items:flex-start;gap:6px"><div class="og-legend-dot" style="background:var(--purple)"></div><span class="og-legend-lbl">Elegível p/ arquivamento (+${n} ano${n>1?'s':''}, por data de criação)</span></div>
+        ${g.quotaB>0?`<div style="display:flex;align-items:flex-start;gap:6px"><div class="og-legend-dot" style="background:var(--red)"></div><span class="og-legend-lbl">Linha da cota (${fmtMB(g.quotaB/1048576)})</span></div>`:''}
+      </div>
+      <div class="chart-card-body">${chart}</div>
+      <div style="overflow-x:auto">
+      <table class="og-table">
+        <thead><tr>
+          <th>Período</th><th style="width:170px">Tendência</th><th>Sem ação</th><th>Com arquivamento</th>
+          <th>Elegível p/ arquivar</th><th>Economia higienização</th>
+          <th>Custo em Cold Storage</th><th>Economia c/ migração</th>
+        </tr></thead>
+        <tbody>${tableRows}</tbody>
+      </table>
+      </div>
+      <div class="og-rate">
+        <div class="og-rate-item"><span class="og-rate-val">${fmtGB(g.monthlyB*12)}</span><span>crescimento estimado/ano</span></div>
+        <div class="og-rate-item"><span class="og-rate-val">${fmtNum(g.annualPct,1)}%</span><span>taxa anual de crescimento</span></div>
+        <div class="og-rate-item"><span class="og-rate-val" style="color:${g.monthsToFull&&g.monthsToFull<36?'var(--red)':'var(--ct-green)'}">${quota2txt}</span><span>para esgotar a cota sem higienização</span></div>
+        <div class="og-rate-item"><span class="og-rate-val">${fmtGB(g.totalB-g.cleanB)}</span><span>redução imediata possível</span></div>
+        <div class="og-rate-item"><span class="og-rate-val c-purple">${fmtNum(nowArch,1)} GB</span><span>elegível p/ arquivar hoje (+${n}a)</span></div>
+        <div class="og-rate-item"><span class="og-rate-val">${fmtUSD(lastCostSpo)}/mês</span><span>custo em SPO do arquivável em Ano 5</span></div>
+        <div class="og-rate-item"><span class="og-rate-val c-green">${fmtUSD(Math.max(0,lastCostSpo-lastCostCold))}/mês</span><span>economia migrando p/ Cold Storage em Ano 5</span></div>
+      </div>
+    </div>`;
+  }).join('');
+
+  return`
+  <div class="metric-card">
+    <div class="metric-card-hd">
+      <svg viewBox="0 0 16 16" fill="var(--ct-orange)"><path d="M0 0h1v15h15v1H0zm14.817 3.113a.5.5 0 0 1 .07.704l-4.5 5.5a.5.5 0 0 1-.74.037L7.06 6.767l-3.656 5.027a.5.5 0 0 1-.808-.588l4-5.5a.5.5 0 0 1 .758-.06l2.609 2.61 4.15-5.073a.5.5 0 0 1 .704-.07z"/></svg>
+      <span class="metric-card-title">Projeção de Crescimento &amp; Expectativa de Arquivamento</span>
+    </div>
+    <div style="padding:12px 15px 0">
+      <div class="yf-bar">
+        <button class="yf-btn" data-year="1">1 ano</button>
+        <button class="yf-btn active" data-year="2">2 anos</button>
+        <button class="yf-btn" data-year="3">3 anos</button>
+        <button class="yf-btn" data-year="5">5 anos</button>
+      </div>
+    </div>
+    <div style="padding:12px 15px">
+      ${blocks}
+      <div class="empty-msg" style="margin:6px 0 0;padding:0;text-align:left">Custo em Cold Storage é uma estimativa de referência (Azure Blob Storage, camada Cold, ~US$${COLD_GB_MONTH}/GB/mês) para o volume elegível a arquivamento — equivalente a mover esse conteúdo do SharePoint (~US$${SPO_GB_MONTH}/GB/mês) para uma camada fria/arquivo. Valores reais variam por região, redundância e política de retenção adotada.</div>
+    </div>
+  </div>`;
+}
+
+/* ── Diag cards de redução de custo (Lixeira / Versões / Arquivamento) ──
+   Recebe files/trash já segmentados (tenant inteiro ou por tecnologia) ── */
+function renderDiagCards(filesObj,trashObj,versionSavings){
+  const files=filesObj||{};const trash=trashObj||{total:0,size_bytes:0};
+  const vs=versionSavings||{overhead_total_bytes:0,liberado_20v_bytes:0,liberado_50v_bytes:0,liberado_100v_bytes:0};
+  const sav=calcSavings(files,trash,2);
+  const sav1=calcSavings(files,trash,1);
+  const sav3=calcSavings(files,trash,3);
+  const sav5=calcSavings(files,trash,5);
+  const archHLs={
+    1:sav1.archiveGB>50?'Conteúdo sem acesso há +1 ano acumula custo recorrente sem valor ativo':sav1.archiveGB>10?'Documentos inativos há +1 ano — candidatos a revisão imediata':'Volume inativo de 1 ano dentro do esperado',
+    2:sav.archiveGB>100?'Conteúdo sem acesso há mais de 2 anos representa custo recorrente sem valor ativo':sav.archiveGB>20?'Volume expressivo de documentos inativos — candidatos a arquivamento frio':'Baixo volume de conteúdo obsoleto',
+    3:sav3.archiveGB>80?'Arquivos há mais de 3 anos sem acesso representam custo expressivo acumulado':sav3.archiveGB>20?'Conteúdo obsoleto há +3 anos — forte candidato a arquivo frio':'Pouco conteúdo com mais de 3 anos de inatividade',
+    5:sav5.archiveGB>50?'Legado crítico: arquivos sem acesso há +5 anos raramente são consultados':sav5.archiveGB>10?'Volume expressivo de legado digital — ação imediata recomendada':'Baixo volume de conteúdo com +5 anos de inatividade'
+  };
+  const verGB20=(vs.liberado_20v_bytes||0)/1073741824;
+  const verGB50=(vs.liberado_50v_bytes||0)/1073741824;
+  const verGB100=(vs.liberado_100v_bytes||0)/1073741824;
+  const verHLs={
+    20:verGB20>50?'Limite agressivo (20 versões) — libera bastante espaço, mas reduz o histórico disponível':verGB20>10?'Corte em 20 versões libera espaço relevante':'Pouco a recuperar limitando a 20 versões',
+    50:verGB50>50?'Cada edição cria uma versão nova — anos de acúmulo geram custo real além de 50 versões':verGB50>10?'Overhead de versões relevante acima de 50 — política de limite recomendada':'Versionamento dentro do aceitável até 50 versões',
+    100:verGB100>50?'Muitos arquivos passam de 100 versões — overhead alto mesmo com limite permissivo':verGB100>10?'Overhead relevante mesmo com limite de 100 versões':'Poucos arquivos ultrapassam 100 versões'
+  };
+  return`
+  <div class="diag-grid">
+    <div class="diag-card">
+      <div class="diag-stripe" style="background:var(--yellow)"></div>
+      <div class="diag-body">
+        <div class="diag-type"><span style="width:6px;height:6px;border-radius:50%;background:var(--yellow);display:inline-block"></span>Lixeira</div>
+        <div class="diag-headline">${sav.trashGB>10?'Itens excluídos há meses ainda consomem cota do tenant':sav.trashGB>1?'Lixeira com volume acima do esperado — limpeza recomendada':'Lixeira dentro do limite esperado'}</div>
+        <div class="diag-stat c-yellow">${fmtGB(trash.size_bytes)}</div>
+        <div class="diag-stat-sub">${fmtNum(trash.total)} itens · 1ª fase: ${fmtNum(trash.first_stage||0)} · 2ª fase: ${fmtNum(trash.second_stage||0)}</div>
+      </div>
+      <div class="diag-footer">
+        <span class="diag-sav-label">Economia ao esvaziar</span>
+        <span class="diag-sav-amount">${fmtUSD(sav.trash)}</span>
+        <span class="diag-sav-period">/mês</span>
+      </div>
+    </div>
+    <div class="diag-card">
+      <div class="diag-stripe" style="background:var(--ct-orange)"></div>
+      <div class="diag-body">
+        <div class="diag-type"><span style="width:6px;height:6px;border-radius:50%;background:var(--ct-orange);display:inline-block"></span>Histórico de Versões</div>
+        <div class="yf-bar">
+          <button class="yf-btn" data-year="20">20 versões</button>
+          <button class="yf-btn active" data-year="50">50 versões</button>
+          <button class="yf-btn" data-year="100">100 versões</button>
+        </div>
+        <div class="arch-yr" data-y="20">
+          <div class="diag-headline">${verHLs[20]}</div>
+          <div class="diag-stat c-orange">${fmtGB(vs.liberado_20v_bytes||0)}</div>
+          <div class="diag-stat-sub">${fmtGB(vs.overhead_total_bytes||0)} de overhead total · ${fmtNum(files.total_versions||0)} versões armazenadas</div>
+        </div>
+        <div class="arch-yr" data-y="50" style="display:none">
+          <div class="diag-headline">${verHLs[50]}</div>
+          <div class="diag-stat c-orange">${fmtGB(vs.liberado_50v_bytes||0)}</div>
+          <div class="diag-stat-sub">${fmtGB(vs.overhead_total_bytes||0)} de overhead total · ${fmtNum(files.total_versions||0)} versões armazenadas</div>
+        </div>
+        <div class="arch-yr" data-y="100" style="display:none">
+          <div class="diag-headline">${verHLs[100]}</div>
+          <div class="diag-stat c-orange">${fmtGB(vs.liberado_100v_bytes||0)}</div>
+          <div class="diag-stat-sub">${fmtGB(vs.overhead_total_bytes||0)} de overhead total · ${fmtNum(files.total_versions||0)} versões armazenadas</div>
+        </div>
+      </div>
+      <div class="diag-footer">
+        <span class="diag-sav-label">Economia com limite de versões</span>
+        <span class="diag-sav-amount">
+          <span class="ver-sav" data-y="20">${fmtUSD((vs.liberado_20v_bytes||0)/1073741824*0.20)}</span>
+          <span class="ver-sav" data-y="50" style="display:none">${fmtUSD((vs.liberado_50v_bytes||0)/1073741824*0.20)}</span>
+          <span class="ver-sav" data-y="100" style="display:none">${fmtUSD((vs.liberado_100v_bytes||0)/1073741824*0.20)}</span>
+        </span>
+        <span class="diag-sav-period">/mês</span>
+      </div>
+    </div>
+    <div class="diag-card">
+      <div class="diag-stripe" style="background:var(--purple)"></div>
+      <div class="diag-body">
+        <div class="diag-type"><span style="width:6px;height:6px;border-radius:50%;background:var(--purple);display:inline-block"></span>Arquivamento de Itens Obsoletos</div>
+        <div class="yf-bar">
+          <button class="yf-btn active" data-year="1">1 ano</button>
+          <button class="yf-btn" data-year="2">2 anos</button>
+          <button class="yf-btn" data-year="3">3 anos</button>
+          <button class="yf-btn" data-year="5">5 anos</button>
+        </div>
+        <div class="arch-yr" data-y="1">
+          <div class="diag-headline">${archHLs[1]}</div>
+          <div class="diag-stat c-purple">${fmtGB(files.stale_1y_bytes||0)}</div>
+          <div class="diag-stat-sub">${fmtNum(files.stale_1y||0)} arquivos sem edição há +1 ano</div>
+        </div>
+        <div class="arch-yr" data-y="2" style="display:none">
+          <div class="diag-headline">${archHLs[2]}</div>
+          <div class="diag-stat c-purple">${fmtGB(files.stale_2y_bytes||0)}</div>
+          <div class="diag-stat-sub">${fmtNum(files.stale_2y||0)} arquivos sem edição há +2 anos</div>
+        </div>
+        <div class="arch-yr" data-y="3" style="display:none">
+          <div class="diag-headline">${archHLs[3]}</div>
+          <div class="diag-stat c-purple">${fmtGB(files.stale_3y_bytes||0)}</div>
+          <div class="diag-stat-sub">${fmtNum(files.stale_3y||0)} arquivos sem edição há +3 anos</div>
+        </div>
+        <div class="arch-yr" data-y="5" style="display:none">
+          <div class="diag-headline">${archHLs[5]}</div>
+          <div class="diag-stat c-purple">${fmtGB(files.stale_5y_bytes||0)}</div>
+          <div class="diag-stat-sub">${fmtNum(files.stale_5y||0)} arquivos sem edição há +5 anos</div>
+        </div>
+      </div>
+      <div class="diag-footer">
+        <span class="diag-sav-label">Economia com arquivamento</span>
+        <span class="diag-sav-amount">
+          <span class="arch-sav" data-y="1">${fmtUSD(sav1.archive)}</span>
+          <span class="arch-sav" data-y="2" style="display:none">${fmtUSD(sav.archive)}</span>
+          <span class="arch-sav" data-y="3" style="display:none">${fmtUSD(sav3.archive)}</span>
+          <span class="arch-sav" data-y="5" style="display:none">${fmtUSD(sav5.archive)}</span>
+        </span>
+        <span class="diag-sav-period">/mês</span>
+      </div>
+    </div>
+  </div>`;
+}
+
+/* ── Card de Armazenamento + Lixeira + Sites (usa sites/trash já segmentados) ── */
+function renderStorageRow(sitesObj,trashObj){
+  const sites=sitesObj||{};const trash=trashObj||{total:0,size_bytes:0};
+  const storagePct=pct(sites.storage_mb,sites.quota_mb);
+  const storageColor=storagePct>80?'var(--red)':storagePct>60?'var(--yellow)':'var(--ct-orange)';
+  return`
+  <div class="storage-row">
+    <div class="metric-card">
+      <div class="metric-card-hd">
+        <svg viewBox="0 0 16 16" fill="var(--ct-orange)"><path d="M1 2a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2zm2-1a1 1 0 0 0-1 1v1h12V2a1 1 0 0 0-1-1z"/></svg>
+        <span class="metric-card-title">Armazenamento</span>
+      </div>
+      <div class="storage-visual">
+        ${donut(storagePct,storageColor,storagePct+'%',72)}
+        <div class="storage-stats">
+          <div class="storage-stat"><span class="storage-stat-dot" style="background:${storageColor}"></span><span class="storage-stat-label">Usado</span><span class="storage-stat-val">${fmtMB(sites.storage_mb)}</span></div>
+          <div class="storage-stat"><span class="storage-stat-dot" style="background:var(--border)"></span><span class="storage-stat-label">Disponível</span><span class="storage-stat-val">${fmtMB(Math.max(0,(sites.quota_mb||0)-(sites.storage_mb||0)))}</span></div>
+          <div class="storage-stat"><span class="storage-stat-dot" style="opacity:.4;background:var(--muted)"></span><span class="storage-stat-label">Cota total</span><span class="storage-stat-val">${fmtMB(sites.quota_mb)}</span></div>
+        </div>
+      </div>
+      <div class="pbar-wrap">
+        <div class="pbar-lbl"><span>Ocupação</span><span>${storagePct}%</span></div>
+        <div class="pbar"><div class="pbar-fill" style="width:${storagePct}%;background:${storageColor}"></div></div>
+      </div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-card-hd">
+        <svg viewBox="0 0 16 16" fill="var(--yellow)"><path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5m2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5m3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0z"/><path d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4zM2.5 3h11V2h-11z"/></svg>
+        <span class="metric-card-title">Lixeira</span>
+      </div>
+      <div class="storage-visual">
+        ${donut(pct(trash.size_bytes||0,Math.max((sites.storage_mb||1)*1048576,1)),'var(--yellow)',fmtGB(trash.size_bytes).split(' ')[0],72)}
+        <div class="storage-stats">
+          <div class="storage-stat"><span class="storage-stat-dot" style="background:var(--yellow)"></span><span class="storage-stat-label">Tamanho total</span><span class="storage-stat-val">${fmtGB(trash.size_bytes)}</span></div>
+          <div class="storage-stat"><span class="storage-stat-dot" style="background:var(--ct-orange)"></span><span class="storage-stat-label">1ª fase</span><span class="storage-stat-val">${fmtNum(trash.first_stage||0)}</span></div>
+          <div class="storage-stat"><span class="storage-stat-dot" style="background:var(--red)"></span><span class="storage-stat-label">2ª fase</span><span class="storage-stat-val">${fmtNum(trash.second_stage||0)}</span></div>
+        </div>
+      </div>
+      <div class="pbar-wrap">
+        <div class="pbar-lbl"><span>Total de itens</span><span>${fmtNum(trash.total)}</span></div>
+        <div class="pbar"><div class="pbar-fill" style="width:100%;background:var(--border)"></div></div>
+      </div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-card-hd">
+        <svg viewBox="0 0 16 16" fill="var(--ct-orange)"><path d="M2.5 4a.5.5 0 1 0 0-1 .5.5 0 0 0 0 1zm2 0a.5.5 0 1 0 0-1 .5.5 0 0 0 0 1zm2 0a.5.5 0 1 0 0-1 .5.5 0 0 0 0 1zM2 1a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V3a2 2 0 0 0-2-2H2zm13 2v2H1V3a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1zM2 14a1 1 0 0 1-1-1V6h14v7a1 1 0 0 1-1 1H2z"/></svg>
+        <span class="metric-card-title">Sites</span>
+      </div>
+      <div style="padding:4px 0">
+        <div class="mrow"><span class="mrow-lbl">Sites criados</span><span class="mrow-val c-orange">${fmtNum(sites.total)}</span></div>
+        <div class="mrow"><span class="mrow-lbl">Conectados ao Teams</span><span class="mrow-val c-green">${fmtNum(sites.teams_connected)} <span style="font-weight:400;font-size:10.5px;color:var(--muted)">(${pct(sites.teams_connected,sites.total)}%)</span></span></div>
+        <div class="mrow"><span class="mrow-lbl">Teams Channel Sites</span><span class="mrow-val">${fmtNum(sites.teams_channel)}</span></div>
+        <div class="mrow"><span class="mrow-lbl">Subsites</span><span class="mrow-val">${fmtNum(sites.subsites)}</span></div>
+        <div class="mrow"><span class="mrow-lbl">Acesso externo ativo</span><span class="mrow-val c-red">${fmtNum(sites.external_sharing)} <span style="font-weight:400;font-size:10.5px;color:var(--muted)">(${pct(sites.external_sharing,sites.total)}%)</span></span></div>
+        <div class="mrow"><span class="mrow-lbl">Itens em bibliotecas</span><span class="mrow-val">${fmtNum(sites.doc_items)}</span></div>
+      </div>
+    </div>
+  </div>`;
+}
+
+/* ── Arquivos - Visão Geral + Tipos de Arquivo (usa files/tipos já segmentados) ── */
+function renderFilesOverview(filesObj,fileTypesArr,filesError){
+  const files=filesObj||{};
+  const fileGroups=groupFileTypes(fileTypesArr||[]);
+  const ftMax=fileGroups.length>0?fileGroups[0].size_bytes:1;
+  const ftypesHTML=fileGroups.length>0
+    ?fileGroups.map(g=>`
+      <div class="ftype-group">
+        <div class="ftype-lbl">
+          <span><span class="ftype-name" style="color:${g.color}">${g.name}</span><span class="ftype-exts">${g.exts.slice(0,4).join(', ')}${g.exts.length>4?'…':''}</span></span>
+          <span class="ftype-cnt">${fmtGB(g.size_bytes)} · ${fmtNum(g.count)} arq.</span>
+        </div>
+        <div class="ftype-bar"><div class="ftype-fill" style="width:${pct(g.size_bytes,ftMax)}%;background:${g.color}"></div></div>
+      </div>`).join('')
+    :'<div class="empty-msg">Sem dados de tipos de arquivo</div>';
+
+  return`
+  <div style="display:grid;grid-template-columns:300px 1fr;gap:14px;margin-bottom:22px">
+    <div class="metric-card">
+      <div class="metric-card-hd">
+        <svg viewBox="0 0 16 16" fill="var(--ct-orange)"><path d="M4 0a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V2a2 2 0 0 0-2-2zm0 1h8a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1"/></svg>
+        <span class="metric-card-title">Arquivos — Visão Geral</span>
+      </div>
+      <div style="padding:4px 0">
+        ${filesError?`<div style="color:var(--yellow);font-size:10px;padding:4px 0 6px;line-height:1.4">Erro ao carregar arquivos:<br><code style="font-size:9.5px;opacity:.85">${filesError}</code></div>`:''}
+        <div class="mrow"><span class="mrow-lbl">Total de arquivos</span><span class="mrow-val c-orange">${fmtNum(files.total)}</span></div>
+        <div class="mrow"><span class="mrow-lbl">Tamanho ativo</span><span class="mrow-val">${fmtGB(files.size_bytes)}</span></div>
+        <div class="mrow"><span class="mrow-lbl">Com versões incluídas</span><span class="mrow-val">${fmtGB(files.versioned_bytes)}</span></div>
+        <div class="mrow"><span class="mrow-lbl">Overhead de versões</span><span class="mrow-val c-yellow">${fmtGB(Math.max(0,(files.versioned_bytes||0)-(files.size_bytes||0)))}</span></div>
+        <div class="mrow"><span class="mrow-lbl">Sem edição +2 anos</span><span class="mrow-val c-purple">${fmtNum(files.stale_2y)} <span style="font-weight:400;font-size:10.5px;color:var(--muted)">(${pct(files.stale_2y,files.total)}%)</span></span></div>
+        <div class="mrow"><span class="mrow-lbl">Sem edição +5 anos</span><span class="mrow-val c-red">${fmtNum(files.stale_5y)}</span></div>
+        <div class="mrow"><span class="mrow-lbl">Preservation Hold</span><span class="mrow-val">${fmtNum(files.preserved)}</span></div>
+      </div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-card-hd">
+        <svg viewBox="0 0 16 16" fill="var(--ct-green)"><path d="M6 1v3H1V1zM1 0a1 1 0 0 0-1 1v3a1 1 0 0 0 1 1h5a1 1 0 0 0 1-1V1a1 1 0 0 0-1-1zm14 12v3h-5v-3zm-5-1a1 1 0 0 0-1 1v3a1 1 0 0 0 1 1h5a1 1 0 0 0 1-1v-3a1 1 0 0 0-1-1zM6 8v7H1V8zM1 7a1 1 0 0 0-1 1v7a1 1 0 0 0 1 1h5a1 1 0 0 0 1-1V8a1 1 0 0 0-1-1zm14-6v7h-5V1zm-5-1a1 1 0 0 0-1 1v7a1 1 0 0 0 1 1h5a1 1 0 0 0 1-1V1a1 1 0 0 0-1-1z"/></svg>
+        <span class="metric-card-title">Tipos de Arquivo por Espaço</span>
+      </div>
+      <div class="ftype-groups">${ftypesHTML}</div>
+    </div>
+  </div>`;
+}
+
+/* ── Waterfall de recuperação de espaço + previsibilidade (sites/files/trash segmentados) ── */
+function renderGrowthWaterfall(sitesObj,filesObj,trashObj){
+  const sites=sitesObj||{};const files=filesObj||{};const trash=trashObj||{};
+  const sav=calcSavings(files,trash,2);
+  const storagePct=pct(sites.storage_mb,sites.quota_mb);
+  const storageColor=storagePct>80?'var(--red)':storagePct>60?'var(--yellow)':'var(--ct-orange)';
+  const totalBytes=(sites.storage_mb||0)*1048576;
+  const afterTrash=Math.max(0,totalBytes-(trash.size_bytes||0));
+  const vOverhead=Math.max(0,(files.versioned_bytes||0)-(files.size_bytes||0));
+  const afterVersions=Math.max(0,afterTrash-vOverhead*0.6);
+  const archiveBytes=files.stale_2y_bytes||0;
+  const afterArchive=Math.max(0,afterVersions-archiveBytes);
+  const quotaBytes=(sites.quota_mb||1)*1048576;
+  const monthsGained=quotaBytes>0&&totalBytes>0?Math.round((totalBytes-afterArchive)/quotaBytes*12*4):0;
+  const pctRecovered=totalBytes>0?Math.round((totalBytes-afterArchive)/totalBytes*100):0;
+
+  return`
+  <div class="growth-grid">
+    <div class="metric-card">
+      <div class="metric-card-hd">
+        <svg viewBox="0 0 16 16" fill="var(--ct-orange)"><path d="M0 0h1v15h15v1H0zm14.817 3.113a.5.5 0 0 1 .07.704l-4.5 5.5a.5.5 0 0 1-.74.037L7.06 6.767l-3.656 5.027a.5.5 0 0 1-.808-.588l4-5.5a.5.5 0 0 1 .758-.06l2.609 2.61 4.15-5.073a.5.5 0 0 1 .704-.07z"/></svg>
+        <span class="metric-card-title">Waterfall de Recuperação de Espaço</span>
+      </div>
+      <div class="waterfall">
+        <div class="wf-row">
+          <div class="wf-lbl"><span class="wf-title">Estado atual</span><span class="wf-value" style="color:${storageColor}">${fmtGB(totalBytes)}</span></div>
+          <div class="wf-bar"><div class="wf-fill" style="width:100%;background:${storageColor}"></div></div>
+        </div>
+        <div class="wf-row">
+          <div class="wf-lbl"><span class="wf-title">Após limpar lixeira</span><span class="wf-value">${fmtGB(afterTrash)}</span></div>
+          <div class="wf-bar"><div class="wf-fill" style="width:${pct(afterTrash,totalBytes||1)}%;background:var(--yellow)"></div></div>
+          ${trash.size_bytes>0?`<div class="wf-delta">▼ ${fmtGB(trash.size_bytes)} recuperados</div>`:''}
+        </div>
+        <div class="wf-row">
+          <div class="wf-lbl"><span class="wf-title">Após reduzir versões (60%)</span><span class="wf-value">${fmtGB(afterVersions)}</span></div>
+          <div class="wf-bar"><div class="wf-fill" style="width:${pct(afterVersions,totalBytes||1)}%;background:var(--ct-orange)"></div></div>
+          ${vOverhead>0?`<div class="wf-delta">▼ ${fmtGB(vOverhead*0.6)} recuperados</div>`:''}
+        </div>
+        <div class="wf-row">
+          <div class="wf-lbl"><span class="wf-title">Após arquivar conteúdo +2 anos</span><span class="wf-value" style="color:var(--green)">${fmtGB(afterArchive)}</span></div>
+          <div class="wf-bar"><div class="wf-fill" style="width:${pct(afterArchive,totalBytes||1)}%;background:var(--ct-green)"></div></div>
+          ${archiveBytes>0?`<div class="wf-delta">▼ ${fmtGB(archiveBytes)} movidos para arquivo frio</div>`:''}
+        </div>
+      </div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-card-hd">
+        <svg viewBox="0 0 16 16" fill="var(--ct-green)"><path d="M1 11a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1zm5-4a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v7a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1zm5-5a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1h-2a1 1 0 0 1-1-1z"/></svg>
+        <span class="metric-card-title">Previsibilidade de Redução</span>
+      </div>
+      <div class="runway-panel">
+        <div class="runway-stat">
+          <div class="runway-big" style="color:var(--ct-orange)">${fmtUSD(sav.total)}</div>
+          <div class="runway-sub">economia mensal total (armazenamento @ $0,20/GB/mês)</div>
+        </div>
+        <div class="runway-divider"></div>
+        <div class="runway-stat">
+          <div class="runway-big" style="color:var(--green)">${pctRecovered}%</div>
+          <div class="runway-sub">do espaço atual pode ser recuperado com as 3 ações</div>
+        </div>
+        <div class="runway-divider"></div>
+        <div class="runway-stat">
+          <div class="runway-big" style="color:var(--purple)">${fmtGB(totalBytes-afterArchive)}</div>
+          <div class="runway-sub">total recuperável — ${fmtGB(afterArchive)} seria o novo estado operacional</div>
+        </div>
+        ${monthsGained>0?`
+        <div class="runway-divider"></div>
+        <div class="runway-stat">
+          <div class="runway-big" style="color:var(--ct-green)">+${monthsGained} meses</div>
+          <div class="runway-sub">de runway estimado na cota com plano de arquivamento completo</div>
+        </div>`:''}
+      </div>
+    </div>
+  </div>`;
+}
+
+/* ── Top documentos com mais versões (com URL) — SharePoint e OneDrive ── */
+function topVersionedTableHTML(rows,emptyMsg){
+  if(!rows||rows.length===0)return`<div class="empty-msg">${emptyMsg||'Nenhum documento com histórico de versões encontrado.'}</div>`;
+  const body=rows.map(r=>`<tr>
+    <td>
+      <span class="doc-name">${r.file_url?`<a href="${r.file_url}" target="_blank" rel="noopener">${r.file_name||'(sem nome)'}</a>`:(r.file_name||'(sem nome)')}</span>
+      <div class="doc-site">${r.site_name||''}</div>
+    </td>
+    <td><span class="ver-badge">${fmtNum(r.versions_count||0)}</span></td>
+    <td style="font-weight:600">${fmtGB(r.total_file_size||r.file_size||0)}</td>
+  </tr>`).join('');
+  return`
+  <div class="mat-card" style="margin-bottom:22px">
+    <table class="doc-table">
+      <thead><tr><th>Documento</th><th>Versões</th><th>Tamanho</th></tr></thead>
+      <tbody>${body}</tbody>
+    </table>
+  </div>`;
+}
+
+/* ── Arquivos duplicados (candidatos) — tenant inteiro, mesmo hash pode
+   aparecer em SharePoint e OneDrive, por isso fica na Visão Geral ── */
+function duplicatesTableHTML(rows){
+  if(!rows||rows.length===0)return'<div class="empty-msg">Nenhum arquivo duplicado identificado.</div>';
+  const body=rows.map(r=>`<tr>
+    <td>
+      <span class="doc-name">${r.sample_file_name||'(sem nome)'}</span>
+      <div class="doc-site">${r.file_type?r.file_type.toUpperCase():''}</div>
+    </td>
+    <td>${fmtNum(r.copy_count||0)}</td>
+    <td>${fmtNum(r.distinct_sites||0)}</td>
+    <td style="font-weight:600;color:var(--yellow)">${fmtGB(r.wasted_bytes||0)}</td>
+  </tr>`).join('');
+  return`
+  <div class="mat-card" style="margin-bottom:22px">
+    <table class="doc-table">
+      <thead><tr><th>Arquivo (amostra)</th><th>Cópias</th><th>Sites distintos</th><th>Espaço desperdiçado</th></tr></thead>
+      <tbody>${body}</tbody>
+    </table>
+  </div>`;
+}
+
+/* ── Sites sem dono ativo — administrador(es) desabilitado(s)/inexistente(s)
+   no Entra ID (ver Get-OwnerStatus.ps1 + sp_dash_orphaned_sites) ── */
+function orphanedSitesTableHTML(rows){
+  if(!rows||rows.length===0)return'<div class="empty-msg">Nenhum site sem dono ativo identificado (ou a verificação ainda não rodou nesta execução).</div>';
+  const body=rows.map(r=>`<tr>
+    <td>
+      <div class="crit-title">${r.title||'(sem nome)'}</div>
+      <div class="crit-url">${r.url||''}</div>
+    </td>
+    <td class="crit-cap">${r.total_owners>0?`${fmtNum(r.total_owners)} administrador(es), nenhum ativo`:'Nenhum administrador coletado'}</td>
+    <td style="text-align:right;font-size:12px;font-weight:600">${fmtGB(r.storage_bytes||0)}</td>
+  </tr>`).join('');
+  return`
+  <div class="mat-card" style="margin-bottom:22px">
+    <table class="crit-table">
+      <thead><tr><th>Site</th><th>Administradores</th><th style="text-align:right">Tamanho</th></tr></thead>
+      <tbody>${body}</tbody>
+    </table>
+  </div>`;
+}
+
+/* ── Histórico de execuções (dados reais de /api/executions — sem dados fabricados) ── */
+function renderExecHistory(){
+  const hist=EXEC_HISTORY;
+  const histCardHd=`<div class="metric-card-hd">
+    <svg viewBox="0 0 16 16" fill="var(--ct-orange)"><path d="M0 0h1v15h15v1H0zm14.817 3.113a.5.5 0 0 1 .07.704l-4.5 5.5a.5.5 0 0 1-.74.037L7.06 6.767l-3.656 5.027a.5.5 0 0 1-.808-.588l4-5.5a.5.5 0 0 1 .758-.06l2.609 2.61 4.15-5.073a.5.5 0 0 1 .704-.07z"/></svg>
+    <span class="metric-card-title">Histórico de Execuções — Sites &amp; Arquivos</span>
+  </div>`;
+  if(!hist||hist.length<2){
+    return`<div class="metric-card" style="margin-bottom:22px">${histCardHd}
+      <div class="empty-msg">Histórico insuficiente — apenas ${hist?hist.length:0} execução(ões) registrada(s). Execute o assessment novamente para visualizar a tendência entre execuções.</div>
+    </div>`;
+  }
+  const asc=hist.slice().reverse();
+  const labels=asc.map(e=>{
+    const dt=e.start_time?new Date(e.start_time):null;
+    return dt&&!isNaN(dt)?dt.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'}):(e.execution_id||'').substring(0,6);
+  });
+  const chart=lineChart([
+    {values:asc.map(e=>e.sites||0),color:'var(--ct-orange)',area:true,name:'Sites'},
+    {values:asc.map(e=>e.files||0),color:'var(--purple)',area:false,name:'Arquivos'},
+  ],labels,{h:190,fmt:v=>fmtNum(Math.round(v))});
+
+  const cur=asc[asc.length-1],prev=asc[asc.length-2];
+  const dSites=(cur.sites||0)-(prev.sites||0);
+  const dFiles=(cur.files||0)-(prev.files||0);
+  const fmtDelta=v=>`${v>0?'+':''}${fmtNum(v)}`;
+
+  return`
+  <div class="exec-hist-grid">
+    <div class="metric-card">
+      ${histCardHd}
+      <div class="chart-legend">
+        <div class="chart-legend-item"><span class="chart-legend-line" style="background:var(--ct-orange)"></span>Sites</div>
+        <div class="chart-legend-item"><span class="chart-legend-line" style="background:var(--purple)"></span>Arquivos</div>
+      </div>
+      <div class="chart-card-body">${chart}</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-card-hd">
+        <svg viewBox="0 0 16 16" fill="var(--ct-green)"><path d="M8 16A8 8 0 1 0 8 0a8 8 0 0 0 0 16m.93-9.412-1 4.705c-.07.34.029.533.304.533.194 0 .487-.07.686-.246l-.088.416c-.287.346-.92.598-1.465.598-.703 0-1.002-.422-.808-1.319l.738-3.468c.064-.293.006-.399-.287-.47l-.451-.081.082-.381 2.29-.287zM8 5.5a1 1 0 1 1 0-2 1 1 0 0 1 0 2"/></svg>
+        <span class="metric-card-title">Resumo entre Execuções</span>
+      </div>
+      <div style="padding:4px 0">
+        <div class="mrow"><span class="mrow-lbl">Total de execuções</span><span class="mrow-val">${fmtNum(hist.length)}</span></div>
+        <div class="mrow"><span class="mrow-lbl">Δ Sites vs. anterior</span><span class="mrow-val ${dSites>=0?'c-green':'c-red'}">${fmtDelta(dSites)}</span></div>
+        <div class="mrow"><span class="mrow-lbl">Δ Arquivos vs. anterior</span><span class="mrow-val ${dFiles>=0?'c-green':'c-red'}">${fmtDelta(dFiles)}</span></div>
+        <div class="mrow"><span class="mrow-lbl">Execução anterior</span><span class="mrow-val" style="font-weight:400;font-size:11px">${prev.start_time||'—'}</span></div>
+        <div class="mrow"><span class="mrow-lbl">Execução atual</span><span class="mrow-val" style="font-weight:400;font-size:11px">${cur.start_time||'—'}</span></div>
+      </div>
+    </div>
+  </div>`;
+}
+
+/* ── Main render ── */
+function render(d,execId){
+  if(d.error)return`<div class="error-box">Erro ao carregar dados: ${d.error}</div>`;
+  if(d.mode==='csv')return`<div class="error-box">${d.error||'store_in_sql não habilitado.'}</div>`;
+
+  const scores=computeScores(d);
+  const overall=overallScore(scores);
+  const risks=computeRisks(d);
+  const sites=d.sites||{total:0};
+  const files=d.files||{total:0};
+  const trash=d.trash||{total:0,size_bytes:0};
+  const sav=calcSavings(files,trash,2);
+  const storagePct=pct(sites.storage_mb,sites.quota_mb);
+
+  /* Todos os sites, segmentados SharePoint x OneDrive */
+  const allSites=d.all_sites||[];
+  SITE_TABLES.sharepoint=allSites.filter(s=>s.site_type!=='OneDrive');
+  SITE_TABLES.onedrive=allSites.filter(s=>s.site_type==='OneDrive');
+  DEVICE_TABLE=d.intune_devices||[];
+  LICENSING_SKUS=d.licensing_by_sku||[];
+  ADOPTION_INACTIVE=d.adoption_inactive_users||[];
+  MAILBOX_LIST=d.mailbox_list||[];
+
+  /* Hero */
+  const heroHTML=sav.total>0?`
+  <div class="hero">
+    <div class="hero-layout">
+      <div>
+        <div class="hero-eyebrow">Diagnóstico de Custo · SharePoint Online</div>
+        <div class="hero-amount">${fmtUSD(sav.total)}<span>/mês</span></div>
+        <div class="hero-desc">em armazenamento recuperável identificado — lixeira, histórico de versões e conteúdo sem acesso há mais de 2 anos.</div>
+      </div>
+      <div class="hero-pills">
+        ${sav.trash>0.1?`<div class="hero-pill"><div class="hero-pill-label">Lixeira</div><div class="hero-pill-value">${fmtUSD(sav.trash)}</div><div class="hero-pill-period">/mês</div></div>`:''}
+        ${sav.versions>0.1?`<div class="hero-pill"><div class="hero-pill-label">Versões</div><div class="hero-pill-value">${fmtUSD(sav.versions)}</div><div class="hero-pill-period">/mês</div></div>`:''}
+        ${sav.archive>0.5?`<div class="hero-pill"><div class="hero-pill-label">Arquivamento</div><div class="hero-pill-value">${fmtUSD(sav.archive)}</div><div class="hero-pill-period">/mês</div></div>`:''}
+      </div>
+    </div>
+  </div>`:`
+  <div class="hero" style="background:linear-gradient(135deg,#1a5c32 0%,#0d3d22 100%)">
+    <div class="hero-layout" style="grid-template-columns:1fr">
+      <div>
+        <div class="hero-eyebrow">Diagnóstico de Custo · SharePoint Online</div>
+        <div class="hero-amount" style="font-size:40px">Ambiente eficiente<span style="font-size:16px"> — sem oportunidades críticas.</span></div>
+        <div class="hero-desc">Nenhuma oportunidade de redução significativa identificada neste assessment.</div>
+      </div>
+    </div>
+  </div>`;
+
+  /* KPI strip — cartões com ícone e, quando há histórico real de execuções, sparkline */
+  const histAsc=EXEC_HISTORY.slice().reverse(); // mais antiga primeiro
+  const sitesSpark=histAsc.length>=2?sparkline(histAsc.map(e=>e.sites||0),'var(--ct-orange)'):'';
+  const sitesTrendPct=(()=>{
+    if(histAsc.length<2)return null;
+    const prev=histAsc[histAsc.length-2].sites||0,cur=histAsc[histAsc.length-1].sites||0;
+    return prev>0?Math.round((cur-prev)/prev*100):null;
+  })();
+  const kpiHTML=`
+  <div class="kpi-strip">
+    <div class="kpi-card">
+      <div class="kpi-top">
+        <div class="kpi-icon" style="background:rgba(234,90,28,.14)">
+          <svg viewBox="0 0 16 16" fill="var(--ct-orange)"><path d="M2.5 4a.5.5 0 1 0 0-1 .5.5 0 0 0 0 1zm2 0a.5.5 0 1 0 0-1 .5.5 0 0 0 0 1zm2 0a.5.5 0 1 0 0-1 .5.5 0 0 0 0 1zM2 1a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V3a2 2 0 0 0-2-2H2zm13 2v2H1V3a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1zM2 14a1 1 0 0 1-1-1V6h14v7a1 1 0 0 1-1 1H2z"/></svg>
+        </div>
+        ${sitesTrendPct!=null?`<span class="kpi-delta ${sitesTrendPct>=0?'up':'down'}">${sitesTrendPct>=0?'▲':'▼'} ${Math.abs(sitesTrendPct)}%</span>`:''}
+      </div>
+      <div class="kpi-label">Sites Criados</div>
+      <div class="kpi-value c-orange">${fmtNum(sites.total)}</div>
+      <div class="kpi-sub">${fmtNum(sites.subsites)} subsites · ${fmtNum(sites.teams_connected)} c/ Teams</div>
+      ${sitesSpark}
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-top">
+        <div class="kpi-icon" style="background:rgba(248,81,73,.14)">
+          <svg viewBox="0 0 16 16" fill="var(--red)"><path d="M8.982 1.566a1.13 1.13 0 0 0-1.964 0L.165 13.233c-.457.778.091 1.767.982 1.767h13.706c.891 0 1.439-.99.982-1.767zM8 5c.535 0 .954.462.9.995l-.35 3.507a.552.552 0 0 1-1.1 0L7.1 5.995A.905.905 0 0 1 8 5m.002 6a1 1 0 1 1 0 2 1 1 0 0 1 0-2"/></svg>
+        </div>
+      </div>
+      <div class="kpi-label">Acesso Externo</div>
+      <div class="kpi-value c-red">${fmtNum(sites.external_sharing)}</div>
+      <div class="kpi-sub">${pct(sites.external_sharing,sites.total)}% dos sites expõem dados externamente</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-top">
+        <div class="kpi-icon" style="background:rgba(210,153,34,.14)">
+          <svg viewBox="0 0 16 16" fill="var(--yellow)"><path d="M1 2a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2zm2-1a1 1 0 0 0-1 1v1h12V2a1 1 0 0 0-1-1z"/></svg>
+        </div>
+      </div>
+      <div class="kpi-label">Armazenamento</div>
+      <div class="kpi-value c-yellow">${fmtMB(sites.storage_mb)}</div>
+      <div class="kpi-sub">${storagePct}% da cota · total ${fmtMB(sites.quota_mb)}</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-top">
+        <div class="kpi-icon" style="background:rgba(194,115,226,.14)">
+          <svg viewBox="0 0 16 16" fill="var(--purple)"><path d="M8 3.5a.5.5 0 0 0-1 0V9a.5.5 0 0 0 .252.434l3.5 2a.5.5 0 0 0 .496-.868L8 8.71z"/><path d="M8 16A8 8 0 1 0 8 0a8 8 0 0 0 0 16m0-1A7 7 0 1 1 8 1a7 7 0 0 1 0 14"/></svg>
+        </div>
+      </div>
+      <div class="kpi-label">Conteúdo Inativo +2 anos</div>
+      <div class="kpi-value c-purple">${fmtNum(files.stale_2y||0)}</div>
+      <div class="kpi-sub">${fmtGB(files.stale_2y_bytes||0)} recuperáveis via arquivamento</div>
+    </div>
+  </div>`;
+
+  /* Maturity + Risks */
+  const DOMAINS=[
+    {key:'sharepoint',label:'SharePoint Online'},
+    {key:'dados',label:'Dados & Compliance'},
+    {key:'colaboracao',label:'Colaboração'},
+    {key:'identidade',label:'Identidade'},
+    {key:'dispositivos',label:'Dispositivos'},
+  ];
+  const matRows=DOMAINS.map(dom=>{
+    const sc=scores[dom.key];
+    if(!sc)return`<tr><td>${dom.label}</td><td>${renderCell(null)}</td><td>${renderCell(null)}</td><td>${renderCell(null)}</td><td>${renderCell(null)}</td></tr>`;
+    const avg=[sc.gov,sc.sec,sc.adopt,sc.mgmt].filter(v=>v!=null);
+    const da=avg.length?+(avg.reduce((a,b)=>a+b,0)/avg.length).toFixed(1):null;
+    return`<tr><td style="font-size:12px;padding:9px 13px">${dom.label}</td><td>${renderCell(sc.gov)}</td><td>${renderCell(sc.sec)}</td><td>${renderCell(sc.adopt)}</td><td>${renderCell(da)}</td></tr>`;
+  }).join('');
+
+  const riskHTML=risks.length===0
+    ?'<div class="no-risk">Nenhum risco identificado.</div>'
+    :`<ul class="risk-list">${risks.map(r=>`<li class="risk-item">
+        <span class="risk-dot ${r.lvl}"></span>
+        <div><div class="risk-title"><span class="risk-badge ${r.lvl}">${{high:'Crítico',medium:'Médio',low:'Baixo'}[r.lvl]||r.lvl}</span>${r.title}</div>
+        <div class="risk-desc">${r.desc}</div></div>
+      </li>`).join('')}</ul>`;
+
+  /* Critical sites */
+  const critRows=(d.critical_sites||[]).map(s=>{
+    const kw=critKeyword(s.url,s.title);
+    return`<tr>
+      <td>
+        <div class="crit-title"><span class="crit-badge">Externo</span>${s.title||'(sem nome)'}${kw?` <span class="kw-tag">${kw.trim().toUpperCase()}</span>`:''}</div>
+        <div class="crit-url">${s.url}</div>
+      </td>
+      <td class="crit-cap">${s.capability||'—'}</td>
+      <td style="text-align:right;font-size:12px;font-weight:600">${fmtGB(s.storage_bytes)}</td>
+    </tr>`;
+  }).join('');
+  const critHTML=`
+  <div class="mat-card" style="margin-bottom:22px">
+    <table class="crit-table">
+      <thead><tr><th>Site</th><th>Compartilhamento</th><th style="text-align:right">Tamanho</th></tr></thead>
+      <tbody>${critRows||`<tr><td colspan="3"><div class="empty-crit">Nenhum site sensível com acesso externo identificado.</div></td></tr>`}</tbody>
+    </table>
+  </div>`;
+
+
+  const tabBarHTML=`
+  <div class="tab-bar">
+    <button class="tab-btn active" data-tab="overview">
+      <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1M0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8"/><path d="M8 4a.5.5 0 0 1 .5.5v3.5h3a.5.5 0 0 1 0 1h-3.5A.5.5 0 0 1 7.5 8.5v-4A.5.5 0 0 1 8 4"/></svg>
+      Visão Geral
+    </button>
+    <button class="tab-btn" data-tab="licensing">
+      <svg viewBox="0 0 16 16" fill="currentColor"><path d="M2.5 3A1.5 1.5 0 0 0 1 4.5v.793c.026.009.051.02.076.032L7.674 8.51c.206.1.446.1.652 0l6.598-3.185A.804.804 0 0 1 15 5.293V4.5A1.5 1.5 0 0 0 13.5 3zM15 6.437l-5.577 2.693c-.541.262-1.204.262-1.746 0L2 6.437V11.5A1.5 1.5 0 0 0 3.5 13h9a1.5 1.5 0 0 0 1.5-1.5z"/></svg>
+      Licenciamento <span class="tab-count">${(LICENSING_SKUS||[]).length}</span>
+    </button>
+    <button class="tab-btn" data-tab="adoption">
+      <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6m2-3a2 2 0 1 1-4 0 2 2 0 0 1 4 0m4 8c0 1-1 1-1 1H3s-1 0-1-1 1-4 6-4 6 3 6 4m-1-.004c-.001-.246-.154-.986-.832-1.664C11.516 10.68 10.289 10 8 10s-3.516.68-4.168 1.332c-.678.678-.83 1.418-.832 1.664z"/></svg>
+      Adoção <span class="tab-count">${(ADOPTION_INACTIVE||[]).length}</span>
+    </button>
+    <button class="tab-btn" data-tab="intune">
+      <svg viewBox="0 0 16 16" fill="currentColor"><path d="M13.5 3a.5.5 0 0 1 .5.5V11H2V3.5a.5.5 0 0 1 .5-.5zm-11-1A1.5 1.5 0 0 0 1 3.5V12h14V3.5A1.5 1.5 0 0 0 13.5 2zM0 12.5h16a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 0 12.5"/></svg>
+      Intune <span class="tab-count">${DEVICE_TABLE.length}</span>
+    </button>
+    <button class="tab-btn" data-tab="exchange">
+      <svg viewBox="0 0 16 16" fill="currentColor"><path d="M2.5 3A1.5 1.5 0 0 0 1 4.5v.793c.026.009.051.02.076.032L7.674 8.51c.206.1.446.1.652 0l6.598-3.185A.804.804 0 0 1 15 5.293V4.5A1.5 1.5 0 0 0 13.5 3zM15 6.437l-5.577 2.693c-.541.262-1.204.262-1.746 0L2 6.437V11.5A1.5 1.5 0 0 0 3.5 13h9a1.5 1.5 0 0 0 1.5-1.5z"/></svg>
+      Exchange <span class="tab-count">${MAILBOX_LIST.length}</span>
+    </button>
+    <button class="tab-btn" data-tab="sharepoint">
+      <svg viewBox="0 0 16 16" fill="currentColor"><path d="M2.5 4a.5.5 0 1 0 0-1 .5.5 0 0 0 0 1zm2 0a.5.5 0 1 0 0-1 .5.5 0 0 0 0 1zm2 0a.5.5 0 1 0 0-1 .5.5 0 0 0 0 1zM2 1a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V3a2 2 0 0 0-2-2H2zm13 2v2H1V3a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1zM2 14a1 1 0 0 1-1-1V6h14v7a1 1 0 0 1-1 1H2z"/></svg>
+      SharePoint <span class="tab-count">${SITE_TABLES.sharepoint.length}</span>
+    </button>
+    <button class="tab-btn" data-tab="onedrive">
+      <svg viewBox="0 0 16 16" fill="currentColor"><path d="M4.318 8.62a3.5 3.5 0 0 0-3.024 1.75A3.5 3.5 0 0 0 4.5 15h9a2.5 2.5 0 0 0 .958-4.808 3.5 3.5 0 0 0-4.35-4.153 4.5 4.5 0 0 0-8.37 2.462q0 .264.033.523A3.5 3.5 0 0 0 0 12.5"/></svg>
+      OneDrive <span class="tab-count">${SITE_TABLES.onedrive.length}</span>
+    </button>
+  </div>`;
+
+  const overviewHTML=`
+  <div class="sec-hd"><div class="sec-hd-accent"></div>Histórico de Execuções</div>
+  ${renderExecHistory()}
+  <div class="sec-hd"><div class="sec-hd-accent"></div>Análise de Maturidade</div>
+  <div class="two-col">
+    <div class="mat-card">
+      <table class="mat-table">
+        <thead><tr><th>Domínio</th><th>Governança</th><th>Segurança</th><th>Adoção</th><th>Média</th></tr></thead>
+        <tbody>${matRows}</tbody>
+      </table>
+    </div>
+    <div class="risk-card">
+      <div class="risk-hd"><div class="risk-hd-title">Riscos Identificados</div><div class="risk-hd-sub">${risks.length} pontos de atenção</div></div>
+      ${riskHTML}
+    </div>
+  </div>
+  <div class="sec-hd"><div class="sec-hd-accent"></div>Arquivos Duplicados — Candidatos a Deduplicação</div>
+  ${duplicatesTableHTML(d.duplicates)}`;
+
+  return tabBarHTML+`
+  <div class="tab-panel active" data-tab="overview">${heroHTML}${kpiHTML}${overviewHTML}</div>
+  <div class="tab-panel" data-tab="licensing">${renderLicensingTab(d)}</div>
+  <div class="tab-panel" data-tab="adoption">${renderAdoptionTab(d)}</div>
+  <div class="tab-panel" data-tab="intune">${renderIntuneTab(d)}</div>
+  <div class="tab-panel" data-tab="exchange">${renderExchangeTab(d)}</div>
+  <div class="tab-panel" data-tab="sharepoint">${renderSharePointTab(d,critHTML)}</div>
+  <div class="tab-panel" data-tab="onedrive">${renderOneDriveTab(d)}</div>`;
+}
+
+/* ── Aba SharePoint: sites, tipos de arquivo, top 10/20, lixeira, higienização,
+   arquivamento e crescimento mês a mês — tudo já segmentado pelo backend
+   (d.sharepoint.*, ver docs/migration_002_sp_od_tabs.sql) ── */
+function renderSharePointTab(d,critHTML){
+  const sp=d.sharepoint||{};
+  const spSites=sp.sites||{total:0};
+  const spFiles=sp.files||{total:0};
+  const spTrash=sp.trash||{total:0,size_bytes:0};
+
+  const top10Size=SITE_TABLES.sharepoint.slice().sort((a,b)=>(b.size_bytes||0)-(a.size_bytes||0)).slice(0,10);
+  const top10Files=SITE_TABLES.sharepoint.slice().sort((a,b)=>(b.total_files||0)-(a.total_files||0)).slice(0,10);
+
+  const growthChart=(sp.growth_monthly&&sp.growth_monthly.length>0)?(()=>{
+    const labels=sp.growth_monthly.map(r=>`${String(r.month).padStart(2,'0')}/${String(r.year).slice(2)}`);
+    const chart=lineChart([
+      {values:sp.growth_monthly.map(r=>r.bytes_created_gb||0),color:'var(--ct-orange)',area:false,name:'Criado no mês'},
+      {values:sp.growth_monthly.map(r=>r.acumulado_gb||0),color:'var(--ct-green)',area:true,name:'Acumulado'},
+    ],labels,{h:190,fmt:v=>fmtNum(Math.round(v))+'GB'});
+    return`<div class="metric-card" style="margin-bottom:22px">
+      <div class="metric-card-hd">
+        <svg viewBox="0 0 16 16" fill="var(--ct-orange)"><path d="M0 0h1v15h15v1H0zm14.817 3.113a.5.5 0 0 1 .07.704l-4.5 5.5a.5.5 0 0 1-.74.037L7.06 6.767l-3.656 5.027a.5.5 0 0 1-.808-.588l4-5.5a.5.5 0 0 1 .758-.06l2.609 2.61 4.15-5.073a.5.5 0 0 1 .704-.07z"/></svg>
+        <span class="metric-card-title">Crescimento Mês a Mês (por data de criação dos documentos)</span>
+      </div>
+      <div class="chart-legend">
+        <div class="chart-legend-item"><span class="chart-legend-line" style="background:var(--ct-orange)"></span>Criado no mês</div>
+        <div class="chart-legend-item"><span class="chart-legend-line" style="background:var(--ct-green)"></span>Acumulado</div>
+      </div>
+      <div class="chart-card-body">${chart}</div>
+    </div>`;
+  })():'<div class="empty-msg" style="margin-bottom:22px">Sem dados de data de criação suficientes para o gráfico de crescimento mensal.</div>';
+
+  return`
+  <div class="kpi-strip" style="margin-bottom:22px">
+    <div class="kpi-card">
+      <div class="kpi-top"><div class="kpi-icon" style="background:rgba(234,90,28,.14)">
+        <svg viewBox="0 0 16 16" fill="var(--ct-orange)"><path d="M2.5 4a.5.5 0 1 0 0-1 .5.5 0 0 0 0 1zm2 0a.5.5 0 1 0 0-1 .5.5 0 0 0 0 1zm2 0a.5.5 0 1 0 0-1 .5.5 0 0 0 0 1zM2 1a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V3a2 2 0 0 0-2-2H2zm13 2v2H1V3a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1zM2 14a1 1 0 0 1-1-1V6h14v7a1 1 0 0 1-1 1H2z"/></svg>
+      </div></div>
+      <div class="kpi-label">Sites Criados (SharePoint)</div>
+      <div class="kpi-value c-orange">${fmtNum(spSites.total)}</div>
+      <div class="kpi-sub">${fmtNum(spSites.subsites)} subsites · ${fmtNum(spSites.teams_connected)} c/ Teams</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-top"><div class="kpi-icon" style="background:rgba(210,153,34,.14)">
+        <svg viewBox="0 0 16 16" fill="var(--yellow)"><path d="M1 2a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2zm2-1a1 1 0 0 0-1 1v1h12V2a1 1 0 0 0-1-1z"/></svg>
+      </div></div>
+      <div class="kpi-label">Armazenamento</div>
+      <div class="kpi-value c-yellow">${fmtMB(spSites.storage_mb)}</div>
+      <div class="kpi-sub">${pct(spSites.storage_mb,spSites.quota_mb)}% da cota · total ${fmtMB(spSites.quota_mb)}</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-top"><div class="kpi-icon" style="background:rgba(248,81,73,.14)">
+        <svg viewBox="0 0 16 16" fill="var(--red)"><path d="M8.982 1.566a1.13 1.13 0 0 0-1.964 0L.165 13.233c-.457.778.091 1.767.982 1.767h13.706c.891 0 1.439-.99.982-1.767zM8 5c.535 0 .954.462.9.995l-.35 3.507a.552.552 0 0 1-1.1 0L7.1 5.995A.905.905 0 0 1 8 5m.002 6a1 1 0 1 1 0 2 1 1 0 0 1 0-2"/></svg>
+      </div></div>
+      <div class="kpi-label">Acesso Externo</div>
+      <div class="kpi-value c-red">${fmtNum(spSites.external_sharing)}</div>
+      <div class="kpi-sub">${pct(spSites.external_sharing,spSites.total)}% dos sites expõem dados externamente</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-top"><div class="kpi-icon" style="background:rgba(194,115,226,.14)">
+        <svg viewBox="0 0 16 16" fill="var(--purple)"><path d="M8 3.5a.5.5 0 0 0-1 0V9a.5.5 0 0 0 .252.434l3.5 2a.5.5 0 0 0 .496-.868L8 8.71z"/><path d="M8 16A8 8 0 1 0 8 0a8 8 0 0 0 0 16m0-1A7 7 0 1 1 8 1a7 7 0 0 1 0 14"/></svg>
+      </div></div>
+      <div class="kpi-label">Conteúdo Inativo +2 anos</div>
+      <div class="kpi-value c-purple">${fmtNum(spFiles.stale_2y||0)}</div>
+      <div class="kpi-sub">${fmtGB(spFiles.stale_2y_bytes||0)} recuperáveis via arquivamento</div>
+    </div>
+  </div>
+  <div class="sec-hd"><div class="sec-hd-accent"></div>Sites Sensíveis com Acesso Externo</div>
+  ${critHTML}
+  <div class="sec-hd"><div class="sec-hd-accent"></div>Sites sem Dono Ativo</div>
+  ${orphanedSitesTableHTML(sp.orphaned_sites)}
+  <div class="sec-hd"><div class="sec-hd-accent"></div>Top 10 Sites — Tamanho &amp; Quantidade de Arquivos</div>
+  <div class="two-col" style="grid-template-columns:1fr 1fr">
+    ${topSitesTableHTML(top10Size,'Sem sites.')}
+    ${topSitesTableHTML(top10Files,'Sem sites.')}
+  </div>
+  <div class="sec-hd"><div class="sec-hd-accent"></div>Todos os Sites — SharePoint</div>
+  ${renderSitesTable('sites-tbody-sp',SITE_TABLES.sharepoint,'Nenhum site do SharePoint encontrado.')}
+  <div class="sec-hd"><div class="sec-hd-accent"></div>Tipos de Arquivo &amp; Visão Geral</div>
+  ${renderFilesOverview(spFiles,sp.file_types,null)}
+  <div class="sec-hd"><div class="sec-hd-accent"></div>Top 20 — Mais Versões &amp; Mais Pesados</div>
+  <div class="two-col" style="grid-template-columns:1fr 1fr">
+    ${topVersionedTableHTML(sp.top_versioned)}
+    ${topVersionedTableHTML(sp.top_heaviest,'Nenhum arquivo encontrado.')}
+  </div>
+  <div class="sec-hd"><div class="sec-hd-accent"></div>Oportunidades de Redução — Lixeira, Versões &amp; Arquivamento</div>
+  ${renderDiagCards(spFiles,spTrash,sp.version_savings)}
+  <div class="sec-hd"><div class="sec-hd-accent"></div>Armazenamento &amp; Lixeira</div>
+  ${renderStorageRow(spSites,spTrash)}
+  <div class="sec-hd"><div class="sec-hd-accent"></div>Crescimento Mês a Mês</div>
+  ${growthChart}
+  <div class="sec-hd"><div class="sec-hd-accent"></div>Waterfall de Redução &amp; Projeção 5 Anos</div>
+  ${renderGrowthWaterfall(spSites,spFiles,spTrash)}
+  ${renderGrowth(spSites,spFiles,spTrash,sp.growth_monthly)}`;
+}
+
+/* ── Aba OneDrive: top usuários (por tamanho), tipos de arquivo, top 20
+   versionados e um resumo de higienização — d.onedrive.* (backend) ── */
+function renderOneDriveTab(d){
+  const od=d.onedrive||{};
+  const odSites=od.sites||{total:0};
+  const odFiles=od.files||{total:0};
+  const top20Users=SITE_TABLES.onedrive.slice().sort((a,b)=>(b.size_bytes||0)-(a.size_bytes||0)).slice(0,20);
+  const usersTableHTML=topSitesTableHTML(top20Users,'Nenhum OneDrive coletado.','Usuário');
+
+  return`
+  <div class="kpi-strip" style="margin-bottom:22px">
+    <div class="kpi-card">
+      <div class="kpi-top"><div class="kpi-icon" style="background:rgba(234,90,28,.14)">
+        <svg viewBox="0 0 16 16" fill="var(--ct-orange)"><path d="M8 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6m2-3a2 2 0 1 1-4 0 2 2 0 0 1 4 0m4 8c0 1-1 1-1 1H3s-1 0-1-1 1-4 6-4 6 3 6 4m-1-.004c-.001-.246-.154-.986-.832-1.664C11.516 10.68 10.289 10 8 10s-3.516.68-4.168 1.332c-.678.678-.83 1.418-.832 1.664z"/></svg>
+      </div></div>
+      <div class="kpi-label">Contas OneDrive</div>
+      <div class="kpi-value c-orange">${fmtNum(odSites.total)}</div>
+      <div class="kpi-sub">${pct(odSites.external_sharing,odSites.total)}% com compartilhamento externo</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-top"><div class="kpi-icon" style="background:rgba(210,153,34,.14)">
+        <svg viewBox="0 0 16 16" fill="var(--yellow)"><path d="M1 2a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2zm2-1a1 1 0 0 0-1 1v1h12V2a1 1 0 0 0-1-1z"/></svg>
+      </div></div>
+      <div class="kpi-label">Armazenamento</div>
+      <div class="kpi-value c-yellow">${fmtMB(odSites.storage_mb)}</div>
+      <div class="kpi-sub">${pct(odSites.storage_mb,odSites.quota_mb)}% da cota · total ${fmtMB(odSites.quota_mb)}</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-top"><div class="kpi-icon" style="background:rgba(194,115,226,.14)">
+        <svg viewBox="0 0 16 16" fill="var(--purple)"><path d="M8 3.5a.5.5 0 0 0-1 0V9a.5.5 0 0 0 .252.434l3.5 2a.5.5 0 0 0 .496-.868L8 8.71z"/><path d="M8 16A8 8 0 1 0 8 0a8 8 0 0 0 0 16m0-1A7 7 0 1 1 8 1a7 7 0 0 1 0 14"/></svg>
+      </div></div>
+      <div class="kpi-label">Conteúdo Inativo +2 anos</div>
+      <div class="kpi-value c-purple">${fmtNum(odFiles.stale_2y||0)}</div>
+      <div class="kpi-sub">${fmtGB(odFiles.stale_2y_bytes||0)} recuperáveis via arquivamento</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-top"><div class="kpi-icon" style="background:rgba(149,193,31,.14)">
+        <svg viewBox="0 0 16 16" fill="var(--green)"><path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14m0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16"/><path d="M10.97 4.97a.75.75 0 0 1 1.07 1.05l-3.99 4.99a.75.75 0 0 1-1.08.02L4.324 8.384a.75.75 0 1 1 1.06-1.06l2.094 2.093 3.473-4.425z"/></svg>
+      </div></div>
+      <div class="kpi-label">Overhead de Versões</div>
+      <div class="kpi-value c-green">${fmtGB(Math.max(0,(odFiles.versioned_bytes||0)-(odFiles.size_bytes||0)))}</div>
+      <div class="kpi-sub">${fmtNum(odFiles.total_versions||0)} versões armazenadas</div>
+    </div>
+  </div>
+  <div class="sec-hd"><div class="sec-hd-accent"></div>Sites sem Dono Ativo</div>
+  ${orphanedSitesTableHTML(od.orphaned_sites)}
+  <div class="sec-hd"><div class="sec-hd-accent"></div>Top 20 Usuários (por armazenamento)</div>
+  ${usersTableHTML}
+  <div class="sec-hd"><div class="sec-hd-accent"></div>Todos os OneDrive</div>
+  ${renderSitesTable('sites-tbody-od',SITE_TABLES.onedrive,'Nenhum OneDrive coletado — habilite "process_onedrive" em params.json para incluir OneDrive no assessment.')}
+  <div class="sec-hd"><div class="sec-hd-accent"></div>Tipos de Arquivo &amp; Visão Geral</div>
+  ${renderFilesOverview(odFiles,od.file_types,null)}
+  <div class="sec-hd"><div class="sec-hd-accent"></div>Top 20 — Mais Versões &amp; Mais Pesados</div>
+  <div class="two-col" style="grid-template-columns:1fr 1fr">
+    ${topVersionedTableHTML(od.top_versioned)}
+    ${topVersionedTableHTML(od.top_heaviest,'Nenhum arquivo encontrado.')}
+  </div>`;
+}
+
+/* ── Aba Intune: dispositivos gerenciados (docs/migration_010_intune_dashboard.sql)
+   — so populada quando "process_intune_info": true em params.json ── */
+function fmtDaysAgo(iso){
+  if(!iso)return'Nunca';
+  const dt=new Date(iso);
+  if(isNaN(dt))return'Nunca';
+  const days=Math.floor((Date.now()-dt.getTime())/86400000);
+  if(days<=0)return'Hoje';
+  if(days===1)return'1 dia atrás';
+  return`${fmtNum(days)} dias atrás`;
+}
+function sortDevices(arr,mode){
+  const c=arr.slice();
+  if(mode==='checkin')c.sort((a,b)=>new Date(b.last_checkin_date||0)-new Date(a.last_checkin_date||0));
+  else if(mode==='name')c.sort((a,b)=>(a.device_name||'').localeCompare(b.device_name||''));
+  else c.sort((a,b)=>(b.has_risk?1:0)-(a.has_risk?1:0));
+  return c;
+}
+function ownerTypeLabel(t){
+  const m={company:'Corporativo',personal:'Pessoal (BYOD)',unknown:'Desconhecido'};
+  return m[(t||'').toLowerCase()]||t||'Desconhecido';
+}
+function intuneDeviceRowsHTML(rows){
+  if(!rows.length)return`<tr><td colspan="6"><div class="empty-crit">Nenhum dispositivo encontrado.</div></td></tr>`;
+  const avOk=s=>['uptodate','enabled','secured'].includes((s||'').toLowerCase());
+  return rows.map(dv=>`<tr>
+    <td>
+      <div class="crit-title">${dv.has_risk?'<span class="crit-badge">Risco</span>':''}${dv.owner_type==='personal'?'<span class="crit-badge" style="background:rgba(210,153,34,.18);color:var(--yellow)">BYOD</span>':''}${dv.device_name||'(sem nome)'}</div>
+      <div class="crit-url">${dv.owner_name||dv.owner_email||'(sem usuário)'}${dv.manufacturer||dv.model?' · '+[dv.manufacturer,dv.model].filter(Boolean).join(' '):''}</div>
+    </td>
+    <td class="crit-cap">${[dv.os_type,dv.os_version].filter(Boolean).join(' ')||'—'}</td>
+    <td>${dv.compliance_status==='compliant'?'<span class="c-green">Compliant</span>':`<span class="c-red">${dv.compliance_status||'unknown'}</span>`}</td>
+    <td style="text-align:center">${dv.is_encrypted?'<span class="c-green">Sim</span>':'<span class="c-red">Não</span>'}</td>
+    <td style="text-align:center">${avOk(dv.antivirus_status)?'<span class="c-green">OK</span>':`<span class="c-red">${dv.antivirus_status||'unknown'}</span>`}</td>
+    <td style="text-align:right;font-size:12px">${fmtDaysAgo(dv.last_checkin_date)}</td>
+  </tr>`).join('');
+}
+function renderIntuneDevicesTable(){
+  const total=DEVICE_TABLE.length;
+  return`
+  <div class="mat-card" style="margin-bottom:22px">
+    <div class="sites-toolbar">
+      <span class="sites-count">${total?`${fmtNum(total)} dispositivo(s)`:'Nenhum dispositivo coletado.'}</span>
+      <select class="devices-order-select">
+        <option value="risk">Em risco primeiro</option>
+        <option value="checkin">Último check-in</option>
+        <option value="name">Nome (A-Z)</option>
+      </select>
+    </div>
+    <table class="crit-table">
+      <thead><tr><th>Dispositivo</th><th>Sistema Operacional</th><th>Compliance</th><th style="text-align:center">Criptografado</th><th style="text-align:center">Antivírus</th><th style="text-align:right">Último check-in</th></tr></thead>
+      <tbody id="devices-tbody">${intuneDeviceRowsHTML(sortDevices(DEVICE_TABLE,'risk'))}</tbody>
+    </table>
+  </div>`;
+}
+function intuneBreakdownRows(items,labelFn,barColor){
+  if(!items.length)return'';
+  const max=Math.max(1,...items.map(o=>o.total));
+  return items.map(o=>`
+    <div class="mrow">
+      <div style="display:flex;flex-direction:column;gap:4px;flex:1;margin-right:12px">
+        <div style="display:flex;justify-content:space-between;font-size:12px"><span>${labelFn(o)}</span><span style="font-weight:600">${fmtNum(o.total)}</span></div>
+        <div class="og-bar-wrap" style="height:6px">
+          <div class="og-bar-fill" style="width:${Math.round(o.total/max*100)}%;background:${barColor}"></div>
+        </div>
+      </div>
+      <div style="font-size:11px;color:var(--muted);white-space:nowrap">${fmtNum(o.compliant)} compliant · ${fmtNum(o.encrypted)} criptografados</div>
+    </div>`).join('');
+}
+function intuneComplianceFailuresHTML(rows){
+  if(!rows.length)return'<div class="empty-msg">Nenhuma falha de compliance por política encontrada (ou histórico ainda não coletado nesta execução).</div>';
+  return`
+  <table class="crit-table">
+    <thead><tr><th>Política</th><th>Plataforma</th><th style="text-align:right">Dispositivos Reprovando</th></tr></thead>
+    <tbody>${rows.map(r=>`<tr>
+      <td class="crit-title">${r.policy_name}</td>
+      <td class="crit-cap">${r.platform_type}</td>
+      <td style="text-align:right;font-weight:600" class="c-red">${fmtNum(r.device_count)}</td>
+    </tr>`).join('')}</tbody>
+  </table>`;
+}
+function renderIntuneTab(d){
+  const iv=d.intune||{total:0};
+  const byOs=d.intune_by_os||[];
+  const byOwner=d.intune_by_ownertype||[];
+  const compFailures=d.intune_compliance_failures||[];
+  if(!iv.total){
+    return'<div class="empty-msg">Nenhum dispositivo Intune coletado — habilite "process_intune_info" em params.json e rode um novo assessment.</div>';
+  }
+  const osRows=intuneBreakdownRows(byOs,o=>o.os_type,'var(--ct-orange)');
+  const ownerRows=intuneBreakdownRows(byOwner,o=>ownerTypeLabel(o.owner_type),'var(--yellow)');
+  const byodTotal=byOwner.find(o=>(o.owner_type||'').toLowerCase()==='personal');
+
+  return`
+  <div class="kpi-strip" style="margin-bottom:22px">
+    <div class="kpi-card">
+      <div class="kpi-top"><div class="kpi-icon" style="background:rgba(234,90,28,.14)">
+        <svg viewBox="0 0 16 16" fill="var(--ct-orange)"><path d="M13.5 3a.5.5 0 0 1 .5.5V11H2V3.5a.5.5 0 0 1 .5-.5zm-11-1A1.5 1.5 0 0 0 1 3.5V12h14V3.5A1.5 1.5 0 0 0 13.5 2zM0 12.5h16a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 0 12.5"/></svg>
+      </div></div>
+      <div class="kpi-label">Dispositivos Gerenciados</div>
+      <div class="kpi-value c-orange">${fmtNum(iv.total)}</div>
+      <div class="kpi-sub">${fmtNum(iv.stale_30d)} sem check-in há 30+ dias</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-top"><div class="kpi-icon" style="background:rgba(63,185,80,.14)">
+        <svg viewBox="0 0 16 16" fill="var(--green)"><path d="M13.854 3.646a.5.5 0 0 1 0 .708l-7 7a.5.5 0 0 1-.708 0l-3.5-3.5a.5.5 0 1 1 .708-.708L6.5 10.293l6.646-6.647a.5.5 0 0 1 .708 0"/></svg>
+      </div></div>
+      <div class="kpi-label">Em Compliance</div>
+      <div class="kpi-value c-green">${pct(iv.compliant,iv.total)}%</div>
+      <div class="kpi-sub">${fmtNum(iv.compliant)} de ${fmtNum(iv.total)} dispositivos</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-top"><div class="kpi-icon" style="background:rgba(210,153,34,.14)">
+        <svg viewBox="0 0 16 16" fill="var(--yellow)"><path d="M8 1a2 2 0 0 1 2 2v4H6V3a2 2 0 0 1 2-2m3 6V3a3 3 0 0 0-6 0v4a2 2 0 0 0-2 2v5a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2"/></svg>
+      </div></div>
+      <div class="kpi-label">Criptografia (BitLocker/FileVault)</div>
+      <div class="kpi-value c-yellow">${pct(iv.encrypted,iv.total)}%</div>
+      <div class="kpi-sub">${fmtNum(iv.not_encrypted)} sem criptografia</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-top"><div class="kpi-icon" style="background:rgba(248,81,73,.14)">
+        <svg viewBox="0 0 16 16" fill="var(--red)"><path d="M8.982 1.566a1.13 1.13 0 0 0-1.964 0L.165 13.233c-.457.778.091 1.767.982 1.767h13.706c.891 0 1.439-.99.982-1.767zM8 5c.535 0 .954.462.9.995l-.35 3.507a.552.552 0 0 1-1.1 0L7.1 5.995A.905.905 0 0 1 8 5m.002 6a1 1 0 1 1 0 2 1 1 0 0 1 0-2"/></svg>
+      </div></div>
+      <div class="kpi-label">Em Risco</div>
+      <div class="kpi-value c-red">${fmtNum(iv.at_risk)}</div>
+      <div class="kpi-sub">${fmtNum(iv.jailbroken)} jailbreak/root · ${fmtNum(iv.antivirus_issue)} c/ antivírus desatualizado</div>
+    </div>
+  </div>
+  <div class="sec-hd"><div class="sec-hd-accent"></div>Distribuição por Sistema Operacional</div>
+  <div class="mat-card" style="margin-bottom:22px;padding:6px 15px">${osRows||'<div class="empty-msg">Sem dados de SO.</div>'}</div>
+  <div class="sec-hd"><div class="sec-hd-accent"></div>Propriedade do Dispositivo (Corporativo vs. BYOD)${byodTotal?` <span style="font-weight:400;color:var(--muted);font-size:11px">— ${fmtNum(byodTotal.total)} dispositivo(s) pessoal(is) com acesso a dados corporativos</span>`:''}</div>
+  <div class="mat-card" style="margin-bottom:22px;padding:6px 15px">${ownerRows||'<div class="empty-msg">Sem dados de propriedade do dispositivo.</div>'}</div>
+  <div class="sec-hd"><div class="sec-hd-accent"></div>Principais Falhas de Compliance por Política</div>
+  <div class="mat-card" style="margin-bottom:22px">${intuneComplianceFailuresHTML(compFailures)}</div>
+  <div class="sec-hd"><div class="sec-hd-accent"></div>Todos os Dispositivos</div>
+  ${renderIntuneDevicesTable()}`;
+}
+
+/* ── Aba Licenciamento: utilização de licenças M365 (docs/migration_016_licensing_dashboard.sql)
+   — dbo.licensing_info, so populada quando "process_licensing_info": true ── */
+function licensingRowsHTML(skus){
+  if(!skus.length)return`<tr><td colspan="5"><div class="empty-crit">Nenhuma licença encontrada.</div></td></tr>`;
+  return skus.map(s=>{
+    const barColor=s.utilization_pct<50?'var(--red)':s.utilization_pct>90?'var(--yellow)':'var(--ct-green)';
+    return`<tr>
+      <td>
+        <div class="crit-title">${s.friendly_name}</div>
+        <div class="crit-url">${s.sku_part_number}</div>
+      </td>
+      <td style="text-align:right;font-size:12px">${fmtNum(s.total_licenses)}</td>
+      <td style="text-align:right;font-size:12px">${fmtNum(s.used_licenses)}</td>
+      <td style="text-align:right;font-size:12px" class="${s.available_licenses>0?'c-orange':''}">${fmtNum(s.available_licenses)}</td>
+      <td style="min-width:150px">
+        <div style="display:flex;align-items:center;gap:8px">
+          <div class="og-bar-wrap" style="height:6px;flex:1">
+            <div class="og-bar-fill" style="width:${Math.min(100,s.utilization_pct)}%;background:${barColor}"></div>
+          </div>
+          <span style="font-size:11px;font-weight:600;white-space:nowrap;min-width:38px;text-align:right">${fmtNum(s.utilization_pct,1)}%</span>
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
+}
+function renderLicensingTab(d){
+  const lic=d.licensing||{total_skus:0};
+  const skus=LICENSING_SKUS;
+  if(!lic.total_skus){
+    return'<div class="empty-msg">Nenhuma licença coletada — habilite "process_licensing_info" em params.json e rode um novo assessment.</div>';
+  }
+  const overallPct=pct(lic.used_licenses,lic.total_licenses);
+
+  // FinOps simplista: custo mensal ocioso = licencas disponiveis (nao
+  // atribuidas) x preco de referencia do SKU. So soma SKUs com preco
+  // conhecido em LICENSE_REF_PRICES; o resto fica de fora do $ (mas ainda
+  // conta como licenca ociosa nos KPIs acima).
+  const priced=skus
+    .map(s=>({...s,refPrice:LICENSE_REF_PRICES[s.sku_part_number]||0}))
+    .filter(s=>s.refPrice>0 && s.available_licenses>0)
+    .map(s=>({...s,wastedUsd:s.available_licenses*s.refPrice}))
+    .sort((a,b)=>b.wastedUsd-a.wastedUsd);
+  const totalWastedUsd=priced.reduce((a,s)=>a+s.wastedUsd,0);
+  const unpricedAvailable=skus.filter(s=>!LICENSE_REF_PRICES[s.sku_part_number]).reduce((a,s)=>a+(s.available_licenses||0),0);
+
+  const finopsBannerHTML=totalWastedUsd>=1?`
+  <div class="hero" style="margin-bottom:22px">
+    <div class="hero-layout">
+      <div>
+        <div class="hero-eyebrow">FinOps · Licenciamento Ocioso</div>
+        <div class="hero-amount">${fmtUSD(totalWastedUsd)}<span>/mês</span></div>
+        <div class="hero-desc">em licenças pagas e não atribuídas a nenhum usuário — estimativa por preço de tabela público da Microsoft, pode não refletir o contrato/desconto real do cliente.${unpricedAvailable>0?` Há ainda ${fmtNum(unpricedAvailable)} licença(s) ociosa(s) em SKU(s) sem preço de referência, não incluídas neste valor.`:''}</div>
+      </div>
+      <div class="hero-pills">
+        ${priced.slice(0,3).map(s=>`<div class="hero-pill"><div class="hero-pill-label">${s.friendly_name}</div><div class="hero-pill-value">${fmtUSD(s.wastedUsd)}</div><div class="hero-pill-period">/mês</div></div>`).join('')}
+      </div>
+    </div>
+  </div>`:`
+  <div class="hero" style="margin-bottom:22px;background:linear-gradient(135deg,#1a5c32 0%,#0d3d22 100%)">
+    <div class="hero-layout" style="grid-template-columns:1fr">
+      <div>
+        <div class="hero-eyebrow">FinOps · Licenciamento Ocioso</div>
+        <div class="hero-amount" style="font-size:40px">Licenciamento eficiente<span style="font-size:16px"> — sem ociosidade relevante identificada.</span></div>
+        <div class="hero-desc">Nenhuma licença ociosa com custo de referência conhecido neste assessment.${unpricedAvailable>0?` (${fmtNum(unpricedAvailable)} licença(s) ociosa(s) em SKU(s) sem preço de referência cadastrado.)`:''}</div>
+      </div>
+    </div>
+  </div>`;
+
+  return`
+  ${finopsBannerHTML}
+  <div class="kpi-strip" style="margin-bottom:22px">
+    <div class="kpi-card">
+      <div class="kpi-top"><div class="kpi-icon" style="background:rgba(234,90,28,.14)">
+        <svg viewBox="0 0 16 16" fill="var(--ct-orange)"><path d="M0 4a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2zm1 1v7a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V5zm14-3H2a1 1 0 0 0-1 1v1h14V3a1 1 0 0 0-1-1"/></svg>
+      </div></div>
+      <div class="kpi-label">Total de Licenças</div>
+      <div class="kpi-value c-orange">${fmtNum(lic.total_licenses)}</div>
+      <div class="kpi-sub">${fmtNum(lic.total_skus)} SKU(s) distintos</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-top"><div class="kpi-icon" style="background:rgba(63,185,80,.14)">
+        <svg viewBox="0 0 16 16" fill="var(--green)"><path d="M13.854 3.646a.5.5 0 0 1 0 .708l-7 7a.5.5 0 0 1-.708 0l-3.5-3.5a.5.5 0 1 1 .708-.708L6.5 10.293l6.646-6.647a.5.5 0 0 1 .708 0"/></svg>
+      </div></div>
+      <div class="kpi-label">Em Uso</div>
+      <div class="kpi-value c-green">${overallPct}%</div>
+      <div class="kpi-sub">${fmtNum(lic.used_licenses)} de ${fmtNum(lic.total_licenses)} licenças atribuídas</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-top"><div class="kpi-icon" style="background:rgba(210,153,34,.14)">
+        <svg viewBox="0 0 16 16" fill="var(--yellow)"><path d="M0 4a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2zm1 1v7a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V5zm14-3H2a1 1 0 0 0-1 1v1h14V3a1 1 0 0 0-1-1"/></svg>
+      </div></div>
+      <div class="kpi-label">Ociosas</div>
+      <div class="kpi-value c-yellow">${fmtNum(lic.available_licenses)}</div>
+      <div class="kpi-sub">licenças pagas sem uso atribuído</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-top"><div class="kpi-icon" style="background:rgba(248,81,73,.14)">
+        <svg viewBox="0 0 16 16" fill="var(--red)"><path d="M8.982 1.566a1.13 1.13 0 0 0-1.964 0L.165 13.233c-.457.778.091 1.767.982 1.767h13.706c.891 0 1.439-.99.982-1.767zM8 5c.535 0 .954.462.9.995l-.35 3.507a.552.552 0 0 1-1.1 0L7.1 5.995A.905.905 0 0 1 8 5m.002 6a1 1 0 1 1 0 2 1 1 0 0 1 0-2"/></svg>
+      </div></div>
+      <div class="kpi-label">Baixa Utilização</div>
+      <div class="kpi-value c-red">${fmtNum(lic.low_utilization_skus)}</div>
+      <div class="kpi-sub">SKU(s) com &lt;50% de uso · ${fmtNum(lic.fully_used_skus)} no limite (100%+)</div>
+    </div>
+  </div>
+  <div class="sec-hd"><div class="sec-hd-accent"></div>Licenças por SKU</div>
+  <div class="mat-card" style="margin-bottom:22px">
+    <table class="crit-table">
+      <thead><tr><th>Licença</th><th style="text-align:right">Total</th><th style="text-align:right">Em Uso</th><th style="text-align:right">Disponíveis</th><th>Utilização</th></tr></thead>
+      <tbody>${licensingRowsHTML(skus)}</tbody>
+    </table>
+  </div>`;
+}
+
+/* ── Aba Exchange: tamanho das caixas de email (Get-MailboxInfo.ps1,
+   docs/migration_mailbox_dashboard.sql) — dbo.mailbox_info, so populada
+   quando "process_mailbox_info": true em params.json. storage_used_bytes e
+   sempre a caixa ATIVA; has_archive e so indicador sim/nao (o Graph nao
+   expoe o tamanho numerico do archive). ── */
+function mailboxRowsHTML(list){
+  if(!list.length)return`<tr><td colspan="5"><div class="empty-crit">Nenhuma caixa encontrada.</div></td></tr>`;
+  return list.map(m=>{
+    const barColor=m.quota_pct>=90?'var(--red)':m.quota_pct>=70?'var(--yellow)':'var(--ct-green)';
+    return`<tr>
+      <td>
+        <div class="crit-title">${m.display_name||m.user_principal_name}</div>
+        <div class="crit-url">${m.user_principal_name}</div>
+      </td>
+      <td style="text-align:right;font-size:12px">${fmtNum(m.item_count)}</td>
+      <td style="text-align:right;font-size:12px;font-weight:600">${fmtGB(m.storage_used_bytes)}</td>
+      <td style="min-width:140px">
+        ${m.quota_bytes>0?`<div style="display:flex;align-items:center;gap:8px">
+          <div class="og-bar-wrap" style="height:6px;flex:1">
+            <div class="og-bar-fill" style="width:${Math.min(100,m.quota_pct)}%;background:${barColor}"></div>
+          </div>
+          <span style="font-size:11px;font-weight:600;white-space:nowrap;min-width:34px;text-align:right">${fmtNum(m.quota_pct,1)}%</span>
+        </div>`:'<span style="font-size:11px;color:var(--muted)">—</span>'}
+      </td>
+      <td style="text-align:center">${m.has_archive?'<span class="crit-badge" style="background:rgba(63,185,80,.14);color:var(--green)">Sim</span>':'<span style="font-size:11px;color:var(--muted)">Não</span>'}</td>
+    </tr>`;
+  }).join('');
+}
+function renderExchangeTab(d){
+  const mb=d.mailbox||{total:0};
+  const list=MAILBOX_LIST;
+  if(!mb.total){
+    return'<div class="empty-msg">Nenhuma caixa coletada — habilite "process_mailbox_info" em params.json (requer a permissão Reports.Read.All concedida no App Registration) e rode um novo assessment.</div>';
+  }
+  return`
+  <div class="empty-msg" style="margin:0 0 14px;padding:0;text-align:left">Tamanho da caixa ATIVA por usuário (Microsoft Graph Reports API). O indicador de Archive é apenas sim/não — o Graph não expõe o tamanho numérico da caixa de arquivamento.</div>
+  <div class="kpi-strip" style="margin-bottom:22px">
+    <div class="kpi-card">
+      <div class="kpi-top"><div class="kpi-icon" style="background:rgba(234,90,28,.14)">
+        <svg viewBox="0 0 16 16" fill="var(--ct-orange)"><path d="M2.5 3A1.5 1.5 0 0 0 1 4.5v.793c.026.009.051.02.076.032L7.674 8.51c.206.1.446.1.652 0l6.598-3.185A.804.804 0 0 1 15 5.293V4.5A1.5 1.5 0 0 0 13.5 3zM15 6.437l-5.577 2.693c-.541.262-1.204.262-1.746 0L2 6.437V11.5A1.5 1.5 0 0 0 3.5 13h9a1.5 1.5 0 0 0 1.5-1.5z"/></svg>
+      </div></div>
+      <div class="kpi-label">Caixas Coletadas</div>
+      <div class="kpi-value c-orange">${fmtNum(mb.total)}</div>
+      <div class="kpi-sub">${fmtNum(mb.with_archive)} com archive habilitado</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-top"><div class="kpi-icon" style="background:rgba(210,153,34,.14)">
+        <svg viewBox="0 0 16 16" fill="var(--yellow)"><path d="M1 2a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2zm2-1a1 1 0 0 0-1 1v1h12V2a1 1 0 0 0-1-1z"/></svg>
+      </div></div>
+      <div class="kpi-label">Armazenamento Total</div>
+      <div class="kpi-value c-yellow">${fmtGB(mb.storage_total_bytes)}</div>
+      <div class="kpi-sub">média de ${fmtGB(mb.storage_avg_bytes)} por caixa</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-top"><div class="kpi-icon" style="background:rgba(248,81,73,.14)">
+        <svg viewBox="0 0 16 16" fill="var(--red)"><path d="M8.982 1.566a1.13 1.13 0 0 0-1.964 0L.165 13.233c-.457.778.091 1.767.982 1.767h13.706c.891 0 1.439-.99.982-1.767zM8 5c.535 0 .954.462.9.995l-.35 3.507a.552.552 0 0 1-1.1 0L7.1 5.995A.905.905 0 0 1 8 5m.002 6a1 1 0 1 1 0 2 1 1 0 0 1 0-2"/></svg>
+      </div></div>
+      <div class="kpi-label">Perto da Cota</div>
+      <div class="kpi-value c-red">${fmtNum(mb.near_quota)}</div>
+      <div class="kpi-sub">caixas com uso ≥ 90% da cota de envio/recebimento</div>
+    </div>
+  </div>
+  <div class="sec-hd"><div class="sec-hd-accent"></div>Caixas por Tamanho</div>
+  <div class="mat-card" style="margin-bottom:22px">
+    <table class="crit-table">
+      <thead><tr><th>Usuário</th><th style="text-align:right">Itens</th><th style="text-align:right">Tamanho</th><th>Cota</th><th style="text-align:center">Archive</th></tr></thead>
+      <tbody>${mailboxRowsHTML(list)}</tbody>
+    </table>
+  </div>`;
+}
+
+/* ── Aba Adoção: atividade real de usuários (docs/migration_018_adoption_dashboard.sql)
+   — dbo.user_activity, requer "process_adoption_info": true + permissão Graph
+   Reports.Read.All. Mesma fonte de dados do dashboard "Análise de Utilização
+   do Microsoft 365" da própria Microsoft, focado em SharePoint/OneDrive/
+   Exchange/Teams (últimos 30 dias). ── */
+function adoptionBarsHTML(items){
+  if(!items.length)return'<div class="empty-msg">Sem dados de adoção.</div>';
+  return items.map(o=>{
+    const activePct=o.licensed_users>0?Math.round(o.active_users/o.licensed_users*100):0;
+    const barColor=activePct<30?'var(--red)':activePct<60?'var(--yellow)':'var(--ct-green)';
+    return`<div class="mrow">
+      <div style="display:flex;flex-direction:column;gap:4px;flex:1;margin-right:12px">
+        <div style="display:flex;justify-content:space-between;font-size:12px"><span>${o.service}</span><span style="font-weight:600">${activePct}% ativos</span></div>
+        <div class="og-bar-wrap" style="height:6px">
+          <div class="og-bar-fill" style="width:${activePct}%;background:${barColor}"></div>
+        </div>
+      </div>
+      <div style="font-size:11px;color:var(--muted);white-space:nowrap">${fmtNum(o.active_users)} de ${fmtNum(o.licensed_users)} licenciados</div>
+    </div>`;
+  }).join('');
+}
+function adoptionInactiveRowsHTML(rows){
+  if(!rows.length)return`<tr><td colspan="3"><div class="empty-crit">Nenhum usuário inativo encontrado.</div></td></tr>`;
+  return rows.map(r=>`<tr>
+    <td class="crit-title">${r.user_principal_name}</td>
+    <td class="crit-cap">${r.service}</td>
+    <td style="text-align:right;font-size:12px">${fmtDaysAgo(r.last_activity_date)}</td>
+  </tr>`).join('');
+}
+function renderAdoptionTab(d){
+  const byService=d.adoption_by_service||[];
+  const inactive=ADOPTION_INACTIVE;
+  if(!byService.length){
+    return'<div class="empty-msg">Nenhum dado de adoção coletado — habilite "process_adoption_info" em params.json (requer a permissão Reports.Read.All concedida no App Registration) e rode um novo assessment.</div>';
+  }
+  const find=svc=>byService.find(o=>o.service===svc)||{service:svc,licensed_users:0,active_users:0,inactive_users:0};
+  const sp=find('SharePoint'),od=find('OneDrive'),ex=find('Exchange'),tm=find('Teams');
+  const pctOf=o=>o.licensed_users>0?Math.round(o.active_users/o.licensed_users*100):0;
+  const kpiColor=pctv=>pctv<30?'var(--red)':pctv<60?'var(--yellow)':'var(--ct-green)';
+  const kpiBg=pctv=>pctv<30?'rgba(248,81,73,.14)':pctv<60?'rgba(210,153,34,.14)':'rgba(63,185,80,.14)';
+
+  const kpiCard=(label,o,iconPath)=>{
+    const p=pctOf(o);
+    return`<div class="kpi-card">
+      <div class="kpi-top"><div class="kpi-icon" style="background:${kpiBg(p)}">
+        <svg viewBox="0 0 16 16" fill="${kpiColor(p)}"><path d="${iconPath}"/></svg>
+      </div></div>
+      <div class="kpi-label">${label}</div>
+      <div class="kpi-value" style="color:${kpiColor(p)}">${p}%</div>
+      <div class="kpi-sub">${fmtNum(o.active_users)} de ${fmtNum(o.licensed_users)} ativos (30d)</div>
+    </div>`;
+  };
+
+  return`
+  <div class="empty-msg" style="margin:0 0 14px;padding:0;text-align:left">Atividade real dos últimos 30 dias por usuário (Microsoft Graph Reports API) — mesma fonte de dados do dashboard "Análise de Utilização do Microsoft 365" da própria Microsoft. Se o tenant tiver a opção "Conceal user names in reports" habilitada, os nomes de usuário aparecem anonimizados.</div>
+  <div class="kpi-strip" style="margin-bottom:22px">
+    ${kpiCard('SharePoint',sp,'M2.5 4a.5.5 0 1 0 0-1 .5.5 0 0 0 0 1zm2 0a.5.5 0 1 0 0-1 .5.5 0 0 0 0 1zm2 0a.5.5 0 1 0 0-1 .5.5 0 0 0 0 1zM2 1a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V3a2 2 0 0 0-2-2H2zm13 2v2H1V3a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1zM2 14a1 1 0 0 1-1-1V6h14v7a1 1 0 0 1-1 1H2z')}
+    ${kpiCard('OneDrive',od,'M4.318 8.62a3.5 3.5 0 0 0-3.024 1.75A3.5 3.5 0 0 0 4.5 15h9a2.5 2.5 0 0 0 .958-4.808 3.5 3.5 0 0 0-4.35-4.153 4.5 4.5 0 0 0-8.37 2.462q0 .264.033.523A3.5 3.5 0 0 0 0 12.5')}
+    ${kpiCard('Exchange',ex,'M2.5 3A1.5 1.5 0 0 0 1 4.5v.793c.026.009.051.02.076.032L7.674 8.51c.206.1.446.1.652 0l6.598-3.185A.804.804 0 0 1 15 5.293V4.5A1.5 1.5 0 0 0 13.5 3zM15 6.437l-5.577 2.693c-.541.262-1.204.262-1.746 0L2 6.437V11.5A1.5 1.5 0 0 0 3.5 13h9a1.5 1.5 0 0 0 1.5-1.5z')}
+    ${kpiCard('Teams',tm,'M8 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6m2-3a2 2 0 1 1-4 0 2 2 0 0 1 4 0m4 8c0 1-1 1-1 1H3s-1 0-1-1 1-4 6-4 6 3 6 4m-1-.004c-.001-.246-.154-.986-.832-1.664C11.516 10.68 10.289 10 8 10s-3.516.68-4.168 1.332c-.678.678-.83 1.418-.832 1.664z')}
+  </div>
+  <div class="sec-hd"><div class="sec-hd-accent"></div>Licenciados vs. Ativos por Serviço</div>
+  <div class="mat-card" style="margin-bottom:22px;padding:6px 15px">${adoptionBarsHTML(byService)}</div>
+  <div class="sec-hd"><div class="sec-hd-accent"></div>Usuários Licenciados Sem Atividade Recente</div>
+  <div class="mat-card" style="margin-bottom:22px">
+    <table class="crit-table">
+      <thead><tr><th>Usuário</th><th>Serviço</th><th style="text-align:right">Última Atividade</th></tr></thead>
+      <tbody>${adoptionInactiveRowsHTML(inactive)}</tbody>
+    </table>
+  </div>`;
+}
+
+/* ── Execution selector ── */
+let EXEC_HISTORY=[]; // mais recente primeiro (ordem da API)
+async function loadExecutions(){
+  const sel=document.getElementById('exec-select');
+  try{
+    const r=await fetch('/api/executions');
+    const raw=await r.json();
+    // ConvertTo-Json do PS retorna objeto (nao array) quando ha 1 item — normaliza
+    const execs=Array.isArray(raw)?raw:(raw&&raw.execution_id?[raw]:[]);
+    EXEC_HISTORY=execs;
+    if(execs.length===0){sel.innerHTML='<option value="">Sem execuções</option>';return null;}
+    sel.innerHTML=execs.map(e=>{
+      const when=e.start_time||e.execution_id.substring(0,8)+'…';
+      const label=e.client_name?`${e.client_name} — ${when}`:when;
+      const parts=[];
+      if(e.sites>0) parts.push(e.sites.toLocaleString('pt-BR')+' sites');
+      if(e.files>0) parts.push(e.files.toLocaleString('pt-BR')+' arq.');
+      return`<option value="${e.execution_id}">${label}${parts.length?' · '+parts.join(' · '):''}</option>`;
+    }).join('');
+    return execs[0].execution_id;
+  }catch(err){
+    sel.innerHTML='<option value="">Erro ao carregar</option>';
+    return null;
+  }
+}
+
+function renderHeaderRight(executionId){
+  const wrap=document.getElementById('page-header-right');
+  const cur=EXEC_HISTORY.find(e=>e.execution_id===executionId)||EXEC_HISTORY[0];
+  const parts=[];
+  if(cur&&cur.start_time){
+    parts.push(`<div class="date-badge">
+      <svg viewBox="0 0 16 16" fill="currentColor"><path d="M3.5 0a.5.5 0 0 1 .5.5V1h8V.5a.5.5 0 0 1 1 0V1h1a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V3a2 2 0 0 1 2-2h1V.5a.5.5 0 0 1 .5-.5M1 4v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V4z"/></svg>
+      Execução de ${cur.start_time}
+    </div>`);
+  }
+  const idx=EXEC_HISTORY.findIndex(e=>e.execution_id===(cur&&cur.execution_id));
+  const prev=idx>=0?EXEC_HISTORY[idx+1]:null; // API retorna mais recente primeiro
+  if(cur&&prev&&prev.sites!=null&&cur.sites!=null){
+    const d=(cur.sites||0)-(prev.sites||0);
+    const cls=d>0?'up':d<0?'down':'flat';
+    parts.push(`<span class="delta-badge ${cls}">${d>0?'▲':d<0?'▼':'—'} ${d>0?'+':''}${d} sites vs. execução anterior</span>`);
+  }
+  wrap.innerHTML=parts.join('');
+}
+
+/* ── Blocos de informação colapsáveis: cada ".sec-hd" vira um acordeão para
+   o conteúdo (irmãos no DOM) até o próximo ".sec-hd". Começa colapsado -
+   usuário expande o que quiser ver. Roda 1x por carga do dashboard. ── */
+function initCollapsibles(){
+  document.querySelectorAll('.sec-hd').forEach(hd=>{
+    if(!hd.querySelector('.sec-chevron')){
+      const chev=document.createElement('span');
+      chev.className='sec-chevron';
+      chev.innerHTML='<svg viewBox="0 0 16 16" fill="currentColor"><path d="M1.646 4.646a.5.5 0 0 1 .708 0L8 10.293l5.646-5.647a.5.5 0 0 1 .708.708l-6 6a.5.5 0 0 1-.708 0l-6-6a.5.5 0 0 1 0-.708z"/></svg>';
+      hd.appendChild(chev);
+    }
+    hd.classList.add('collapsed');
+    let el=hd.nextElementSibling;
+    while(el&&!el.classList.contains('sec-hd')){
+      el.classList.add('sec-collapsed-content');
+      el=el.nextElementSibling;
+    }
+  });
+}
+
+async function load(executionId){
+  const el=document.getElementById('page-content');
+  el.innerHTML='<div class="loading"><div class="spinner"></div> Carregando...</div>';
+  try{
+    const url=executionId?`/api/dashboard?execution=${encodeURIComponent(executionId)}`:'/api/dashboard';
+    const r=await fetch(url);
+    const d=await r.json();
+    if(d.error&&!d.sites){el.innerHTML=`<div class="error-box">Erro: ${d.error}</div>`;return;}
+    el.innerHTML=render(d,executionId);
+    initCollapsibles();
+    renderHeaderRight(executionId);
+    const short=executionId?(executionId.length>12?executionId.substring(0,8)+'…':executionId):'';
+    const now=new Date();
+    document.getElementById('last-update-title').textContent=EXEC_HISTORY.length?`${EXEC_HISTORY.length} execução(ões)`:'Sem execuções';
+    document.getElementById('last-update-sub').textContent='Exec '+(short||'atual')+' · '+now.toLocaleTimeString('pt-BR');
+    document.getElementById('print-header-meta').textContent=`Execução ${short||'atual'} · Gerado em ${now.toLocaleDateString('pt-BR')} às ${now.toLocaleTimeString('pt-BR')}`;
+    document.title='CT Assessment - Dashboard - '+now.toLocaleDateString('pt-BR').replace(/\//g,'-');
+  }catch(e){
+    el.innerHTML=`<div class="error-box">Falha ao conectar: ${e.message}<br><span style="opacity:.65">Verifique se o servidor está rodando em http://localhost:8099</span></div>`;
+  }
+}
+
+async function init(){
+  const firstExecId=await loadExecutions();
+  await load(firstExecId);
+  document.getElementById('exec-select').addEventListener('change',function(){load(this.value||null)});
+  // Filtros de ano/versão + tooltip dos gráficos (mesma função reaproveitada
+  // no HTML exportado - ver bindReportInteractions/exportHtmlReport)
+  bindReportInteractions();
+  // Ordenacao das tabelas "Todos os Sites" (SharePoint / OneDrive)
+  document.addEventListener('change',function(e){
+    const sel=e.target.closest('.sites-order-select');
+    if(!sel)return;
+    const targetId=sel.getAttribute('data-target');
+    const key=targetId==='sites-tbody-od'?'onedrive':'sharepoint';
+    const tbody=document.getElementById(targetId);
+    if(!tbody)return;
+    tbody.innerHTML=siteRowsHTML(sortSites(SITE_TABLES[key],sel.value));
+  });
+  // Ordenacao da tabela "Todos os Dispositivos" (aba Intune)
+  document.addEventListener('change',function(e){
+    const sel=e.target.closest('.devices-order-select');
+    if(!sel)return;
+    const tbody=document.getElementById('devices-tbody');
+    if(!tbody)return;
+    tbody.innerHTML=intuneDeviceRowsHTML(sortDevices(DEVICE_TABLE,sel.value));
+  });
+  // Abas Visão Geral / SharePoint / OneDrive
+  document.addEventListener('click',function(e){
+    const btn=e.target.closest('.tab-btn');
+    if(!btn)return;
+    const tab=btn.getAttribute('data-tab');
+    document.querySelectorAll('.tab-btn').forEach(b=>b.classList.toggle('active',b===btn));
+    document.querySelectorAll('.tab-panel').forEach(p=>p.classList.toggle('active',p.getAttribute('data-tab')===tab));
+  });
+  // Blocos de informação colapsáveis (clique no cabeçalho da seção)
+  document.addEventListener('click',function(e){
+    const hd=e.target.closest('.sec-hd');
+    if(!hd)return;
+    const collapsed=hd.classList.toggle('collapsed');
+    let el=hd.nextElementSibling;
+    while(el&&!el.classList.contains('sec-hd')){
+      el.classList.toggle('sec-collapsed-content',collapsed);
+      el=el.nextElementSibling;
+    }
+  });
+}
+init();
+</script>
+</body>
+</html>

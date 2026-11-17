@@ -64,8 +64,13 @@ __pycache__/
 .env.test.local
 
 # Package lock (optional, choose based on your preference)
-package-lock.json
 yarn.lock
 
 # Azure
 local.settings.json
+
+# Coletor (job) em execução local
+job/logs/
+job/src/progress/
+job/src/done/
+*.pfx

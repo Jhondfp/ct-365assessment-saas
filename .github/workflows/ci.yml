@@ -1,0 +1,38 @@
+name: CI
+on:
+  push:
+  pull_request:
+
+jobs:
+  portal:
+    runs-on: ubuntu-latest
+    defaults: { run: { working-directory: portal } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm, cache-dependency-path: portal/package-lock.json }
+      - run: npm ci
+      - run: npx tsc --noEmit
+      - run: npx next build
+        env: { DATABASE_URL: "sqlserver://localhost:1433;database=x;user=sa;password=x", AUTH_SECRET: ci-build-secret }
+
+  job:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Sintaxe dos scripts PowerShell
+        shell: pwsh
+        run: |
+          $errs = foreach ($f in Get-ChildItem job -Recurse -Filter *.ps1) {
+            $t = $null; $e = $null
+            [System.Management.Automation.Language.Parser]::ParseFile($f.FullName, [ref]$t, [ref]$e) | Out-Null
+            $e | ForEach-Object { "$($f.FullName):$($_.Extent.StartLineNumber) $($_.Message)" }
+          }
+          if ($errs) { $errs; exit 1 }
+      - run: docker build -t ctassessment-job:ci job
+
+  infra:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: az bicep build --file infra/main.bicep --stdout > /dev/null

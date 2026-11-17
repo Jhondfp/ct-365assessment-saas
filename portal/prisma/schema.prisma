@@ -1,0 +1,156 @@
+// CT Assessment 365 SaaS — control plane (Azure SQL / SQL Server)
+// Os dados coletados de cada cliente ficam num banco próprio (silo), com o schema do coletor
+// ct-assessmentspo (portal/sql/tenant). Aqui ficam só usuários, clientes, conexões e execuções.
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlserver"
+  url      = env("DATABASE_URL")
+}
+
+// ───────────── Usuários e papéis ─────────────
+
+model User {
+  id            String     @id @default(cuid())
+  name          String?
+  email         String     @unique
+  /// object id e tenant do Entra ID do último login Microsoft
+  entraOid      String?
+  entraTenantId String?
+  roleLinks     UserRole[]
+  active        Boolean    @default(true)
+  /// clientes que um Visualizador pode ver (Administrador e Executor veem todos)
+  clientAccess  UserClient[]
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+  lastLoginAt   DateTime?
+  /// Login local (e-mail + senha). Hash scrypt, nunca a senha.
+  passwordHash       String?
+  mustChangePassword Boolean   @default(false)
+  passwordChangedAt  DateTime?
+  failedLogins       Int       @default(0)
+  lockedUntil        DateTime?
+
+  assessments Assessment[]
+  auditLogs   AuditLog[]
+}
+
+/// Perfil do usuário: ADMIN, EXECUTOR ou VISUALIZADOR. Ver src/lib/rbac.ts
+model UserRole {
+  userId String
+  role   String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@id([userId, role])
+  @@index([role])
+}
+
+/// Clientes liberados para um Visualizador.
+model UserClient {
+  userId   String
+  clientId String
+  user     User   @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  client   Client @relation(fields: [clientId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@id([userId, clientId])
+  @@index([clientId])
+}
+
+// ───────────── Clientes (tenants do SaaS) ─────────────
+
+model Client {
+  id        String   @id @default(cuid())
+  name      String
+  /// identificador curto, usado no nome do banco do cliente (ctassess_<slug>)
+  slug      String   @unique
+  document  String?
+  notes     String?  @db.NVarChar(Max)
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Conexão com o Microsoft 365 do cliente (App Registration do próprio cliente)
+  m365TenantId    String?
+  /// nome curto do SharePoint (contoso de contoso.sharepoint.com)
+  spoTenant       String?
+  appClientId     String?
+  /// secret | cert
+  authMode        String    @default("secret")
+  /// segredo (client secret ou PFX) gravado no cofre: Key Vault ou tabela StoredSecret
+  credentialSetAt DateTime?
+  credentialHint  String?
+  /// último teste de conexão
+  connectionOkAt  DateTime?
+  connectionError String?   @db.NVarChar(Max)
+
+  // Banco isolado do cliente (schema do coletor)
+  dbName          String?
+  /// PENDENTE | PROVISIONADO | ERRO
+  dbStatus        String    @default("PENDENTE")
+  dbSchemaVersion Int       @default(0)
+  dbError         String?   @db.NVarChar(Max)
+
+  viewers     UserClient[]
+  assessments Assessment[]
+}
+
+// ───────────── Execuções do coletor ─────────────
+
+model Assessment {
+  /// GUID: é o mesmo execution_id gravado no banco do cliente (dbo.execution_history)
+  id           String    @id @default(uuid())
+  clientId     String
+  client       Client    @relation(fields: [clientId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  startedById  String?
+  startedBy    User?     @relation(fields: [startedById], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  /// QUEUED | STARTING | RUNNING | COMPLETED | FAILED | CANCELED
+  status       String    @default("QUEUED")
+  /// módulos e parâmetros no formato do params.json do coletor (JSON)
+  params       String    @db.NVarChar(Max)
+  /// aca | docker | manual
+  runner       String
+  /// nome da execução no Container Apps Job, id do container docker…
+  runnerRef    String?
+  /// quantas vezes o container pediu a configuração (1 = primeira, >1 = retomada após falha)
+  attempts     Int       @default(0)
+  /// último global_status.json enviado pelo job (etapas e progresso)
+  progress     String?   @db.NVarChar(Max)
+  /// últimas linhas do log (JSON)
+  logTail      String?   @db.NVarChar(Max)
+  error        String?   @db.NVarChar(Max)
+  totalSites   Int?
+  createdAt    DateTime  @default(now())
+  startedAt    DateTime?
+  finishedAt   DateTime?
+  heartbeatAt  DateTime?
+
+  @@index([clientId, createdAt])
+  @@index([status])
+}
+
+// ───────────── Cofre local (quando não há Key Vault) ─────────────
+
+/// Segredos cifrados com AES-256-GCM (SECRETS_KEY). Usado só com SECRET_STORE=local.
+model StoredSecret {
+  name      String   @id
+  value     String   @db.NVarChar(Max)
+  updatedAt DateTime @updatedAt
+}
+
+// ───────────── Auditoria ─────────────
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  entity    String
+  entityId  String
+  action    String
+  changes   String?  @db.NVarChar(Max)
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  createdAt DateTime @default(now())
+
+  @@index([entity, entityId])
+  @@index([createdAt])
+}

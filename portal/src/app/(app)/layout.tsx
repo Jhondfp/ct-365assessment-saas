@@ -7,11 +7,15 @@ import { ACTIVE } from "@/lib/status";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const u = await requireUser();
-  const ativas = await prisma.assessment.count({ where: { status: { in: [...ACTIVE] }, ...assessmentWhere(u) } });
+  const [ativas, higAtivas] = await Promise.all([
+    prisma.assessment.count({ where: { status: { in: [...ACTIVE] }, ...assessmentWhere(u) } }),
+    prisma.assessment.count({ where: { status: { in: [...ACTIVE] }, ...assessmentWhere(u), kind: "HIGIENIZACAO" } }),
+  ]);
 
   const groups = [
     { title: "Visão", items: [{ href: "/", label: "Painel" }] },
     { title: "Assessment", items: [{ href: "/clientes", label: "Clientes" }, { href: "/execucoes", label: "Execuções", badge: ativas }] },
+    ...(can(u.roles, "assessments:run") ? [{ title: "Higienização", items: [{ href: "/higienizacao", label: "Higienização", badge: higAtivas }] }] : []),
     ...(can(u.roles, "users:manage")
       ? [{ title: "Administração", items: [{ href: "/admin/usuarios", label: "Usuários e perfis" }, { href: "/admin/auditoria", label: "Auditoria" }] }]
       : []),

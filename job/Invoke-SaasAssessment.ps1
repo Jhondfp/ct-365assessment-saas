@@ -1,8 +1,8 @@
 # ==============================================================================
 #  CT Assessment 365 SaaS | Entrypoint do job de coleta
 # ------------------------------------------------------------------------------
-#  Roda o coletor do ct-assessmentspo (src/, copiado sem alterações por
-#  scripts/sync-collector.sh) para UMA execução disparada pelo portal.
+#  Roda o coletor (src/, mantido neste repositório; veio do
+#  ct-assessmentspo on-premises) para UMA execução disparada pelo portal.
 #
 #  Diferenças para o src/main.ps1 do ct-assessmentspo:
 #   - auth.json / params.json vêm do portal (GET CALLBACK_URL), não de arquivos;

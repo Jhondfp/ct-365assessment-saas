@@ -1,6 +1,6 @@
 # CT Assessment 365 SaaS
 
-Versão SaaS do coletor **ct-assessmentspo** (PowerShell + PnP + SQL Server). Portal no padrão do **Target360** (repositório Ct-crm): mesmo layout (Sidebar, `ui.tsx`, `globals.css`, Poppins, cores `ct-*`) e mesma autenticação mista (Entra ID + login local + login de desenvolvimento). Visão geral e operação: `README.md`.
+Coletor de governança Microsoft 365 em SaaS (PowerShell + PnP + SQL Server). Nasceu do **ct-assessmentspo** (on-premises), que será descontinuado: **o coletor agora vive e evolui aqui**. Portal no padrão do **Target360** (repositório Ct-crm): mesmo layout (Sidebar, `ui.tsx`, `globals.css`, Poppins, cores `ct-*`) e mesma autenticação mista (Entra ID + login local + login de desenvolvimento). Visão geral e operação: `README.md`.
 
 ## Decisões que não mudam sem conversar com o usuário
 
@@ -12,9 +12,9 @@ Versão SaaS do coletor **ct-assessmentspo** (PowerShell + PnP + SQL Server). Po
 
 ## Regras de código
 
-- **`job/src/` é cópia sem alterações do ct-assessmentspo** (`scripts/sync-collector.sh`). Não edite lá: corrija no ct-assessmentspo e sincronize. Adaptações para o SaaS ficam em `job/Invoke-SaasAssessment.ps1`, que espelha o bloco de módulos do `src/main.ps1`.
+- **`job/src/` é o código do coletor** (veio do ct-assessmentspo, que não é mais sincronizado nem mantido). Corrija e evolua aqui mesmo. `job/Invoke-SaasAssessment.ps1` é o entrypoint (equivale ao `main.ps1` antigo); mudanças de banco do coletor entram como migração incremental em `portal/sql/tenant`.
 - O coletor depende da pasta atual: os runspaces paralelos resolvem `src\...`, `.\src\progress` e `logs\` a partir da raiz do job. Mantenha a estrutura.
-- `portal/assets/dashboard.html` também é cópia do coletor. A rota `src/app/relatorio/[clientId]/route.ts` só reaponta URLs; se o arquivo mudar, `replaceOnce` acusa o trecho que não encontrou.
+- `portal/assets/dashboard.html` é o dashboard clássico herdado do coletor. A rota `src/app/relatorio/[clientId]/route.ts` só reaponta URLs; se o arquivo mudar, `replaceOnce` acusa o trecho que não encontrou.
 - `src/lib/dashboard.ts` é o porte das funções do `Start-Monitor.ps1`: mesmo formato de JSON que o dashboard consome. O relatório nativo (`app/(app)/clientes/[id]/relatorio`, `components/report`) usa esse JSON; regras de negócio (economia, licenças ociosas, achados) ficam em `src/lib/insights.ts`. Gráficos em `components/charts.tsx` seguem a paleta validada (roxo da marca, azul, laranja; status só para estado).
 - O job isola cada workload (`Invoke-Workload` no entrypoint) e reporta `workloads`/`preflight` ao portal; status final `completed | partial | failed`. Execuções `kind = DIAGNOSTICO` rodam só a checagem prévia e ficam fora das listagens (`assessmentWhere` filtra `COLETA`).
 - O coletor roda com StrictMode: o entrypoint completa `auth`/`params` com as chaves padrão dos `*.example.json`. Nunca envolva o retorno de `Invoke-DbReader` em `@()` (ele já devolve array).

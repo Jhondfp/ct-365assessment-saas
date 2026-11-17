@@ -51,13 +51,12 @@ portal/                 Next.js 15 (App Router, Server Actions) · Auth.js v5 ·
   src/lib/jobs.ts       onde a coleta roda: queue (produção) | aca | docker | manual
   src/app/api/jobs/     fila (claim) e canal da coleta com o portal (configuração e progresso, token HMAC)
 job/
-  src/                  coletor do ct-assessmentspo (connection, modules, utils) — cópia sem alterações
+  src/                  coletor (connection, modules, utils) — mantido neste repositório
   Invoke-SaasAssessment.ps1  roda UMA coleta (substitui o main.ps1 e o monitor local)
   Start-Worker.ps1      worker: pede coletas ao portal e roda cada uma num processo pwsh separado
   Dockerfile            PowerShell 7.4 + PnP.PowerShell
 infra/main.bicep        Azure SQL + elastic pool, Key Vault, ACR, Container Apps (portal + worker), Log Analytics
 infra/deploy.sh         implantação completa (infra + build das imagens no ACR)
-scripts/sync-collector.sh  atualiza job/src, o dashboard e o schema a partir do ct-assessmentspo
 ```
 
 ### Como o worker conversa com o portal
@@ -115,15 +114,9 @@ Guarde `AUTH_SECRET` e `JOB_SIGNING_SECRET`: trocá-los derruba as sessões e in
 
 Recursos criados: Azure SQL (banco do portal S0 + elastic pool Standard 50 eDTU para os clientes), Key Vault (access policy só para a identidade do portal), ACR (usuário admin), Container Apps Environment, Container App do portal e Container App do worker **elástico** (0 réplicas sem coleta na fila; sobe sozinho por uma regra KEDA `mssql` que conta a fila no banco do portal; `workerConcurrency` = coletas simultâneas por worker, padrão 2 com 3 vCPU/6 GiB; `workerReplicas` = máximo de workers). **Nenhuma atribuição de papel (RBAC) é criada**: basta Contributor no resource group.
 
-## Atualizar o coletor
+## O coletor
 
-O coletor continua sendo desenvolvido no ct-assessmentspo. Para trazer uma versão nova:
-
-```bash
-scripts/sync-collector.sh ../ct-assessmentspo
-```
-
-Depois disso, confira se o bloco de módulos do `src/main.ps1` mudou (o `job/Invoke-SaasAssessment.ps1` espelha a ordem e as condições). Mudanças de schema entram como migração incremental em `portal/sql/tenant/NNN_*.sql`: o `001` faz DROP + CREATE e só roda em banco vazio.
+O coletor (`job/src`) veio do ct-assessmentspo on-premises e agora é mantido **só aqui**: corrija e evolua neste repositório. Mudanças no banco dos clientes entram como migração incremental idempotente em `portal/sql/tenant` (`NNN_nome.sql`), aplicada pelo portal antes de cada coleta.
 
 ## Higienização
 

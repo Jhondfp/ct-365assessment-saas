@@ -4,7 +4,7 @@ Versão SaaS do coletor **ct-assessmentspo** (PowerShell + PnP + SQL Server). Po
 
 ## Decisões que não mudam sem conversar com o usuário
 
-- **Tudo em SQL Server / Azure SQL**: banco do portal via Prisma (`portal/prisma`) e **1 banco por cliente** (silo) com o schema do ct-assessmentspo (`portal/sql/tenant`).
+- **Tudo em SQL Server / Azure SQL**: banco do portal via Prisma (`portal/prisma`) e **1 banco por cliente** (silo) com o schema do ct-assessmentspo (`portal/sql/tenant`). O banco do cliente é `MANAGED` (criado pelo portal no servidor `TENANT_SQL_*`) ou `EXTERNAL` (banco existente em qualquer servidor; senha no cofre). Sempre resolva a conexão por `clientConn()` (`src/lib/clientDb.ts`); nunca rode o `001` (DROP + CREATE) em banco que não esteja vazio.
 - **App Registration do cliente** (não do SaaS): tenant id, client id, prefixo do SharePoint e certificado `.pfx` ou client secret por cliente, guardados no Key Vault (`src/lib/secrets.ts`).
 - **Coleta por fila** (`JOB_RUNNER=queue`): workers (`job/Start-Worker.ps1`, Container App sempre ligado) pedem coletas em `/api/jobs/claim`. Escolhido para **não depender de papéis RBAC no Azure** (o usuário só tem Contributor): nada no Bicep cria role assignment, o ACR usa usuário admin e o Key Vault usa access policies. `aca`, `docker` e `manual` continuam disponíveis em `src/lib/jobs.ts`.
 - **Só a equipe Cloud Target acessa** nesta fase. Perfis: ADMIN (tudo), EXECUTOR (cadastra clientes e executa coletas), VISUALIZADOR (só os clientes liberados em `UserClient`). Ver `src/lib/rbac.ts` e `src/lib/session.ts` (`canSeeClient`, `clientWhere`, `assessmentWhere`).

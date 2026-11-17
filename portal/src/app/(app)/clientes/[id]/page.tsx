@@ -8,7 +8,9 @@ import { ACTIVE, DB_STATUS_LABEL } from "@/lib/status";
 import { PERMISSIONS_HELP } from "@/lib/collector";
 import { SECRET_STORE } from "@/lib/secrets";
 import { dateTime } from "@/lib/format";
-import { provisionDb, removeCredential, saveConnection, testConnection, updateClient } from "@/actions/clients";
+import { provisionDb, removeCredential, saveConnection, saveDatabase, testConnection, updateClient } from "@/actions/clients";
+import { DbFields } from "@/components/DbFields";
+import { tenantSqlConfigured } from "@/lib/tenantDb";
 import { ActionButton, ActionForm } from "@/components/ActionForm";
 import { Badge, Field, PageHeader, Tabs } from "@/components/ui";
 import { ConnectionFields } from "@/components/ConnectionFields";
@@ -124,13 +126,21 @@ export default async function Cliente({ params, searchParams }: { params: Promis
           <section className="card">
             <h2 className="card-title">Banco de dados isolado</h2>
             <dl className="grid grid-cols-2 gap-y-2 text-sm">
+              <dt className="text-slate-500">Tipo</dt><dd>{c.dbMode === "EXTERNAL" ? "Banco existente" : "Gerenciado pelo portal"}</dd>
+              {c.dbMode === "EXTERNAL" && <><dt className="text-slate-500">Servidor</dt><dd className="break-all font-mono text-xs">{c.dbServer}</dd></>}
               <dt className="text-slate-500">Banco</dt><dd className="font-mono">{c.dbName ?? "—"}</dd>
               <dt className="text-slate-500">Situação</dt><dd><Badge tone={c.dbStatus === "PROVISIONADO" ? "green" : c.dbStatus === "ERRO" ? "red" : "gray"}>{DB_STATUS_LABEL[c.dbStatus] ?? c.dbStatus}</Badge></dd>
               <dt className="text-slate-500">Versão do schema</dt><dd>v{c.dbSchemaVersion}</dd>
             </dl>
             {c.dbError && <p className="mt-3 rounded-lg bg-red-50 p-3 text-xs text-red-800">{c.dbError}</p>}
             <div className="mt-4"><ActionButton action={provisionDb.bind(null, c.id)} className="btn-secondary">{c.dbStatus === "PROVISIONADO" ? "Aplicar atualizações do schema" : "Provisionar banco"}</ActionButton></div>
-            <p className="mt-3 text-xs text-slate-500">Cria o banco no servidor de clientes (no elastic pool, se configurado) e sobe o schema padrão do coletor ct-assessmentspo. Um banco que já tenha o schema é adotado sem apagar dados.</p>
+            <p className="mt-3 text-xs text-slate-500">{c.dbMode === "EXTERNAL" ? "Conecta no banco existente e aplica as atualizações pendentes do schema do coletor (banco vazio recebe o schema padrão)." : "Cria o banco no servidor de clientes (no elastic pool, se configurado) e sobe o schema padrão do coletor ct-assessmentspo. Um banco que já tenha o schema é adotado sem apagar dados."}</p>
+            <details className="mt-4 border-t border-slate-100 pt-4">
+              <summary className="cursor-pointer text-sm font-medium text-ct-purple">Trocar o banco do cliente</summary>
+              <ActionForm action={saveDatabase.bind(null, c.id)} className="mt-3" submit="Salvar banco">
+                <DbFields c={c} sqlOk={tenantSqlConfigured()} prefix={process.env.TENANT_DB_PREFIX ?? "ctassess_"} editing />
+              </ActionForm>
+            </details>
           </section>
           <section className="card lg:col-span-2">
             <h2 className="card-title">Visualizadores com acesso a este cliente</h2>

@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { verifyJobToken } from "@/lib/jobToken";
 import { getSecret, secretName } from "@/lib/secrets";
-import { tenantSqlForJob } from "@/lib/tenantDb";
+import { clientConn } from "@/lib/clientDb";
 import { ACTIVE, parseJson, type LogLine } from "@/lib/status";
 
 /**
@@ -28,7 +28,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   const c = a.client;
   if (!c.dbName || !c.m365TenantId || !c.appClientId || !c.spoTenant) return Response.json({ error: "cliente sem conexão ou banco configurado" }, { status: 409 });
 
-  const db = tenantSqlForJob(c.dbName);
+  const db = await clientConn(c);
   const auth: Record<string, unknown> = {
     tenant_id: c.m365TenantId,
     client_id: c.appClientId,

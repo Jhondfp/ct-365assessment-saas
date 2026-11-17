@@ -1,19 +1,8 @@
 import { prisma } from "./prisma";
-import { dbNameFor, latestTenantVersion, provisionTenantDb } from "./tenantDb";
+import { ensureClientDb } from "./clientDb";
 import { acaExecutionStatus, startJob } from "./jobs";
 import { ACTIVE } from "./status";
 import type { CollectorParams } from "./collector";
-
-/** Garante banco provisionado e schema na última versão antes de uma execução. */
-export async function ensureClientDb(id: string) {
-  const c = await prisma.client.findUniqueOrThrow({ where: { id } });
-  const latest = await latestTenantVersion();
-  if (c.dbStatus === "PROVISIONADO" && c.dbSchemaVersion >= latest && c.dbName) return c.dbName;
-  const dbName = c.dbName ?? dbNameFor(c.slug);
-  const version = await provisionTenantDb(dbName, c.dbSchemaVersion);
-  await prisma.client.update({ where: { id }, data: { dbName, dbStatus: "PROVISIONADO", dbSchemaVersion: version, dbError: null } });
-  return dbName;
-}
 
 /** O que falta para o cliente poder executar (vazio = pronto). */
 export function readiness(c: { active: boolean; m365TenantId: string | null; appClientId: string | null; spoTenant: string | null; credentialSetAt: Date | null }) {

@@ -29,7 +29,11 @@ Nesta fase só a equipe Cloud Target acessa. Quem não foi cadastrado só entra 
 
 ## Fluxo
 
-1. **Cadastrar o cliente** (Administrador/Executor): dados do cliente, App Registration do cliente (tenant, client id, prefixo do SharePoint, certificado `.pfx` ou client secret) e, opcionalmente, **criar o banco** na hora com o schema padrão do coletor. A credencial vai direto para o Key Vault e nunca é exibida de volta.
+1. **Cadastrar o cliente** (Administrador/Executor): dados do cliente, App Registration do cliente (tenant, client id, prefixo do SharePoint e **um** método de autenticação: certificado `.pfx`, que serve para tudo, ou client secret, que só atende o Graph) e o banco:
+   - **Criar banco novo** no servidor de clientes da Cloud Target, com o schema padrão do coletor (na hora ou na primeira coleta); ou
+   - **Conectar em banco existente** em qualquer SQL Server/Azure SQL (servidor, banco, usuário, senha). A conexão é testada antes de salvar: banco com o schema do coletor (ex.: um assessment antigo do ct-assessmentspo) é aproveitado com o histórico; banco vazio recebe o schema padrão; banco com outras tabelas é recusado.
+
+   Credenciais (M365 e senha do banco existente) vão direto para o Key Vault e nunca são exibidas de volta. O banco pode ser trocado depois na aba *Cadastro e banco*.
 2. **Executar uma coleta**: escolher os workloads (sites, arquivos, lixeira, donos ativos, licenciamento, adoção, caixas de e-mail, Intune) e, se quiser, limitar a sites específicos. A coleta entra na fila e o próximo worker livre pega.
 3. **Acompanhar**: etapas e log ao vivo na página da execução. Se o worker cair, depois de 10 minutos sem sinal a coleta volta para a fila e o coletor **retoma de onde parou**, sem varrer de novo os sites já concluídos (até 4 tentativas).
 4. **Dashboard**: o mesmo `dashboard.html` do ct-assessmentspo, servido pelo portal com escopo do cliente, com histórico de execuções e exportação PDF/HTML.

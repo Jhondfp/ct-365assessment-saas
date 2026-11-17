@@ -1,4 +1,4 @@
-import { readQuery, type Row } from "./tenantDb";
+import { readQuery, type DbConn, type Row } from "./tenantDb";
 
 /**
  * Porte para TypeScript das APIs do src/ui/Start-Monitor.ps1 (ct-assessmentspo): mesmo formato de JSON que o
@@ -12,11 +12,11 @@ const D = (v: unknown) => (v == null || v === "" ? "" : new Date(v as string).to
 const msg = (e: unknown) => (e instanceof Error ? e.message : String(e)).replace(/"/g, "'");
 
 type P = Record<string, string | number | null>;
-const exec = (db: string, proc: string, args: P, timeoutMs = 120_000) =>
+const exec = (db: DbConn, proc: string, args: P, timeoutMs = 120_000) =>
   readQuery(db, `EXEC dbo.${proc} ${Object.keys(args).map((k) => `@${k} = @${k}`).join(", ")}`, args, timeoutMs);
-const one = async (db: string, proc: string, args: P, t?: number) => (await exec(db, proc, args, t))[0] ?? {};
+const one = async (db: DbConn, proc: string, args: P, t?: number) => (await exec(db, proc, args, t))[0] ?? {};
 
-export async function resolveExecutionId(db: string, hint?: string | null) {
+export async function resolveExecutionId(db: DbConn, hint?: string | null) {
   const r = await exec(db, "sp_dash_resolve_execution_id", { execution_id_hint: hint || null });
   return (r[0]?.execution_id as string | undefined) ?? null;
 }
@@ -37,7 +37,7 @@ const fileRows = (rows: Row[]) => rows.map((r) => ({
   versions_count: N(r.versions_count), file_size: N(r.file_size), total_file_size: N(r.total_file_size),
 }));
 
-async function typeSection(db: string, eid: string, siteType: string, includeTrash: boolean, includeGrowth: boolean) {
+async function typeSection(db: DbConn, eid: string, siteType: string, includeTrash: boolean, includeGrowth: boolean) {
   const p = { execution_id: eid, site_type: siteType };
   const s: Record<string, unknown> = {};
   try { s.sites = sitesSummary(await one(db, "sp_dash_sites_summary_by_type", p, 60_000)); } catch { s.sites = { total: 0 }; }
@@ -71,7 +71,7 @@ async function typeSection(db: string, eid: string, siteType: string, includeTra
 }
 
 /** /api/dashboard do Start-Monitor.ps1 */
-export async function dashboardJson(db: string, executionId?: string | null) {
+export async function dashboardJson(db: DbConn, executionId?: string | null) {
   const eid = executionId || (await resolveExecutionId(db));
   if (!eid) return { error: "Nenhuma execucao encontrada no banco" };
   const p = { execution_id: eid };
@@ -175,7 +175,7 @@ export async function dashboardJson(db: string, executionId?: string | null) {
 }
 
 /** /api/executions do Start-Monitor.ps1 (o nome do cliente vem do portal, não do banco). */
-export async function executionsJson(db: string, clientName: string) {
+export async function executionsJson(db: DbConn, clientName: string) {
   try {
     const r = await exec(db, "sp_dash_executions_list", {}, 60_000);
     return r.map((x) => ({ execution_id: S(x.execution_id), client_name: clientName, start_time: S(x.start_time), sites: N(x.sites), files: N(x.files), status: S(x.status) }));

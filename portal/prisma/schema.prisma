@@ -86,6 +86,11 @@ model Client {
   connectionError String?   @db.NVarChar(Max)
 
   // Banco isolado do cliente (schema do coletor)
+  /// MANAGED = criado pelo portal no servidor dos clientes (TENANT_SQL_*) · EXTERNAL = banco existente em outro servidor
+  dbMode          String    @default("MANAGED")
+  /// só EXTERNAL: servidor (FQDN, porta 1433) e usuário SQL; a senha fica no cofre (secretName(id, "dbpwd"))
+  dbServer        String?
+  dbUser          String?
   dbName          String?
   /// PENDENTE | PROVISIONADO | ERRO
   dbStatus        String    @default("PENDENTE")

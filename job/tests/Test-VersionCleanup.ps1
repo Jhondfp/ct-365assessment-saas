@@ -96,4 +96,22 @@ Reset-Mocks
 $s = & $script -ManterVersoes 100 -SiteUrl 'https://t.sharepoint.com/sites/b' 6>$null
 Check 'filtro de site: só o site b' ($s.sites -eq 1 -and $s.versoes -eq 21) "sites=$($s.sites) versoes=$($s.versoes)"
 
+# 7) Fluxo do worker (Invoke-SaasHygiene.ps1): simulação de ponta a ponta, progresso e resultado ao portal
+Reset-Mocks
+$global:STEPS = [System.Collections.Generic.List[string]]::new()
+$global:SENT = $null
+function global:Get-GraphToken { 'tok' }
+function global:Report-Step { param($StepName, $Status, $Progress, $Info) $global:STEPS.Add("$Progress|$Info") }
+function global:Send-PortalEvent { param([hashtable]$Body) $global:SENT = $Body; $true }
+$projectRoot = Split-Path -Parent $PSScriptRoot
+$global:executionId = 'run-portal-1'
+$global:params = @{ hygiene = @{ action = 'version_cleanup'; keep = 100; dryRun = $true; recycle = $true; mode = 'PorArquivo'; sites = @() } }
+$sync = [hashtable]::Synchronized(@{ Stop = $false }); $reporter = Start-ThreadJob { 1 }; $certTemp = $null
+$logDir = Join-Path ([IO.Path]::GetTempPath()) "hyg-$([guid]::NewGuid())"; New-Item -ItemType Directory $logDir | Out-Null
+$CallbackUrl = 'http://localhost:9/x'; $headers = @{}
+. (Join-Path $projectRoot 'Invoke-SaasHygiene.ps1') 6>$null
+Check 'worker: resultado enviado ao portal (completed, 74 versões, run_id = id da execução)' ($global:SENT.status -eq 'completed' -and $global:SENT.result.versoes -eq 74 -and $global:SENT.result.run_id -eq 'run-portal-1') ("status=$($global:SENT.status) versoes=$($global:SENT.result.versoes) run=$($global:SENT.result.run_id)")
+Check 'worker: progresso por site reportado' ($global:STEPS.Count -ge 3 -and ($global:STEPS -join ' ') -match '2 de 2 sites') ($global:STEPS -join ' ; ')
+Check 'worker: simulação não apaga nada' ($global:CALLS.Count -eq 0) "$($global:CALLS.Count) chamadas"
+
 exit [int]($fail -gt 0)

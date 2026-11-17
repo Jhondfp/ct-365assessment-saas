@@ -50,7 +50,9 @@ async function retryAssessment_(id: string) {
   const a = await prisma.assessment.findUniqueOrThrow({ where: { id } });
   const me = await requireClientPerm(a.clientId, "assessments:run");
   if (a.runner === "importado") throw new Error("Execução importada do banco do cliente: use Nova execução para coletar de novo.");
-  const newId = await launchAssessment(a.clientId, JSON.parse(a.params), me.id, a.kind === "DIAGNOSTICO" ? "DIAGNOSTICO" : "COLETA");
+  if (a.kind === "HIGIENIZACAO" && !(JSON.parse(a.params)?.hygiene?.dryRun)) throw new Error("Para executar uma higienização de novo, use o formulário da aba Higienização (exige confirmação).");
+  const kind = a.kind === "DIAGNOSTICO" || a.kind === "HIGIENIZACAO" ? a.kind : "COLETA";
+  const newId = await launchAssessment(a.clientId, JSON.parse(a.params), me.id, kind);
   await audit(prisma, "Assessment", newId, "CREATE", me.id, { repeticao_de: id });
   redirect(`/execucoes/${newId}`);
 }

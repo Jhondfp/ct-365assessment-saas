@@ -67,7 +67,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
 
 type EventBody = {
   status?: "running" | "completed" | "partial" | "failed"; progress?: unknown; log?: LogLine[]; error?: string; totalSites?: number;
-  workloads?: unknown; preflight?: unknown;
+  workloads?: unknown; preflight?: unknown; result?: unknown;
 };
 const FINAL: Record<string, string> = { completed: "COMPLETED", partial: "PARTIAL", failed: "FAILED" };
 
@@ -87,6 +87,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   if (typeof body.totalSites === "number") data.totalSites = body.totalSites;
   if (body.workloads && typeof body.workloads === "object") data.workloads = JSON.stringify(body.workloads).slice(0, 100_000);
   if (body.preflight && typeof body.preflight === "object") data.preflight = JSON.stringify(body.preflight).slice(0, 100_000);
+  if (body.result && typeof body.result === "object") data.result = JSON.stringify(body.result).slice(0, 100_000);
   if (body.status && FINAL[body.status]) {
     data.status = FINAL[body.status];
     data.finishedAt = new Date();

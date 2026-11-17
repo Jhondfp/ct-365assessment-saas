@@ -10,6 +10,7 @@ import { SECRET_STORE } from "@/lib/secrets";
 import { dateTime } from "@/lib/format";
 import { importDbExecutions, provisionDb, removeCredential, runDiagnostic, saveConnection, saveDatabase, testConnection, updateClient } from "@/actions/clients";
 import { PreflightCard } from "@/components/LiveAssessment";
+import { HygieneTab } from "./HygieneTab";
 import { HAS_DATA, parseJson, type Preflight } from "@/lib/status";
 import { DbFields } from "@/components/DbFields";
 import { tenantSqlConfigured } from "@/lib/tenantDb";
@@ -18,7 +19,7 @@ import { Badge, Field, PageHeader, Tabs } from "@/components/ui";
 import { ConnectionFields } from "@/components/ConnectionFields";
 import { AssessmentTable, StatusBadge } from "@/components/assessments";
 
-export default async function Cliente({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ tab?: string }> }) {
+export default async function Cliente({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ tab?: string; keep?: string; from?: string }> }) {
   const { id } = await params;
   const u = await requireClientPage(id);
   const c = await prisma.client.findUnique({
@@ -29,7 +30,8 @@ export default async function Cliente({ params, searchParams }: { params: Promis
     },
   });
   if (!c) notFound();
-  const { tab: t } = await searchParams;
+  const { tab: t, keep: keepQ, from } = await searchParams;
+  const keep = Math.min(50000, Math.max(1, Number(keepQ) || 100));
   const canManage = can(u.roles, "clients:manage");
   const canConn = canManage;
   const canRun = can(u.roles, "assessments:run");
@@ -37,13 +39,15 @@ export default async function Cliente({ params, searchParams }: { params: Promis
     { key: "visao", label: "Visão geral" },
     ...(canConn ? [{ key: "conexao", label: "Conexão Microsoft 365" }] : []),
     { key: "execucoes", label: "Execuções", count: c.assessments.length },
+    ...(canRun ? [{ key: "higienizacao", label: "Higienização" }] : []),
     ...(canManage ? [{ key: "cadastro", label: "Cadastro e banco" }] : []),
   ];
   const tab = tabs.some((x) => x.key === t) ? t! : "visao";
   const missing = readiness(c);
   const lastDiag = await prisma.assessment.findFirst({ where: { clientId: c.id, kind: "DIAGNOSTICO" }, orderBy: { createdAt: "desc" } });
   const isActive = (s: string) => (ACTIVE as readonly string[]).includes(s);
-  const active = c.assessments.find((a) => isActive(a.status)) ?? (lastDiag && isActive(lastDiag.status) ? lastDiag : undefined);
+  const activeOther = await prisma.assessment.findFirst({ where: { clientId: c.id, kind: { not: "COLETA" }, status: { in: [...ACTIVE] } } });
+  const active = c.assessments.find((a) => isActive(a.status)) ?? activeOther ?? undefined;
   const lastOk = c.assessments.find((a) => (HAS_DATA as readonly string[]).includes(a.status));
 
   return (
@@ -138,6 +142,8 @@ export default async function Cliente({ params, searchParams }: { params: Promis
           <AssessmentTable rows={c.assessments} showClient={false} />
         </section>
       )}
+
+      {tab === "higienizacao" && canRun && <HygieneTab client={c} keep={keep} from={from} />}
 
       {tab === "cadastro" && canManage && (
         <div className="grid gap-6 lg:grid-cols-2">

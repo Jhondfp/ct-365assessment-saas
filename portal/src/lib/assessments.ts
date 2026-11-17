@@ -17,7 +17,7 @@ export function readiness(c: { active: boolean; m365TenantId: string | null; app
  * Cria a execução e dispara o job. Uma execução ativa por cliente: duas coletas simultâneas no mesmo banco
  * disputariam as mesmas tabelas e o throttling do mesmo tenant.
  */
-export async function launchAssessment(clientId: string, params: CollectorParams, userId: string, kind: "COLETA" | "DIAGNOSTICO" = "COLETA") {
+export async function launchAssessment(clientId: string, params: CollectorParams, userId: string, kind: "COLETA" | "DIAGNOSTICO" | "HIGIENIZACAO" = "COLETA") {
   const c = await prisma.client.findUniqueOrThrow({ where: { id: clientId } });
   const missing = readiness(c);
   if (missing.length) throw new Error(`Antes de executar, configure: ${missing.join(", ")}.`);

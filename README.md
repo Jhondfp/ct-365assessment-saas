@@ -125,9 +125,11 @@ scripts/sync-collector.sh ../ct-assessmentspo
 
 Depois disso, confira se o bloco de módulos do `src/main.ps1` mudou (o `job/Invoke-SaasAssessment.ps1` espelha a ordem e as condições). Mudanças de schema entram como migração incremental em `portal/sql/tenant/NNN_*.sql`: o `001` faz DROP + CREATE e só roda em banco vazio.
 
-## Higienização (em construção)
+## Higienização
 
 Ações que **alteram** o tenant do cliente, a partir do que o assessment encontrou. Sempre começam em simulação.
+
+**No portal**: aba **Higienização** do cliente (Administrador e Executor; nunca automática). Escolha quantas versões manter, o escopo (tenant inteiro ou sites selecionados, com estimativa por site a partir da última coleta), lixeira ou exclusão permanente (por arquivo ou job do SharePoint) e, opcionalmente, um limite de arquivos para piloto. **Simular** não altera nada e mostra o resultado arquivo a arquivo; da simulação, "Executar com estes parâmetros" reabre o formulário preenchido. **Executar** exige confirmar o escopo, e a exclusão permanente exige digitar EXCLUIR. Cada disparo grava auditoria (`HYGIENE_SIMULATE` / `HYGIENE_EXECUTE`). A execução roda no worker como `kind = HIGIENIZACAO` (`job/Invoke-SaasHygiene.ps1`).
 
 ### Limpeza de versões antigas — `job/hygiene/Invoke-VersionCleanup.ps1`
 

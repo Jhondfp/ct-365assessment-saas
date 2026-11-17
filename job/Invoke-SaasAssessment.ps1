@@ -201,6 +201,12 @@ $reporter = Start-ThreadJob -Name 'portal-reporter' -ArgumentList $CallbackUrl, 
     }
 }
 
+# Higienização (kind HIGIENIZACAO no portal): fluxo próprio, sem o pipeline de coleta
+if ($global:params['hygiene']) {
+    . (Join-Path $projectRoot 'Invoke-SaasHygiene.ps1')
+    exit 0
+}
+
 # ------------------------------------------------------------------------------
 # 4. CHECAGEM PRÉVIA + WORKLOADS ISOLADOS
 #    Diferente do main.ps1 (que para no primeiro erro), cada workload tem o

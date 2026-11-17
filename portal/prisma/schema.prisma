@@ -110,7 +110,7 @@ model Assessment {
   client       Client    @relation(fields: [clientId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   startedById  String?
   startedBy    User?     @relation(fields: [startedById], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  /// COLETA | DIAGNOSTICO (só a checagem prévia: Graph, permissões, SharePoint Admin e banco)
+  /// COLETA | DIAGNOSTICO (só a checagem prévia) | HIGIENIZACAO (ações que alteram o tenant: ver job/hygiene)
   kind         String    @default("COLETA")
   /// QUEUED | STARTING | RUNNING | COMPLETED | PARTIAL (concluída com alertas) | FAILED | CANCELED
   status       String    @default("QUEUED")
@@ -131,6 +131,8 @@ model Assessment {
   workloads    String?   @db.NVarChar(Max)
   /// checagem prévia (JSON: graph, permissions, sharepoint, database)
   preflight    String?   @db.NVarChar(Max)
+  /// resumo do resultado de uma higienização (JSON enviado pelo job)
+  result       String?   @db.NVarChar(Max)
   totalSites   Int?
   createdAt    DateTime  @default(now())
   startedAt    DateTime?

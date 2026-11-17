@@ -39,7 +39,7 @@ export async function launchAssessment(clientId: string, params: CollectorParams
   const a = await prisma.assessment.create({ data: { clientId, startedById: userId, params: JSON.stringify(params), runner: "manual", status: "QUEUED" } });
   try {
     const { runner, ref } = await startJob(a.id);
-    await prisma.assessment.update({ where: { id: a.id }, data: { runner, runnerRef: ref, status: runner === "manual" ? "QUEUED" : "STARTING" } });
+    await prisma.assessment.update({ where: { id: a.id }, data: { runner, runnerRef: ref, status: runner === "manual" || runner === "queue" ? "QUEUED" : "STARTING" } });
   } catch (e) {
     await prisma.assessment.update({ where: { id: a.id }, data: { status: "FAILED", error: `Falha ao iniciar o job: ${e instanceof Error ? e.message : e}`, finishedAt: new Date() } });
   }
@@ -64,4 +64,42 @@ export async function reconcile(id: string) {
       data: { status: st === "Stopped" ? "CANCELED" : "FAILED", finishedAt: new Date(), error: a.error ?? `O job terminou no Azure com estado ${st} sem reportar o fim ao portal.` },
     });
   }
+}
+
+/** Quantas vezes o worker pode pegar a mesma coleta (a primeira + retomadas depois de queda). */
+const MAX_ATTEMPTS = 4;
+/** Sem sinal do worker por este tempo = o container caiu e a coleta volta para a fila (retomada). */
+const QUEUE_STALE_MS = 10 * 60_000;
+
+/**
+ * Fila de coletas (JOB_RUNNER=queue): entrega ao worker a próxima coleta. Prioriza retomar uma coleta cujo worker
+ * parou de mandar sinal (ou falha de vez se já passou do limite de tentativas); senão, a mais antiga na fila.
+ * A reserva é atômica (updateMany com o status esperado), então dois workers nunca pegam a mesma coleta.
+ */
+export async function claimNext(workerId: string) {
+  const stale = new Date(Date.now() - QUEUE_STALE_MS);
+  const orphans = await prisma.assessment.findMany({
+    where: { runner: "queue", status: { in: ["STARTING", "RUNNING"] }, OR: [{ heartbeatAt: { lt: stale } }, { heartbeatAt: null, createdAt: { lt: stale } }] },
+    orderBy: { createdAt: "asc" }, take: 5,
+  });
+  for (const o of orphans) {
+    if (o.attempts >= MAX_ATTEMPTS) {
+      await prisma.assessment.updateMany({
+        where: { id: o.id, status: o.status },
+        data: { status: "FAILED", finishedAt: new Date(), error: o.error ?? `O worker parou de responder ${o.attempts} vezes nesta coleta; desistindo.` },
+      });
+      continue;
+    }
+    const r = await prisma.assessment.updateMany({ where: { id: o.id, status: o.status, heartbeatAt: o.heartbeatAt }, data: { status: "STARTING", runnerRef: workerId, heartbeatAt: new Date() } });
+    if (r.count) return o.id;
+  }
+  const next = await prisma.assessment.findMany({ where: { runner: "queue", status: "QUEUED" }, orderBy: { createdAt: "asc" }, take: 5 });
+  for (const n of next) {
+    // um cliente por vez: não pega a coleta se o mesmo cliente já tem outra rodando
+    const busy = await prisma.assessment.count({ where: { clientId: n.clientId, id: { not: n.id }, status: { in: ["STARTING", "RUNNING"] } } });
+    if (busy) continue;
+    const r = await prisma.assessment.updateMany({ where: { id: n.id, status: "QUEUED" }, data: { status: "STARTING", runnerRef: workerId, heartbeatAt: new Date() } });
+    if (r.count) return n.id;
+  }
+  return null;
 }

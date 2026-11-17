@@ -1,10 +1,11 @@
 // ============================================================================
 // CT Assessment 365 SaaS — infraestrutura Azure
 //   - Azure SQL: banco do portal (control plane) + elastic pool com 1 banco por cliente
-//   - Key Vault (RBAC): credenciais do Microsoft 365 de cada cliente
-//   - Container Registry: imagens do portal e do job
-//   - Container Apps: portal (Next.js) + Container Apps Job manual (coletor PowerShell/PnP)
-//   - Log Analytics: logs do portal e de cada execução do job
+//   - Key Vault (access policies): credenciais do Microsoft 365 de cada cliente
+//   - Container Registry: imagens do portal e do worker
+//   - Container Apps: portal (Next.js) + worker de coleta (coletor PowerShell/PnP, fila do portal)
+//   - Log Analytics: logs do portal e das coletas
+// Não cria nenhuma atribuição de papel (RBAC): basta Contributor no resource group.
 // Implantação: infra/deploy.sh (ver README.md → Implantação no Azure)
 // ============================================================================
 targetScope = 'resourceGroup'
@@ -27,7 +28,7 @@ param poolDtu int = 50
 
 @description('Imagem do portal (ACR). Na primeira implantação, deixe o placeholder; o deploy.sh atualiza.')
 param portalImage string = 'mcr.microsoft.com/k8se/quickstart:latest'
-@description('Imagem do job de coleta (ACR)')
+@description('Imagem do worker de coleta (ACR)')
 param jobImage string = 'mcr.microsoft.com/k8se/quickstart-jobs:latest'
 
 @secure()
@@ -54,9 +55,13 @@ param localLogin bool = true
 @description('Domínio próprio do portal (opcional). Vazio = FQDN do Container Apps.')
 param customUrl string = ''
 
-@description('Tempo máximo de uma execução do coletor (segundos). Em caso de queda, o retry retoma de onde parou.')
-param jobTimeoutSeconds int = 43200
-param jobRetryLimit int = 3
+@secure()
+@description('Token compartilhado entre portal e workers para pegar coletas da fila (openssl rand -base64 33)')
+param workerToken string
+@description('Workers de coleta = coletas simultâneas (de clientes diferentes)')
+@minValue(1)
+@maxValue(10)
+param workerReplicas int = 1
 
 var suffix = uniqueString(resourceGroup().id)
 var names = {
@@ -68,15 +73,8 @@ var names = {
   portalDb: 'ctassessment_portal'
   env: '${prefix}-env'
   portal: '${prefix}-portal'
-  job: '${prefix}-job'
+  worker: '${prefix}-worker'
   idPortal: '${prefix}-id-portal'
-  idJob: '${prefix}-id-job'
-}
-
-var roles = {
-  acrPull: '7f951dda-4ed3-4680-a7ca-43fe172d538d'
-  kvSecretsOfficer: 'b86a8fe4-44ce-4948-aee5-eccb2c155cd7'
-  jobsOperator: 'b9a307c4-5aa3-4b52-ba60-2b17c136cd7b'
 }
 
 // ───────────── Observabilidade ─────────────
@@ -86,51 +84,40 @@ resource logs 'Microsoft.OperationalInsights/workspaces@2023-09-01' = {
   properties: { sku: { name: 'PerGB2018' }, retentionInDays: 30 }
 }
 
-// ───────────── Identidades ─────────────
+// ───────────── Identidade do portal (só para o Key Vault) ─────────────
 resource idPortal 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
   name: names.idPortal
   location: location
 }
-resource idJob 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
-  name: names.idJob
-  location: location
-}
 
-// ───────────── Registro de imagens ─────────────
+// ───────────── Registro de imagens (usuário admin: dispensa o papel AcrPull) ─────────────
 resource acr 'Microsoft.ContainerRegistry/registries@2023-07-01' = {
   name: names.acr
   location: location
   sku: { name: 'Basic' }
-  properties: { adminUserEnabled: false }
-}
-resource acrPullPortal 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  scope: acr
-  name: guid(acr.id, idPortal.id, roles.acrPull)
-  properties: { roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', roles.acrPull), principalId: idPortal.properties.principalId, principalType: 'ServicePrincipal' }
-}
-resource acrPullJob 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  scope: acr
-  name: guid(acr.id, idJob.id, roles.acrPull)
-  properties: { roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', roles.acrPull), principalId: idJob.properties.principalId, principalType: 'ServicePrincipal' }
+  properties: { adminUserEnabled: true }
 }
 
 // ───────────── Key Vault (credenciais M365 dos clientes) ─────────────
+// Access policies em vez de RBAC: Contributor no resource group consegue configurar.
 resource kv 'Microsoft.KeyVault/vaults@2023-07-01' = {
   name: names.kv
   location: location
   properties: {
     tenantId: subscription().tenantId
     sku: { family: 'A', name: 'standard' }
-    enableRbacAuthorization: true
+    enableRbacAuthorization: false
     enableSoftDelete: true
     softDeleteRetentionInDays: 30
     enablePurgeProtection: true
+    accessPolicies: [
+      {
+        tenantId: subscription().tenantId
+        objectId: idPortal.properties.principalId
+        permissions: { secrets: ['get', 'list', 'set', 'delete', 'recover'] }
+      }
+    ]
   }
-}
-resource kvPortal 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  scope: kv
-  name: guid(kv.id, idPortal.id, roles.kvSecretsOfficer)
-  properties: { roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', roles.kvSecretsOfficer), principalId: idPortal.properties.principalId, principalType: 'ServicePrincipal' }
 }
 
 // ───────────── Azure SQL ─────────────
@@ -182,40 +169,38 @@ var sqlFqdn = sql.properties.fullyQualifiedDomainName
 var databaseUrl = 'sqlserver://${sqlFqdn}:1433;database=${names.portalDb};user=${sqlAdminLogin};password={${sqlAdminPassword}};encrypt=true;trustServerCertificate=false;hostNameInCertificate=*.database.windows.net;loginTimeout=30'
 var useAcrPortal = startsWith(portalImage, acr.properties.loginServer)
 var useAcrJob = startsWith(jobImage, acr.properties.loginServer)
+var acrSecret = [{ name: 'acr-password', value: acr.listCredentials().passwords[0].value }]
+var acrRegistry = [{ server: acr.properties.loginServer, username: acr.listCredentials().username, passwordSecretRef: 'acr-password' }]
 
-resource job 'Microsoft.App/jobs@2024-03-01' = {
-  name: names.job
+// Worker de coleta: pede a próxima coleta ao portal (fila) e roda o coletor. Nenhum segredo de cliente fica aqui:
+// a configuração de cada coleta vem do portal, autenticada pelo token da execução.
+resource worker 'Microsoft.App/containerApps@2024-03-01' = {
+  name: names.worker
   location: location
-  identity: { type: 'UserAssigned', userAssignedIdentities: { '${idJob.id}': {} } }
-  dependsOn: [acrPullJob]
   properties: {
     environmentId: env.id
     configuration: {
-      triggerType: 'Manual'
-      replicaTimeout: jobTimeoutSeconds
-      replicaRetryLimit: jobRetryLimit
-      manualTriggerConfig: { parallelism: 1, replicaCompletionCount: 1 }
-      registries: useAcrJob ? [{ server: acr.properties.loginServer, identity: idJob.id }] : []
+      activeRevisionsMode: 'Single'
+      registries: useAcrJob ? acrRegistry : []
+      secrets: concat([{ name: 'worker-token', value: workerToken }], useAcrJob ? acrSecret : [])
     }
     template: {
       containers: [
         {
           name: 'collector'
           image: jobImage
+          command: useAcrJob ? ['pwsh', '-NoLogo', '-NoProfile', '-NonInteractive', '-File', '/app/Start-Worker.ps1'] : []
           resources: { cpu: json('2.0'), memory: '4Gi' }
-          // ASSESSMENT_ID, CALLBACK_URL e CALLBACK_TOKEN entram por execução (o portal sobrescreve ao iniciar).
-          // Nenhum segredo fica no job: a configuração vem do portal, autenticada pelo token da execução.
-          env: [{ name: 'POWERSHELL_TELEMETRY_OPTOUT', value: '1' }]
+          env: [
+            { name: 'PORTAL_URL', value: portalUrl }
+            { name: 'WORKER_TOKEN', secretRef: 'worker-token' }
+            { name: 'POWERSHELL_TELEMETRY_OPTOUT', value: '1' }
+          ]
         }
       ]
+      scale: { minReplicas: workerReplicas, maxReplicas: workerReplicas }
     }
   }
-}
-
-resource jobOperator 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  scope: job
-  name: guid(job.id, idPortal.id, roles.jobsOperator)
-  properties: { roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', roles.jobsOperator), principalId: idPortal.properties.principalId, principalType: 'ServicePrincipal' }
 }
 
 var entraEnabled = !empty(entraClientId) && !empty(entraClientSecret)
@@ -224,6 +209,7 @@ var baseSecrets = [
   { name: 'tenant-sql-password', value: sqlAdminPassword }
   { name: 'auth-secret', value: authSecret }
   { name: 'job-signing-secret', value: jobSigningSecret }
+  { name: 'worker-token', value: workerToken }
 ]
 var entraSecrets = entraEnabled ? [{ name: 'entra-secret', value: entraClientSecret }] : []
 var bootstrapSecrets = empty(bootstrapAdminPassword) ? [] : [{ name: 'bootstrap-admin-password', value: bootstrapAdminPassword }]
@@ -242,11 +228,9 @@ var baseEnv = [
   { name: 'TENANT_SQL_USER', value: sqlAdminLogin }
   { name: 'TENANT_SQL_PASSWORD', secretRef: 'tenant-sql-password' }
   { name: 'TENANT_SQL_ELASTIC_POOL', value: names.pool }
-  { name: 'JOB_RUNNER', value: 'aca' }
+  { name: 'JOB_RUNNER', value: 'queue' }
   { name: 'JOB_SIGNING_SECRET', secretRef: 'job-signing-secret' }
-  { name: 'ACA_SUBSCRIPTION_ID', value: subscription().subscriptionId }
-  { name: 'ACA_RESOURCE_GROUP', value: resourceGroup().name }
-  { name: 'ACA_JOB_NAME', value: names.job }
+  { name: 'WORKER_TOKEN', secretRef: 'worker-token' }
   { name: 'PORTAL_CALLBACK_URL', value: portalUrl }
   { name: 'JOB_IMAGE', value: jobImage }
 ]
@@ -264,13 +248,13 @@ resource portal 'Microsoft.App/containerApps@2024-03-01' = {
   name: names.portal
   location: location
   identity: { type: 'UserAssigned', userAssignedIdentities: { '${idPortal.id}': {} } }
-  dependsOn: [acrPullPortal, kvPortal, jobOperator, portalDb, pool, sqlAzure]
+  dependsOn: [portalDb, pool, sqlAzure]
   properties: {
     environmentId: env.id
     configuration: {
-      ingress: { external: true, targetPort: 3000, transport: 'auto', allowInsecure: false }
-      registries: useAcrPortal ? [{ server: acr.properties.loginServer, identity: idPortal.id }] : []
-      secrets: concat(baseSecrets, entraSecrets, bootstrapSecrets)
+      ingress: { external: true, targetPort: useAcrPortal ? 3000 : 80, transport: 'auto', allowInsecure: false }
+      registries: useAcrPortal ? acrRegistry : []
+      secrets: concat(baseSecrets, entraSecrets, bootstrapSecrets, useAcrPortal ? acrSecret : [])
     }
     template: {
       containers: [
@@ -284,7 +268,7 @@ resource portal 'Microsoft.App/containerApps@2024-03-01' = {
           ] : []
         }
       ]
-      // o portal guarda pools de conexão por banco de cliente em memória: 1 réplica basta para começar
+      // os pools de conexão por banco de cliente ficam em memória: 1 réplica basta para começar
       scale: { minReplicas: 1, maxReplicas: 2 }
     }
   }
@@ -295,5 +279,5 @@ output acrLoginServer string = acr.properties.loginServer
 output acrName string = acr.name
 output keyVaultUri string = kv.properties.vaultUri
 output sqlServer string = sqlFqdn
-output jobName string = job.name
+output workerName string = worker.name
 output entraRedirectUri string = '${portalUrl}/api/auth/callback/microsoft-entra-id'

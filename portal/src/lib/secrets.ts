@@ -44,7 +44,15 @@ export const secretName = (clientId: string, kind: "secret" | "cert" | "certpwd"
 
 export async function setSecret(name: string, value: string) {
   if (SECRET_STORE === "keyvault") {
-    await (await kvClient()).setSecret(name, value, { contentType: "ct-assessment" });
+    const c = await kvClient();
+    try {
+      await c.setSecret(name, value, { contentType: "ct-assessment" });
+    } catch (e) {
+      // soft-delete: um segredo removido antes fica "excluído mas recuperável" e bloqueia o mesmo nome — recupera e regrava
+      if (!/ObjectIsDeletedButRecoverable/i.test(String((e as { code?: string }).code ?? (e as Error).message))) throw e;
+      await (await c.beginRecoverDeletedSecret(name)).pollUntilDone();
+      await c.setSecret(name, value, { contentType: "ct-assessment" });
+    }
     return;
   }
   const v = enc(value);

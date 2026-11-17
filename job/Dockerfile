@@ -11,12 +11,14 @@ RUN pwsh -NoLogo -NoProfile -Command " \
 
 WORKDIR /app
 COPY src ./src
-COPY Invoke-SaasAssessment.ps1 ./
+COPY Invoke-SaasAssessment.ps1 Start-Worker.ps1 ./
 
 # o coletor grava logs/ e src/progress/ relativos à raiz do projeto
 RUN mkdir -p logs src/progress && useradd -r -u 10001 -m collector && chown -R collector /app
 USER collector
 ENV POWERSHELL_TELEMETRY_OPTOUT=1 PNPPOWERSHELL_UPDATECHECK=Off PNPPOWERSHELL_DISABLETELEMETRY=true
 
-# Recebe ASSESSMENT_ID, CALLBACK_URL e CALLBACK_TOKEN por variável de ambiente
-ENTRYPOINT ["pwsh", "-NoLogo", "-NoProfile", "-NonInteractive", "-File", "/app/Invoke-SaasAssessment.ps1"]
+# Padrão: uma coleta, com ASSESSMENT_ID, CALLBACK_URL e CALLBACK_TOKEN (docker run / Container Apps Job).
+# Worker de fila (produção sem RBAC): command = /app/Start-Worker.ps1, com PORTAL_URL e WORKER_TOKEN.
+ENTRYPOINT ["pwsh", "-NoLogo", "-NoProfile", "-NonInteractive", "-File"]
+CMD ["/app/Invoke-SaasAssessment.ps1"]

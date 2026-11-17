@@ -6,14 +6,17 @@ const run = promisify(execFile);
 
 /**
  * Onde o coletor (job/ — PowerShell + PnP) roda:
- *  - aca:    Azure Container Apps Job (produção). O portal inicia uma execução por assessment pela API do ARM.
+ *  - queue:  fila (produção). Workers (job/Start-Worker.ps1, Container App sempre ligado) pedem a próxima coleta em
+ *            /api/jobs/claim. Não exige nenhum papel RBAC no Azure: só um token compartilhado (WORKER_TOKEN).
+ *  - aca:    Azure Container Apps Job. O portal inicia uma execução por coleta pela API do ARM (exige o papel
+ *            Container Apps Jobs Operator para a identidade do portal).
  *  - docker: `docker run` na mesma máquina do portal (desenvolvimento).
  *  - manual: o portal só registra; alguém roda o container/script com as 3 variáveis (ex.: dentro da rede do cliente).
  * Em todos os casos o container recebe só ASSESSMENT_ID, CALLBACK_URL e CALLBACK_TOKEN e busca o resto no portal.
  */
-export type Runner = "aca" | "docker" | "manual";
-export const RUNNER: Runner = (["aca", "docker", "manual"] as const).find((r) => r === process.env.JOB_RUNNER) ?? "manual";
-export const RUNNER_LABEL: Record<Runner, string> = { aca: "Azure Container Apps Job", docker: "Docker local", manual: "Execução manual" };
+export type Runner = "queue" | "aca" | "docker" | "manual";
+export const RUNNER: Runner = (["queue", "aca", "docker", "manual"] as const).find((r) => r === process.env.JOB_RUNNER) ?? "manual";
+export const RUNNER_LABEL: Record<Runner, string> = { queue: "Worker de coleta (fila)", aca: "Azure Container Apps Job", docker: "Docker local", manual: "Execução manual" };
 
 export function jobEnv(assessmentId: string) {
   return {
@@ -104,7 +107,7 @@ async function dockerStart(assessmentId: string) {
 export async function startJob(assessmentId: string): Promise<{ runner: Runner; ref: string | null }> {
   if (RUNNER === "aca") return { runner: RUNNER, ref: await acaStart(assessmentId) };
   if (RUNNER === "docker") return { runner: RUNNER, ref: await dockerStart(assessmentId) };
-  return { runner: RUNNER, ref: null };
+  return { runner: RUNNER, ref: null }; // queue e manual: fica QUEUED até um worker (ou alguém) pegar
 }
 
 export async function stopJob(runner: string, ref: string | null) {

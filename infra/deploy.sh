@@ -6,24 +6,25 @@
 # trocar JOB_SIGNING_SECRET invalida execuções em andamento).
 #   RG, LOCATION                          ex.: rg-ctassessment, brazilsouth
 #   SQL_ADMIN_PASSWORD                    senha forte do admin do Azure SQL
-#   AUTH_SECRET, JOB_SIGNING_SECRET       openssl rand -base64 33
+#   AUTH_SECRET, JOB_SIGNING_SECRET, WORKER_TOKEN   openssl rand -base64 33
+# Não cria atribuições de papel (RBAC): Contributor no resource group basta.
 # Opcionais: PREFIX, ENTRA_CLIENT_ID, ENTRA_CLIENT_SECRET, ADMIN_EMAILS, INTERNAL_EMAIL_DOMAINS,
 #            BOOTSTRAP_ADMIN_EMAIL, BOOTSTRAP_ADMIN_PASSWORD, TAG
 set -euo pipefail
 cd "$(dirname "$0")/.."
-: "${RG:?defina RG}" "${LOCATION:?defina LOCATION}" "${SQL_ADMIN_PASSWORD:?}" "${AUTH_SECRET:?}" "${JOB_SIGNING_SECRET:?}"
+: "${RG:?defina RG}" "${LOCATION:?defina LOCATION}" "${SQL_ADMIN_PASSWORD:?}" "${AUTH_SECRET:?}" "${JOB_SIGNING_SECRET:?}" "${WORKER_TOKEN:?}"
 PREFIX="${PREFIX:-ctassess}"
 TAG="${TAG:-$(git rev-parse --short HEAD 2>/dev/null || date +%Y%m%d%H%M)}"
 
 common=(
   prefix="$PREFIX"
-  sqlAdminPassword="$SQL_ADMIN_PASSWORD" authSecret="$AUTH_SECRET" jobSigningSecret="$JOB_SIGNING_SECRET"
+  sqlAdminPassword="$SQL_ADMIN_PASSWORD" authSecret="$AUTH_SECRET" jobSigningSecret="$JOB_SIGNING_SECRET" workerToken="$WORKER_TOKEN"
   entraClientId="${ENTRA_CLIENT_ID:-}" entraClientSecret="${ENTRA_CLIENT_SECRET:-}"
   adminEmails="${ADMIN_EMAILS:-}" internalEmailDomains="${INTERNAL_EMAIL_DOMAINS:-cloudtarget.com.br}"
   bootstrapAdminEmail="${BOOTSTRAP_ADMIN_EMAIL:-}" bootstrapAdminPassword="${BOOTSTRAP_ADMIN_PASSWORD:-}"
 )
 
-az group create -n "$RG" -l "$LOCATION" -o none
+az group show -n "$RG" -o none 2>/dev/null || az group create -n "$RG" -l "$LOCATION" -o none
 ACR=$(az acr list -g "$RG" --query "[?starts_with(name, '${PREFIX}acr')].name | [0]" -o tsv)
 if [ -z "$ACR" ]; then
   echo "== 1/3 infraestrutura inicial (imagens provisórias)"
@@ -35,7 +36,7 @@ echo "== 2/3 build das imagens no ACR $ACR (tag $TAG)"
 az acr build -r "$ACR" -t "ctassessment-portal:$TAG" portal
 az acr build -r "$ACR" -t "ctassessment-job:$TAG" job
 
-echo "== 3/3 portal e job com as imagens novas"
+echo "== 3/3 portal e worker com as imagens novas"
 az deployment group create -g "$RG" -f infra/main.bicep \
   -p "${common[@]}" portalImage="$LOGIN/ctassessment-portal:$TAG" jobImage="$LOGIN/ctassessment-job:$TAG" \
   --query "properties.outputs.{portal:portalUrl.value, redirectUri:entraRedirectUri.value, keyVault:keyVaultUri.value, sql:sqlServer.value}" -o table

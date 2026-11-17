@@ -124,3 +124,27 @@ scripts/sync-collector.sh ../ct-assessmentspo
 ```
 
 Depois disso, confira se o bloco de módulos do `src/main.ps1` mudou (o `job/Invoke-SaasAssessment.ps1` espelha a ordem e as condições). Mudanças de schema entram como migração incremental em `portal/sql/tenant/NNN_*.sql`: o `001` faz DROP + CREATE e só roda em banco vazio.
+
+## Higienização (em construção)
+
+Ações que **alteram** o tenant do cliente, a partir do que o assessment encontrou. Sempre começam em simulação.
+
+### Limpeza de versões antigas — `job/hygiene/Invoke-VersionCleanup.ps1`
+
+Mantém as N versões mais recentes de cada arquivo (contando a atual) e apaga as mais antigas.
+
+- **Candidatos** vêm da última coleta (arquivos com número de versão maior que N); a **simulação** lê as versões reais de cada um no SharePoint e informa exatamente quantas versões sairiam e quanto espaço libera — sem alterar nada.
+- **Modo `PorArquivo`** (padrão): apaga só nos arquivos candidatos; por padrão as versões vão para a **lixeira** do site (recuperáveis; o espaço é liberado quando a lixeira for esvaziada). `-SemLixeira` exclui de forma permanente.
+- **Modo `JobSharePoint`**: enfileira o job oficial de *trim* do SharePoint para o site inteiro — rápido em sites grandes, mas **permanente** (não passa pela lixeira).
+- Nunca toca a Preservation Hold Library nem a versão atual; arquivos com rótulo de retenção ficam de fora por padrão.
+- Resultado por arquivo em CSV (`-OutDir`) e no banco do cliente (`dbo.hygiene_runs` / `dbo.hygiene_version_items`).
+
+Uso avulso, com o `auth.json` do ct-assessmentspo (Sites.FullControl.All com certificado):
+
+```powershell
+pwsh -File job/hygiene/Invoke-VersionCleanup.ps1 -AuthFile ./auth.json -SiteUrl https://contoso.sharepoint.com/sites/financeiro -ManterVersoes 100 -OutDir ./saida
+```
+
+```powershell
+pwsh -File job/hygiene/Invoke-VersionCleanup.ps1 -AuthFile ./auth.json -SiteUrl https://contoso.sharepoint.com/sites/financeiro -ManterVersoes 100 -Acao Executar -OutDir ./saida
+```

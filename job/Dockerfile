@@ -7,11 +7,14 @@ ARG PNP_VERSION=2.12.0
 RUN pwsh -NoLogo -NoProfile -Command " \
       Set-PSRepository PSGallery -InstallationPolicy Trusted; \
       Install-Module PnP.PowerShell -RequiredVersion ${PNP_VERSION} -Scope AllUsers -Force; \
-      Import-Module PnP.PowerShell; Write-Host ('PnP ' + (Get-Module PnP.PowerShell).Version)"
+      Import-Module PnP.PowerShell; if (-not (Get-Module PnP.PowerShell)) { throw 'PnP.PowerShell nao instalou' }; \
+      Write-Host ('PnP ' + (Get-Module PnP.PowerShell).Version)"
 
 WORKDIR /app
 COPY src ./src
 COPY Invoke-SaasAssessment.ps1 Start-Worker.ps1 ./
+# higienização (limpeza de versões etc.) — scripts que ALTERAM o tenant; ver job/hygiene
+COPY hygiene ./hygiene
 
 # o coletor grava logs/ e src/progress/ relativos à raiz do projeto
 RUN mkdir -p logs src/progress && useradd -r -u 10001 -m collector && chown -R collector /app

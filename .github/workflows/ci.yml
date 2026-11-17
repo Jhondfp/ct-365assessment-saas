@@ -32,6 +32,9 @@ jobs:
       - name: Pipeline do entrypoint (StrictMode, cenários simulados)
         shell: pwsh
         run: ./job/tests/Test-Pipeline.ps1
+      - name: Higienização — limpeza de versões (SharePoint/banco simulados)
+        shell: pwsh
+        run: ./job/tests/Test-VersionCleanup.ps1
       - run: docker build -t ctassessment-job:ci job
 
   infra:

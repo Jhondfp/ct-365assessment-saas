@@ -18,6 +18,7 @@ Versão SaaS do coletor **ct-assessmentspo** (PowerShell + PnP + SQL Server). Po
 - `src/lib/dashboard.ts` é o porte das funções do `Start-Monitor.ps1`: mesmo formato de JSON que o dashboard consome. O relatório nativo (`app/(app)/clientes/[id]/relatorio`, `components/report`) usa esse JSON; regras de negócio (economia, licenças ociosas, achados) ficam em `src/lib/insights.ts`. Gráficos em `components/charts.tsx` seguem a paleta validada (roxo da marca, azul, laranja; status só para estado).
 - O job isola cada workload (`Invoke-Workload` no entrypoint) e reporta `workloads`/`preflight` ao portal; status final `completed | partial | failed`. Execuções `kind = DIAGNOSTICO` rodam só a checagem prévia e ficam fora das listagens (`assessmentWhere` filtra `COLETA`).
 - O coletor roda com StrictMode: o entrypoint completa `auth`/`params` com as chaves padrão dos `*.example.json`. Nunca envolva o retorno de `Invoke-DbReader` em `@()` (ele já devolve array).
+- **Higienização** (`job/hygiene/`) ALTERA o tenant do cliente: simular é sempre o padrão, execução exige confirmação (`SupportsShouldProcess`), nada toca a Preservation Hold Library nem a versão atual, e cada item vai para `dbo.hygiene_version_items` (migração tenant 002). Limpeza de versões: modo `PorArquivo` (padrão, versões vão para a lixeira) ou `JobSharePoint` (trim do servidor, permanente).
 - Server actions seguem o padrão do Target360: função `async` privada + `export const x = act(x_)`. Nunca exporte helper de um arquivo `"use server"` (vira endpoint público); helpers vão para `src/lib`.
 - Toda action de cliente checa `requireClientPerm(clientId, perm)`; toda página de cliente, `requireClientPage`. Alterações relevantes gravam `audit(...)`.
 - Schema dos clientes: `001_schema.sql` faz DROP + CREATE e só roda em banco vazio (banco com o schema é adotado). Mudanças novas = migração incremental `NNN_nome.sql` idempotente.
@@ -39,6 +40,10 @@ bicep build infra/main.bicep --stdout > /dev/null
 
 ```bash
 pwsh -File job/tests/Test-Pipeline.ps1   # pipeline do entrypoint sob StrictMode, com Graph/PnP/banco simulados
+```
+
+```bash
+pwsh -File job/tests/Test-VersionCleanup.ps1   # higienização: limpeza de versões, SharePoint/banco simulados
 ```
 
 Teste de ponta a ponta local: `docker compose up -d db`, portal com `JOB_RUNNER=docker` e a imagem `ctassessment-job:dev`. Cadastre um cliente com "criar o banco agora" e rode uma coleta. Sem um tenant M365 real, a coleta falha no token do Graph, mas valida o disparo, o callback, o log e o status.

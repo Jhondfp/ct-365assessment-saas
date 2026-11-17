@@ -112,6 +112,25 @@ $global:auth   = $config.auth   | ConvertTo-Json -Depth 5 | ConvertFrom-Json -As
 $global:params = $config.params | ConvertTo-Json -Depth 5 | ConvertFrom-Json -AsHashtable
 foreach ($k in 'tenant_id','client_id') { if ($global:auth[$k] -is [string]) { $global:auth[$k] = $global:auth[$k].Trim() } }
 
+# O coletor roda com StrictMode e le chaves do auth.json/params.json que o arquivo original SEMPRE tem (mesmo vazias):
+# ex. Get-SitesInfo passa $global:auth.client_secret tambem no modo certificado. Completa com os padroes dos
+# *.example.json do ct-assessmentspo tudo o que o portal nao mandou.
+$authDefaults = [ordered]@{
+    client_secret = ''; cert_password = ''; cert_path = ''; connection = 'sql'; auth_mode = 'secret'
+    proxy_url = ''; proxy_username = ''; proxy_password = ''; proxy_bypass = ''
+}
+foreach ($k in $authDefaults.Keys) { if (-not $global:auth.ContainsKey($k) -or $null -eq $global:auth[$k]) { $global:auth[$k] = $authDefaults[$k] } }
+$paramsDefaults = [ordered]@{
+    notifications = $false; notifications_interval = 1; notifications_webhook = ''
+    process_licensing_info = $false; process_adoption_info = $false; process_mailbox_info = $false; process_intune_info = $false
+    process_sites_info = $false; process_onedrive = $false; process_sites = $false; process_subsites = $false
+    process_recycle_bin = $false; process_calendar = $false; process_owner_status = $false
+    store_in_csv = $false; store_in_sql = $true; resume_last_execution = $true; force_new_execution = $false; resume_max_age_hours = 72
+    sites = @(); users_meeting = @(); sql_batch_size = 500; sites_batch_size = 100; sites_parallel_size = 8
+    sql_command_timeout = 120; graph_page_size = 999; output_data_format = 'yyyy-MM-dd HH:mm:ss'; comments = ''
+}
+foreach ($k in $paramsDefaults.Keys) { if (-not $global:params.ContainsKey($k) -or $null -eq $global:params[$k]) { $global:params[$k] = $paramsDefaults[$k] } }
+
 # Certificado: Get-GraphToken lê auth.cert_path; o PnP usa $global:base64Cert
 $global:base64Cert = $null
 $certTemp = $null

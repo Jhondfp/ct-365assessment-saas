@@ -12,9 +12,22 @@ export async function lastCompletedExecution(db: DbConn) {
   return r[0] ? { id: String(r[0].execution_id), start: r[0].start_time ? new Date(r[0].start_time as string) : null } : null;
 }
 
-/** Sites com arquivos acima de N versões (mesmo filtro do script: sem Preservation Hold Library nem rótulo de retenção). */
+/**
+ * Estimativa por site a partir da coleta. Usa a agregação dbo.agg_version_by_site (histograma de versões por site,
+ * instantâneo); só lê files_info se a coleta ainda não tiver agregação. É um teto: a simulação lê as versões reais.
+ */
 export async function versionCandidatesBySite(db: DbConn, executionId: string, keep: number): Promise<SiteCandidate[]> {
-  const rows = await readQuery(db, `
+  const fromAgg = await readQuery(db, `
+    WITH u AS (SELECT site_name, MIN(site_url) AS site_url FROM dbo.agg_files_by_site WHERE execution_id = @e GROUP BY site_name)
+    SELECT u.site_url, SUM(v.file_count) AS files,
+           SUM(CAST(v.versions_count - @keep AS BIGINT) * v.file_count) AS est_versions,
+           SUM(CAST(v.versions_count - @keep AS FLOAT) * v.sum_file_size_bytes) AS est_bytes
+    FROM dbo.agg_version_by_site v JOIN u ON u.site_name = v.site_name
+    WHERE v.execution_id = @e AND v.versions_count > @keep
+    GROUP BY u.site_url
+    ORDER BY est_bytes DESC`, { e: executionId, keep }, 60_000).catch(() => null);
+  const hasAgg = fromAgg && (fromAgg.length > 0 || (await readQuery(db, "SELECT TOP 1 1 AS x FROM dbo.agg_version_by_site WHERE execution_id = @e", { e: executionId }, 30_000).catch(() => [])).length > 0);
+  const rows = hasAgg ? fromAgg! : await readQuery(db, `
     SELECT site_url, COUNT(*) AS files,
            SUM(CAST(versions_count - @keep AS BIGINT)) AS est_versions,
            SUM(CAST(versions_count - @keep AS BIGINT) * ISNULL(file_size, 0)) AS est_bytes

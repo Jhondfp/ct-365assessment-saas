@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireClientPage } from "@/lib/session";
@@ -144,7 +145,11 @@ export default async function Cliente({ params, searchParams }: { params: Promis
         </section>
       )}
 
-      {tab === "higienizacao" && canRun && <HygieneTab client={c} keep={keep} from={from} sites={presetSites} />}
+      {tab === "higienizacao" && canRun && (
+        <Suspense key={`${keep}-${from ?? ""}-${presetSites.length}`} fallback={<div className="card flex items-center gap-3 text-sm text-slate-600"><span className="h-4 w-4 animate-spin rounded-full border-2 border-ct-purple border-t-transparent" />Calculando os arquivos com excesso de versões na última coleta…</div>}>
+          <HygieneTab client={c} keep={keep} from={from} sites={presetSites} />
+        </Suspense>
+      )}
 
       {tab === "cadastro" && canManage && (
         <div className="grid gap-6 lg:grid-cols-2">

@@ -57,7 +57,7 @@ export function HygieneForm({ action, keep, candidates, source, defaults = {} }:
           {String(keep) !== keepInput && keepInput && <><button type="button" onClick={applyKeep} className="btn-secondary">Recalcular estimativa</button><span className="text-xs text-amber-800">A lista e a estimativa abaixo ainda são para {keep} versões.</span></>}
           <p className="text-xs text-slate-500">Arquivos com até {keep} versões não são tocados. A versão atual nunca é apagada.</p>
         </div>
-        <p className="text-xs text-slate-500">Candidatos da coleta de {source?.label ?? "—"}. Ficam de fora a Preservation Hold Library e arquivos com rótulo de retenção.</p>
+        <p className="text-xs text-slate-500">Candidatos da coleta de {source?.label ?? "—"}. A simulação e a execução deixam de fora a Preservation Hold Library e arquivos com rótulo de retenção.</p>
       </section>
 
       <section className="card space-y-4">

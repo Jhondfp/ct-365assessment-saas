@@ -8,7 +8,7 @@ export function StatusBadge({ status }: { status: string }) {
 }
 
 type Row = {
-  id: string; status: string; createdAt: Date; startedAt: Date | null; finishedAt: Date | null; totalSites: number | null;
+  id: string; status: string; runner?: string; createdAt: Date; startedAt: Date | null; finishedAt: Date | null; totalSites: number | null;
   client?: { id: string; name: string }; startedBy?: { name: string | null; email: string } | null;
 };
 
@@ -33,9 +33,9 @@ export function AssessmentTable({ rows, showClient = true }: { rows: Row[]; show
               <td><Link className="link" href={`/execucoes/${a.id}`}>{dateTime(a.startedAt ?? a.createdAt)}</Link></td>
               {showClient && <td>{a.client ? <Link className="link" href={`/clientes/${a.client.id}`}>{a.client.name}</Link> : "—"}</td>}
               <td><StatusBadge status={a.status} /></td>
-              <td>{a.startedAt ? duration(a.startedAt, a.finishedAt) : "—"}</td>
+              <td>{a.startedAt && (a.finishedAt || ["QUEUED", "STARTING", "RUNNING"].includes(a.status)) ? duration(a.startedAt, a.finishedAt) : "—"}</td>
               <td>{a.totalSites ?? "—"}</td>
-              <td className="text-slate-500">{a.startedBy?.name ?? a.startedBy?.email ?? "—"}</td>
+              <td className="text-slate-500">{a.startedBy?.name ?? a.startedBy?.email ?? (a.runner === "importado" ? "fora do portal" : "—")}</td>
             </tr>
           ))}
         </tbody>

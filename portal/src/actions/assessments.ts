@@ -48,6 +48,7 @@ async function cancelAssessment_(id: string) {
 async function retryAssessment_(id: string) {
   const a = await prisma.assessment.findUniqueOrThrow({ where: { id } });
   const me = await requireClientPerm(a.clientId, "assessments:run");
+  if (a.runner === "importado") throw new Error("Execução importada do banco do cliente: use Nova execução para coletar de novo.");
   const newId = await launchAssessment(a.clientId, JSON.parse(a.params), me.id);
   await audit(prisma, "Assessment", newId, "CREATE", me.id, { repeticao_de: id });
   redirect(`/execucoes/${newId}`);

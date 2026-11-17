@@ -1,5 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { assessmentWhere, requirePagePerm } from "@/lib/session";
+import Link from "next/link";
+import { can } from "@/lib/rbac";
 import { PageHeader } from "@/components/ui";
 import { AssessmentTable } from "@/components/assessments";
 
@@ -12,7 +14,7 @@ export default async function Execucoes() {
   });
   return (
     <>
-      <PageHeader title="Execuções" subtitle="Cada execução roda o coletor do ct-assessmentspo num container isolado e grava no banco do cliente." />
+      <PageHeader title="Execuções" subtitle="Cada execução roda o coletor do ct-assessmentspo e grava no banco do cliente." actions={can(u.roles, "assessments:run") && <Link href="/execucoes/nova" className="btn">Nova execução</Link>} />
       <section className="card"><AssessmentTable rows={rows} showClient /></section>
     </>
   );

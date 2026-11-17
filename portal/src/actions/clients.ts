@@ -8,7 +8,7 @@ import { b, req, s } from "@/lib/form";
 import { requireClientPerm, requirePerm } from "@/lib/session";
 import { deleteSecret, getSecret, secretName, setSecret } from "@/lib/secrets";
 import { dbNameFor, externalConn, inspectDb, normalizeServer, tenantSqlConfigured } from "@/lib/tenantDb";
-import { provisionClientDb } from "@/lib/clientDb";
+import { importExecutions, provisionClientDb } from "@/lib/clientDb";
 import { ACTIVE } from "@/lib/status";
 
 const GUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -259,5 +259,15 @@ export const updateClient = act(updateClient_);
 export const saveConnection = act(saveConnection_);
 export const testConnection = act(testConnection_);
 export const removeCredential = act(removeCredential_);
+/** Traz para o portal as execuções que já estão no banco do cliente (ex.: rodadas no ct-assessmentspo on-premises). */
+async function importDbExecutions_(id: string) {
+  const me = await requireClientPerm(id, "clients:manage");
+  const r = await importExecutions(id);
+  await audit(prisma, "Client", id, "IMPORT", me.id, { novas: r.created, atualizadas: r.updated });
+  revalidatePath(`/clientes/${id}`);
+  return r.created || r.updated ? `${r.created} execução(ões) importada(s), ${r.updated} atualizada(s).` : "Nenhuma execução nova encontrada no banco do cliente.";
+}
+
 export const provisionDb = act(provisionDb_);
+export const importDbExecutions = act(importDbExecutions_);
 export const saveDatabase = act(saveDatabase_);

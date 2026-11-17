@@ -8,7 +8,7 @@ import { ACTIVE, DB_STATUS_LABEL } from "@/lib/status";
 import { PERMISSIONS_HELP } from "@/lib/collector";
 import { SECRET_STORE } from "@/lib/secrets";
 import { dateTime } from "@/lib/format";
-import { provisionDb, removeCredential, saveConnection, saveDatabase, testConnection, updateClient } from "@/actions/clients";
+import { importDbExecutions, provisionDb, removeCredential, saveConnection, saveDatabase, testConnection, updateClient } from "@/actions/clients";
 import { DbFields } from "@/components/DbFields";
 import { tenantSqlConfigured } from "@/lib/tenantDb";
 import { ActionButton, ActionForm } from "@/components/ActionForm";
@@ -108,6 +108,15 @@ export default async function Cliente({ params, searchParams }: { params: Promis
 
       {tab === "execucoes" && (
         <section className="card">
+          <div className="mb-4 flex flex-wrap items-center gap-3">
+            {canRun && (active ? <Link href={`/execucoes/${active.id}`} className="btn">Acompanhar execução em andamento</Link>
+              : missing.length ? <span className="text-sm text-amber-800">Para executar, configure: {missing.join(", ")}.</span>
+              : <Link href={`/clientes/${c.id}/executar`} className="btn">Nova execução</Link>)}
+            {canManage && c.dbStatus === "PROVISIONADO" && (
+              <ActionButton action={importDbExecutions.bind(null, c.id)} className="btn-secondary">Importar execuções do banco</ActionButton>
+            )}
+          </div>
+          {canManage && c.dbStatus === "PROVISIONADO" && <p className="-mt-2 mb-4 text-xs text-slate-500">&ldquo;Importar&rdquo; traz as coletas que já estão no banco do cliente (ex.: feitas com o ct-assessmentspo on-premises).</p>}
           <AssessmentTable rows={c.assessments} showClient={false} />
         </section>
       )}

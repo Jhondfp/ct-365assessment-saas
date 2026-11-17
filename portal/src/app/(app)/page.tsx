@@ -77,7 +77,7 @@ export default async function Painel() {
               <ul className="divide-y divide-slate-100">
                 {running.map((a) => (
                   <li key={a.id} className="flex flex-wrap items-center justify-between gap-2 py-2.5">
-                    <span className="flex items-center gap-2"><StatusBadge status={a.status} /><Link className="link" href={`/execucoes/${a.id}`}>{a.client.name}</Link>{a.kind === "DIAGNOSTICO" && <Badge>diagnóstico</Badge>}</span>
+                    <span className="flex items-center gap-2"><StatusBadge status={a.status} run={a} /><Link className="link" href={`/execucoes/${a.id}`}>{a.client.name}</Link>{a.kind === "DIAGNOSTICO" && <Badge>diagnóstico</Badge>}</span>
                     <span className="text-xs text-slate-500">{a.startedAt ? `há ${duration(a.startedAt)}` : `na fila desde ${dateTime(a.createdAt)}`}</span>
                   </li>
                 ))}

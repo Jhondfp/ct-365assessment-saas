@@ -23,3 +23,12 @@ export type Check = { ok: boolean; detail?: string } | null;
 export type Preflight = { graph: Check; sharepoint: Check; database: Check; permissions: { checked: boolean; granted: string[]; detail?: string } | null };
 export const WORKLOAD_LABEL: Record<Workload["status"], string> = { pending: "Aguardando", running: "Em execução", ok: "Concluído", failed: "Falhou", skipped: "Pulado" };
 export const WORKLOAD_TONE: Record<Workload["status"], "gray" | "purple" | "green" | "red" | "orange"> = { pending: "gray", running: "purple", ok: "green", failed: "red", skipped: "orange" };
+
+/** Sem sinal do worker há este tempo = o worker caiu (reinício/implantação); a fila retoma a coleta. Igual a QUEUE_STALE_MS. */
+export const STALLED_MS = 10 * 60_000;
+/** Coleta "em execução" cujo worker parou de mandar sinal: está esperando ser retomada. */
+export function isStalled(a: { status: string; runner?: string | null; heartbeatAt?: Date | string | null; createdAt?: Date | string }) {
+  if (!["STARTING", "RUNNING"].includes(a.status) || a.runner !== "queue") return false;
+  const last = a.heartbeatAt ?? a.createdAt;
+  return !!last && Date.now() - new Date(last).getTime() > STALLED_MS;
+}

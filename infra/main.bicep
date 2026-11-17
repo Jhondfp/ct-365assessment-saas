@@ -62,6 +62,10 @@ param workerToken string
 @minValue(1)
 @maxValue(10)
 param workerReplicas int = 1
+@description('Coletas simultâneas em cada worker (de clientes diferentes; cada uma num processo e pasta próprios)')
+@minValue(1)
+@maxValue(4)
+param workerConcurrency int = 3
 
 var suffix = uniqueString(resourceGroup().id)
 var names = {
@@ -190,9 +194,10 @@ resource worker 'Microsoft.App/containerApps@2024-03-01' = {
           name: 'collector'
           image: jobImage
           command: useAcrJob ? ['pwsh', '-NoLogo', '-NoProfile', '-NonInteractive', '-File', '/app/Start-Worker.ps1'] : []
-          resources: { cpu: json('2.0'), memory: '4Gi' }
+          resources: { cpu: json('4.0'), memory: '8Gi' }
           env: [
             { name: 'PORTAL_URL', value: portalUrl }
+            { name: 'WORKER_CONCURRENCY', value: string(workerConcurrency) }
             { name: 'WORKER_TOKEN', secretRef: 'worker-token' }
             { name: 'POWERSHELL_TELEMETRY_OPTOUT', value: '1' }
           ]

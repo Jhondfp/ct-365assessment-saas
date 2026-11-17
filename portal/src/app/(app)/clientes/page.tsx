@@ -75,7 +75,7 @@ export default async function Clientes({ searchParams }: { searchParams: Promise
                         {lastOk ? <Link className={`text-sm ${stale ? "text-amber-800" : "link"}`} href={`/clientes/${c.id}/relatorio`}>{dateTime(lastOk)}</Link> : <span className="muted">—</span>}
                         {lastOk && stale && <p className="text-xs text-amber-800">há mais de 90 dias</p>}
                       </td>
-                      <td>{last ? <Link href={`/execucoes/${last.id}`}><StatusBadge status={last.status} /></Link> : <span className="muted">—</span>}</td>
+                      <td>{last ? <Link href={`/execucoes/${last.id}`}><StatusBadge status={last.status} run={last} /></Link> : <span className="muted">—</span>}</td>
                       {manage && <td>{c._count.viewers}</td>}
                     </tr>
                   );

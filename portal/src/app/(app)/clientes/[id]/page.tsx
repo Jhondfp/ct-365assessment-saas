@@ -79,7 +79,7 @@ export default async function Cliente({ params, searchParams }: { params: Promis
           <section className="card lg:col-span-2">
             <h2 className="card-title">Execuções</h2>
             {active && (
-              <p className="mb-3 flex items-center gap-2 text-sm"><StatusBadge status={active.status} /> desde {dateTime(active.startedAt ?? active.createdAt)} — <Link className="link" href={`/execucoes/${active.id}`}>acompanhar</Link></p>
+              <p className="mb-3 flex items-center gap-2 text-sm"><StatusBadge status={active.status} run={active} /> desde {dateTime(active.startedAt ?? active.createdAt)} — <Link className="link" href={`/execucoes/${active.id}`}>acompanhar</Link></p>
             )}
             {lastOk ? (
               <p className="mb-3 text-sm">Última coleta concluída em <b>{dateTime(lastOk.finishedAt)}</b>{lastOk.totalSites != null && <> · {lastOk.totalSites} sites</>}. <Link className="link" href={`/clientes/${c.id}/relatorio?execucao=${lastOk.id}`}>Ver relatório</Link></p>

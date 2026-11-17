@@ -41,7 +41,7 @@ export default async function Execucao({ params }: { params: Promise<{ id: strin
     <>
       <PageHeader
         title={hygiene ? `${hp?.dryRun ? "Simulação de higienização" : "Higienização"} · ${a.client.name}` : diagnostic ? `Diagnóstico · ${a.client.name}` : `Execução · ${a.client.name}`}
-        subtitle={<span className="flex flex-wrap items-center gap-2"><StatusBadge status={a.status} /><span>{dateTime(a.startedAt ?? a.createdAt)}</span>{a.startedAt && (a.finishedAt || active) && <span className="text-slate-400">· {duration(a.startedAt, a.finishedAt)}</span>}</span>}
+        subtitle={<span className="flex flex-wrap items-center gap-2"><StatusBadge status={a.status} run={a} /><span>{dateTime(a.startedAt ?? a.createdAt)}</span>{a.startedAt && (a.finishedAt || active) && <span className="text-slate-400">· {duration(a.startedAt, a.finishedAt)}</span>}</span>}
         actions={<>
           {hasData && !diagnostic && !hygiene && <Link className="btn" href={`/clientes/${a.clientId}/relatorio?execucao=${a.id}`}>Ver relatório</Link>}
           {hygiene && !active && canRun && <Link className={hp?.dryRun && hasData ? "btn" : "btn-secondary"} href={`/clientes/${a.clientId}?tab=higienizacao&from=${a.id}&keep=${hp?.keep ?? 100}`}>{hp?.dryRun ? "Executar com estes parâmetros" : "Repetir pelo formulário"}</Link>}

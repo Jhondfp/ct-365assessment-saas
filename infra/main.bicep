@@ -58,14 +58,14 @@ param customUrl string = ''
 @secure()
 @description('Token compartilhado entre portal e workers para pegar coletas da fila (openssl rand -base64 33)')
 param workerToken string
-@description('Workers de coleta = coletas simultâneas (de clientes diferentes)')
+@description('Máximo de workers de coleta. O worker é elástico: sobe quando há coleta na fila e desliga (0 réplicas) quando não há')
 @minValue(1)
 @maxValue(10)
 param workerReplicas int = 1
 @description('Coletas simultâneas em cada worker (de clientes diferentes; cada uma num processo e pasta próprios)')
 @minValue(1)
 @maxValue(4)
-param workerConcurrency int = 3
+param workerConcurrency int = 2
 
 var suffix = uniqueString(resourceGroup().id)
 var names = {
@@ -170,6 +170,8 @@ resource env 'Microsoft.App/managedEnvironments@2024-03-01' = {
 var portalUrl = empty(customUrl) ? 'https://${names.portal}.${env.properties.defaultDomain}' : customUrl
 var sqlFqdn = sql.properties.fullyQualifiedDomainName
 // Senha com ; = { } precisa ir entre chaves na connection string do Prisma
+// Conexão ADO.NET ao banco do portal, só para a regra de escala do worker (KEDA mssql) contar a fila
+var queueSqlConn = 'Server=tcp:${sqlFqdn},1433;Database=${names.portalDb};User ID=${sqlAdminLogin};Password=${sqlAdminPassword};Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;'
 var databaseUrl = 'sqlserver://${sqlFqdn}:1433;database=${names.portalDb};user=${sqlAdminLogin};password={${sqlAdminPassword}};encrypt=true;trustServerCertificate=false;hostNameInCertificate=*.database.windows.net;loginTimeout=30'
 var useAcrPortal = startsWith(portalImage, acr.properties.loginServer)
 var useAcrJob = startsWith(jobImage, acr.properties.loginServer)
@@ -186,7 +188,7 @@ resource worker 'Microsoft.App/containerApps@2024-03-01' = {
     configuration: {
       activeRevisionsMode: 'Single'
       registries: useAcrJob ? acrRegistry : []
-      secrets: concat([{ name: 'worker-token', value: workerToken }], useAcrJob ? acrSecret : [])
+      secrets: concat([{ name: 'worker-token', value: workerToken }, { name: 'queue-sql', value: queueSqlConn }], useAcrJob ? acrSecret : [])
     }
     template: {
       containers: [
@@ -194,7 +196,7 @@ resource worker 'Microsoft.App/containerApps@2024-03-01' = {
           name: 'collector'
           image: jobImage
           command: useAcrJob ? ['pwsh', '-NoLogo', '-NoProfile', '-NonInteractive', '-File', '/app/Start-Worker.ps1'] : []
-          resources: { cpu: json('4.0'), memory: '8Gi' }
+          resources: workerConcurrency > 1 ? { cpu: json('3.0'), memory: '6Gi' } : { cpu: json('2.0'), memory: '4Gi' }
           env: [
             { name: 'PORTAL_URL', value: portalUrl }
             { name: 'WORKER_CONCURRENCY', value: string(workerConcurrency) }
@@ -203,7 +205,26 @@ resource worker 'Microsoft.App/containerApps@2024-03-01' = {
           ]
         }
       ]
-      scale: { minReplicas: workerReplicas, maxReplicas: workerReplicas }
+      // Elástico: o KEDA conta as coletas da fila no banco do portal. Sem coleta = 0 réplicas (sem custo);
+      // só desliga quando nada está na fila nem rodando, então nunca derruba coleta em andamento.
+      scale: {
+        minReplicas: 0
+        maxReplicas: workerReplicas
+        rules: [
+          {
+            name: 'fila-de-coletas'
+            custom: {
+              type: 'mssql'
+              metadata: {
+                query: 'SELECT COUNT(*) FROM dbo.Assessment WHERE runner = \'queue\' AND status IN (\'QUEUED\', \'STARTING\', \'RUNNING\')'
+                targetValue: string(workerConcurrency)
+                activationTargetValue: '0'
+              }
+              auth: [{ secretRef: 'queue-sql', triggerParameter: 'connectionString' }]
+            }
+          }
+        ]
+      }
     }
   }
 }

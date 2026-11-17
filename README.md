@@ -113,7 +113,7 @@ infra/deploy.sh
 
 Guarde `AUTH_SECRET` e `JOB_SIGNING_SECRET`: trocá-los derruba as sessões e invalida execuções em andamento. O script imprime a URL do portal e a **Redirect URI** do login Microsoft. Para habilitar o login Microsoft 365, crie no Entra ID da Cloud Target um App Registration multi-tenant ("contas em qualquer diretório organizacional"), com essa Redirect URI, e rode de novo com `ENTRA_CLIENT_ID` e `ENTRA_CLIENT_SECRET`.
 
-Recursos criados: Azure SQL (banco do portal S0 + elastic pool Standard 50 eDTU para os clientes), Key Vault (access policy só para a identidade do portal), ACR (usuário admin), Container Apps Environment, Container App do portal e Container App do worker (2 vCPU/4 GiB; `workerReplicas` = coletas simultâneas). **Nenhuma atribuição de papel (RBAC) é criada**: basta Contributor no resource group.
+Recursos criados: Azure SQL (banco do portal S0 + elastic pool Standard 50 eDTU para os clientes), Key Vault (access policy só para a identidade do portal), ACR (usuário admin), Container Apps Environment, Container App do portal e Container App do worker **elástico** (0 réplicas sem coleta na fila; sobe sozinho por uma regra KEDA `mssql` que conta a fila no banco do portal; `workerConcurrency` = coletas simultâneas por worker, padrão 2 com 3 vCPU/6 GiB; `workerReplicas` = máximo de workers). **Nenhuma atribuição de papel (RBAC) é criada**: basta Contributor no resource group.
 
 ## Atualizar o coletor
 

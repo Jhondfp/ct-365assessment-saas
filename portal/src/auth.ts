@@ -12,13 +12,15 @@ import { verifyPassword } from "@/lib/password";
  *  - Login local (e-mail + senha): contingência e pessoas sem conta Microsoft 365. AUTH_LOCAL_LOGIN=true.
  *  - Login de desenvolvimento (só com e-mail): AUTH_DEV_LOGIN=true, ignorado em produção.
  */
+/** Variáveis booleanas: aceita true/True/1/sim/yes (o Bicep, por exemplo, gera "True"). */
+const flag = (v?: string) => ["true", "1", "sim", "yes"].includes((v ?? "").trim().toLowerCase());
 const list = (v?: string) => (v ?? "").split(",").map((s) => s.trim().toLowerCase()).filter(Boolean);
 const ADMIN_EMAILS = list(process.env.ADMIN_EMAILS);
 const INTERNAL_DOMAINS = list(process.env.INTERNAL_EMAIL_DOMAINS);
-export const DEV_LOGIN = process.env.AUTH_DEV_LOGIN === "true" && process.env.NODE_ENV !== "production";
+export const DEV_LOGIN = flag(process.env.AUTH_DEV_LOGIN) && process.env.NODE_ENV !== "production";
 const filled = (v?: string) => !!v && !v.trim().startsWith("<");
 export const ENTRA_ENABLED = filled(process.env.AUTH_MICROSOFT_ENTRA_ID_ID) && filled(process.env.AUTH_MICROSOFT_ENTRA_ID_SECRET);
-export const LOCAL_LOGIN = process.env.AUTH_LOCAL_LOGIN === "true";
+export const LOCAL_LOGIN = flag(process.env.AUTH_LOCAL_LOGIN);
 /** organizations = qualquer conta corporativa/escolar (multi-tenant). Pode ser fixado num tenant ou num Entra External ID. */
 const ENTRA_ISSUER = filled(process.env.AUTH_MICROSOFT_ENTRA_ID_ISSUER)
   ? process.env.AUTH_MICROSOFT_ENTRA_ID_ISSUER!

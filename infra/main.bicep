@@ -218,7 +218,7 @@ var baseEnv = [
   { name: 'DATABASE_URL', secretRef: 'database-url' }
   { name: 'AUTH_SECRET', secretRef: 'auth-secret' }
   { name: 'AUTH_URL', value: portalUrl }
-  { name: 'AUTH_LOCAL_LOGIN', value: string(localLogin) }
+  { name: 'AUTH_LOCAL_LOGIN', value: localLogin ? 'true' : 'false' }
   { name: 'INTERNAL_EMAIL_DOMAINS', value: internalEmailDomains }
   { name: 'ADMIN_EMAILS', value: adminEmails }
   { name: 'AZURE_CLIENT_ID', value: idPortal.properties.clientId }

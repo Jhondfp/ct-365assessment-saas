@@ -1,4 +1,5 @@
 "use server";
+import { generateClientCertificate } from "@/lib/certificate";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { act } from "@/lib/act";
@@ -31,7 +32,11 @@ function readConnection(fd: FormData): Conn {
 }
 
 /** Lê a credencial do formulário (secret ou .pfx). Nulo = nada novo enviado. */
-async function readCredential(fd: FormData, mode: Conn["authMode"]) {
+async function readCredential(fd: FormData, mode: Conn["authMode"], clientName: string) {
+  if (mode === "cert" && fd.get("certSource") === "generate") {
+    const g = generateClientCertificate(clientName);
+    return { kind: "cert" as const, pfx: g.pfx, password: g.password, hint: `certificado gerado no portal · vence em ${g.expiresAt.toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" })}` };
+  }
   if (mode === "secret") {
     const secret = s(fd, "clientSecret");
     return secret ? { kind: "secret" as const, secret, hint: `secret …${secret.slice(-4)}` } : null;
@@ -107,8 +112,8 @@ async function createClient_(fd: FormData) {
   if (!slug) throw new Error("Identificador inválido.");
   if (await prisma.client.findUnique({ where: { slug } })) throw new Error(`Já existe um cliente com o identificador "${slug}".`);
   const conn = readConnection(fd);
-  const cred = await readCredential(fd, conn.authMode);
-  if (!cred) throw new Error(conn.authMode === "cert" ? "Envie o certificado .pfx do App Registration." : "Informe o client secret do App Registration.");
+  const cred = await readCredential(fd, conn.authMode, name);
+  if (!cred) throw new Error(conn.authMode === "cert" ? "Gere o certificado no portal ou envie o .pfx do App Registration." : "Informe o client secret do App Registration.");
   const db = readDb(fd, slug);
   await assertDbFree(db);
   if (db.mode === "MANAGED" && db.createNow && !tenantSqlConfigured()) throw new Error("O servidor dos bancos de clientes não está configurado no portal: desmarque a criação do banco ou configure TENANT_SQL_*.");
@@ -151,7 +156,7 @@ async function saveConnection_(id: string, fd: FormData) {
   const me = await requireClientPerm(id, "clients:manage");
   const before = await prisma.client.findUniqueOrThrow({ where: { id } });
   const conn = readConnection(fd);
-  const cred = await readCredential(fd, conn.authMode);
+  const cred = await readCredential(fd, conn.authMode, before.name);
   let credentialSetAt = before.credentialSetAt, credentialHint = before.credentialHint;
   if (cred) {
     await storeCredential(id, cred);

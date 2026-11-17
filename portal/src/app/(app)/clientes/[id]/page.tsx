@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { Suspense } from "react";
+import { getSecret, secretName } from "@/lib/secrets";
+import { publicFromPfx } from "@/lib/certificate";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireClientPage } from "@/lib/session";
@@ -36,6 +38,7 @@ export default async function Cliente({ params, searchParams }: { params: Promis
   const keep = Math.min(50000, Math.max(1, Number(keepQ) || 100));
   const canManage = can(u.roles, "clients:manage");
   const canConn = canManage;
+  const cert = t === "conexao" && canConn && c.authMode === "cert" && c.credentialSetAt ? await certificateInfo(c.id) : null;
   const canRun = can(u.roles, "assessments:run");
   const tabs = [
     { key: "visao", label: "Visão geral" },
@@ -101,6 +104,21 @@ export default async function Cliente({ params, searchParams }: { params: Promis
                 Credencial atual: <b>{c.credentialHint ?? "nenhuma"}</b>{c.credentialSetAt && <> · gravada em {dateTime(c.credentialSetAt)}</>} · cofre: {SECRET_STORE === "keyvault" ? "Azure Key Vault" : "local cifrado"}. O valor nunca é exibido de volta.
               </p>
             </ActionForm>
+            {cert && (
+              <div className={`mt-4 rounded-lg border p-4 text-sm ${c.connectionOkAt ? "border-slate-200" : "border-sky-200 bg-sky-50"}`}>
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <p className="font-medium">Certificado no cofre</p>
+                    {"error" in cert ? <p className="text-red-700">{cert.error}</p> : (
+                      <p className="text-slate-600">{cert.subject} · vence em {cert.expiresAt.toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" })}
+                        <span className="block font-mono text-xs">Impressão digital: {cert.thumbprint}</span></p>
+                    )}
+                  </div>
+                  <a className="btn-secondary" href={`/api/clientes/${c.id}/certificado`}>Baixar certificado público (.cer)</a>
+                </div>
+                {!c.connectionOkAt && <p className="mt-2 text-sky-900">Envie o .cer no Entra ID do cliente: <i>App Registration → Certificados e segredos → Certificados → Carregar certificado</i>. Depois rode o <b>Diagnóstico completo</b>. A impressão digital mostrada no Entra deve ser igual à de cima.</p>}
+              </div>
+            )}
             <div className="mt-4 flex flex-wrap items-center gap-3 border-t border-slate-100 pt-4">
               {!missing.length && <ActionButton action={runDiagnostic.bind(null, c.id)} className="btn">Diagnóstico completo</ActionButton>}
               {c.authMode === "secret" && <ActionButton action={testConnection.bind(null, c.id)} className="btn-secondary">Teste rápido do secret</ActionButton>}
@@ -201,4 +219,14 @@ function Check({ ok, label, optional }: { ok: boolean; label: string; optional?:
       <span>{label}</span>
     </li>
   );
+}
+
+async function certificateInfo(clientId: string) {
+  try {
+    const pfx = await getSecret(secretName(clientId, "cert"));
+    if (!pfx) return null;
+    return publicFromPfx(pfx, (await getSecret(secretName(clientId, "certpwd"))) ?? "");
+  } catch (e) {
+    return { error: `Não foi possível ler o certificado: ${e instanceof Error ? e.message : String(e)}` };
+  }
 }

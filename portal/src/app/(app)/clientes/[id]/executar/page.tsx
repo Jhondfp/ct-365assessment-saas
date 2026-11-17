@@ -16,7 +16,7 @@ export default async function Executar({ params }: { params: Promise<{ id: strin
   if (!c) notFound();
   const missing = readiness(c);
   // reaproveita os módulos da última execução como ponto de partida
-  const last = await prisma.assessment.findFirst({ where: { clientId: id }, orderBy: { createdAt: "desc" }, select: { params: true } });
+  const last = await prisma.assessment.findFirst({ where: { clientId: id, kind: "COLETA", runner: { not: "importado" } }, orderBy: { createdAt: "desc" }, select: { params: true } });
   const prev = last ? (JSON.parse(last.params) as Record<string, unknown>) : null;
   const checked = (k: string, d: boolean) => (prev ? !!prev[k] : d);
   const sites = prev && Array.isArray(prev.sites) ? (prev.sites as string[]).join("\n") : "";

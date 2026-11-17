@@ -5,6 +5,7 @@
  */
 export const MODULES = [
   { key: "process_sites_info", label: "Sites e subsites", hint: "Volumetria, compartilhamento, administradores (PnP / SharePoint Admin)", default: true },
+  { key: "process_onedrive", label: "OneDrive dos usuários", hint: "Inclui os OneDrives (sites pessoais) em sites, arquivos e lixeira — varredura pesada em tenants grandes", default: false },
   { key: "process_sites", label: "Arquivos dos sites", hint: "Inventário de arquivos e versões em SharePoint e OneDrive", default: true },
   { key: "process_subsites", label: "Arquivos dos subsites", hint: "Inclui os subsites na varredura de arquivos", default: true },
   { key: "process_recycle_bin", label: "Lixeira", hint: "Itens na lixeira (1º e 2º estágio) de cada site", default: false },
@@ -36,7 +37,6 @@ export function buildParams(input: {
   const p: CollectorParams = {
     client_name: input.clientName,
     notifications: false,
-    process_onedrive: false,
     store_in_csv: false,
     store_in_sql: true,
     resume_last_execution: true,

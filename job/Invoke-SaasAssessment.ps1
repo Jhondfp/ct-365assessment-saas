@@ -127,7 +127,7 @@ $paramsDefaults = [ordered]@{
     process_recycle_bin = $false; process_calendar = $false; process_owner_status = $false
     store_in_csv = $false; store_in_sql = $true; resume_last_execution = $true; force_new_execution = $false; resume_max_age_hours = 72
     sites = @(); users_meeting = @(); sql_batch_size = 500; sites_batch_size = 100; sites_parallel_size = 8
-    sql_command_timeout = 120; graph_page_size = 999; output_data_format = 'yyyy-MM-dd HH:mm:ss'; comments = ''
+    sql_command_timeout = 120; graph_page_size = 999; output_data_format = 'yyyy-MM-dd HH:mm:ss'; comments = ''; diagnostic_only = $false
 }
 foreach ($k in $paramsDefaults.Keys) { if (-not $global:params.ContainsKey($k) -or $null -eq $global:params[$k]) { $global:params[$k] = $paramsDefaults[$k] } }
 
@@ -202,110 +202,259 @@ $reporter = Start-ThreadJob -Name 'portal-reporter' -ArgumentList $CallbackUrl, 
 }
 
 # ------------------------------------------------------------------------------
-# 4..8. PIPELINE (espelha o main.ps1)
+# 4. CHECAGEM PRÉVIA + WORKLOADS ISOLADOS
+#    Diferente do main.ps1 (que para no primeiro erro), cada workload tem o
+#    próprio resultado: um workload que falha não derruba os outros, e os que
+#    dependem dele (arquivos/lixeira/donos dependem da lista de sites) são pulados
+#    com o motivo. Antes de começar, a checagem prévia testa Graph, permissões do
+#    app, SharePoint Admin e banco, para pular com mensagem clara o que já se sabe
+#    que vai falhar. Com params.diagnostic_only = true, roda só a checagem prévia
+#    (é o "Testar conexão" do portal para quem usa certificado).
 # ------------------------------------------------------------------------------
 $dbConn = $null
 $sitesColetados = @()
 $finalStatus = 'failed'
 $finalError = $null
+$diagnostic = [bool]$global:params['diagnostic_only']
+
+# Workloads na ordem do main.ps1: chave do params.json -> id, rótulo e permissões exigidas
+$workloadDefs = @(
+    @{ id = 'licensing';    flag = 'process_licensing_info'; label = 'Licenciamento';        graph = @('Organization.Read.All','Directory.Read.All') }
+    @{ id = 'adoption';     flag = 'process_adoption_info';  label = 'Adoção';               graph = @('Reports.Read.All') }
+    @{ id = 'mailbox';      flag = 'process_mailbox_info';   label = 'Caixas de e-mail';     graph = @('Reports.Read.All') }
+    @{ id = 'intune';       flag = 'process_intune_info';    label = 'Dispositivos Intune';  graph = @('DeviceManagementManagedDevices.Read.All','DeviceManagementManagedDevices.ReadWrite.All') }
+    @{ id = 'sites';        flag = 'process_sites_info';     label = 'Sites e subsites';     spo = $true }
+    @{ id = 'owner_status'; flag = 'process_owner_status';   label = 'Donos ativos';         spo = $true; graph = @('User.Read.All','Directory.Read.All'); needsSites = $true }
+    @{ id = 'files';        flag = 'process_sites';          label = 'Arquivos';             spo = $true; needsSites = $true }
+    @{ id = 'trash';        flag = 'process_recycle_bin';    label = 'Lixeira';              spo = $true; needsSites = $true }
+)
+$workloads = [ordered]@{}
+foreach ($w in $workloadDefs) {
+    $on = [bool]$global:params[$w.flag]
+    if ($w.id -eq 'files') { $on = [bool]$global:params.process_sites -or [bool]$global:params.process_subsites }
+    if ($on -and -not $diagnostic) { $workloads[$w.id] = [ordered]@{ label = $w.label; status = 'pending'; detail = ''; seconds = 0 } }
+}
+$preflight = [ordered]@{ graph = $null; permissions = $null; sharepoint = $null; database = $null }
+
+function Send-Workloads { [void](Send-PortalEvent -Body @{ workloads = $workloads; preflight = $preflight }) }
+
+function Set-Workload([string]$Id, [string]$Status, [string]$Detail = '', [double]$Seconds = 0) {
+    if (-not $workloads.Contains($Id)) { return }
+    $workloads[$Id].status = $Status
+    $workloads[$Id].detail = $Detail
+    if ($Seconds) { $workloads[$Id].seconds = [math]::Round($Seconds) }
+    Send-Workloads
+}
+
+# Roda um workload isolado. ScriptBlock devolve $false = falhou (o módulo já registrou o motivo no log).
+function Invoke-Workload([string]$Id, [scriptblock]$ScriptBlock) {
+    if (-not $workloads.Contains($Id) -or $workloads[$Id].status -ne 'pending') { return $null }
+    $sw = [Diagnostics.Stopwatch]::StartNew()
+    Set-Workload $Id 'running'
+    try {
+        $out = & $ScriptBlock
+        # vale o último booleano que o módulo devolveu; sem booleano (ex.: Get-SitesInfo devolve a lista), conta como sucesso
+        $last = @($out) | Where-Object { $_ -is [bool] } | Select-Object -Last 1
+        $ok = ($null -eq $last) -or $last
+        if ($ok) { Set-Workload $Id 'ok' '' $sw.Elapsed.TotalSeconds }
+        else { Set-Workload $Id 'failed' 'O módulo terminou com falha — veja o log.' $sw.Elapsed.TotalSeconds }
+        return $out
+    } catch {
+        $msg = $_.Exception.Message
+        Write-Log -Level ERROR -Module 'Main' -Message "Workload '$Id' falhou; seguindo com os demais." -Exception $msg -DbConnection $dbConn
+        Set-Workload $Id 'failed' $msg $sw.Elapsed.TotalSeconds
+        return $null
+    }
+}
+
+function Invoke-Preflight {
+    # Graph
+    try {
+        $org = Invoke-GraphRequest -Uri 'https://graph.microsoft.com/v1.0/organization?$select=displayName' -MaxRetries 2
+        $name = if ($org.value) { $org.value[0].displayName } else { '' }
+        $preflight.graph = [ordered]@{ ok = $true; detail = "Tenant: $name" }
+        Write-Log -Level SUCCESS -Module 'Preflight' -Message "Graph OK ($name)."
+    } catch {
+        $preflight.graph = [ordered]@{ ok = $false; detail = $_.Exception.Message }
+        Write-Log -Level ERROR -Module 'Preflight' -Message 'Graph falhou.' -Exception $_.Exception.Message
+    }
+    # Permissões de aplicativo concedidas (precisa de Directory.Read.All/Application.Read.All para ler; se não der, não bloqueia nada)
+    try {
+        $cid = $global:auth.client_id
+        $sp = Invoke-GraphRequest -Uri "https://graph.microsoft.com/v1.0/servicePrincipals?`$filter=appId eq '$cid'&`$select=id" -MaxRetries 2
+        if (-not $sp.value) { throw "Service principal do app $cid não encontrado no tenant (consentimento do administrador pendente?)." }
+        $assign = Invoke-GraphRequest -Uri "https://graph.microsoft.com/v1.0/servicePrincipals/$($sp.value[0].id)/appRoleAssignments" -All -MaxRetries 2
+        $granted = New-Object System.Collections.Generic.List[string]
+        foreach ($rid in @($assign.value | ForEach-Object { $_.resourceId } | Select-Object -Unique)) {
+            $res = Invoke-GraphRequest -Uri "https://graph.microsoft.com/v1.0/servicePrincipals/$rid`?`$select=appId,appRoles" -MaxRetries 2
+            $prefix = switch ($res.appId) { '00000003-0000-0000-c000-000000000000' { 'Graph' } '00000003-0000-0ff1-ce00-000000000000' { 'SharePoint' } default { $null } }
+            if (-not $prefix) { continue }
+            foreach ($a in @($assign.value | Where-Object { $_.resourceId -eq $rid })) {
+                $role = @($res.appRoles | Where-Object { $_.id -eq $a.appRoleId }) | Select-Object -First 1
+                if ($role) { $granted.Add("$($prefix):$($role.value)") }
+            }
+        }
+        $preflight.permissions = [ordered]@{ checked = $true; granted = @($granted | Sort-Object -Unique) }
+        Write-Log -Level INFO -Module 'Preflight' -Message "Permissões concedidas: $((@($granted) | Sort-Object -Unique) -join ', ')"
+    } catch {
+        $preflight.permissions = [ordered]@{ checked = $false; granted = @(); detail = $_.Exception.Message }
+        Write-Log -Level WARNING -Module 'Preflight' -Message 'Não foi possível ler as permissões do app (seguindo sem essa checagem).' -Exception $_.Exception.Message
+    }
+    # SharePoint Admin (PnP) — é o que sites/arquivos/lixeira usam
+    $needSpo = $diagnostic -or @($workloadDefs | Where-Object { $_.spo -and $workloads.Contains($_.id) }).Count -gt 0
+    if ($needSpo) {
+        try {
+            $ctx = Connect-SPOAdminCenter -TenantName $global:auth.spo_tenant -ClientId $global:auth.client_id -CertBase64 $global:base64Cert -ClientSecret $global:auth.client_secret -Tenant $global:auth.tenant_id
+            if (-not $ctx) { throw 'Não foi possível conectar no SharePoint Admin (veja o log).' }
+            $null = Get-PnPTenant -Connection $ctx -ErrorAction Stop
+            $preflight.sharepoint = [ordered]@{ ok = $true; detail = "https://$($global:auth.spo_tenant)-admin.sharepoint.com" }
+            Write-Log -Level SUCCESS -Module 'Preflight' -Message 'SharePoint Admin OK.'
+        } catch {
+            $hint = if ($global:auth.auth_mode -ne 'cert') { ' O SharePoint exige certificado para acesso app-only: troque a autenticação do cliente para certificado.' } else { '' }
+            $preflight.sharepoint = [ordered]@{ ok = $false; detail = "$($_.Exception.Message)$hint" }
+            Write-Log -Level ERROR -Module 'Preflight' -Message 'SharePoint Admin falhou.' -Exception "$($_.Exception.Message)$hint"
+        }
+    }
+    # Pula de antemão o que já se sabe que vai falhar, com o motivo
+    foreach ($w in $workloadDefs) {
+        if (-not $workloads.Contains($w.id)) { continue }
+        if ($w.spo -and $preflight.sharepoint -and -not $preflight.sharepoint.ok) { $workloads[$w.id].status = 'skipped'; $workloads[$w.id].detail = "SharePoint indisponível: $($preflight.sharepoint.detail)"; continue }
+        if ($w.graph -and -not $w.spo -and $preflight.graph -and -not $preflight.graph.ok) { $workloads[$w.id].status = 'skipped'; $workloads[$w.id].detail = "Graph indisponível: $($preflight.graph.detail)"; continue }
+        if ($w.graph -and $preflight.permissions -and $preflight.permissions.checked) {
+            $has = @($w.graph | Where-Object { $preflight.permissions.granted -contains "Graph:$_" }).Count -gt 0
+            if (-not $has) { $workloads[$w.id].status = 'skipped'; $workloads[$w.id].detail = "Falta a permissão de aplicativo no Graph: $($w.graph -join ' ou ') (com consentimento do administrador)." }
+        }
+    }
+}
+
 try {
-    Write-Log -Level INFO -Module 'Main' -Message "Config recebida do portal | cliente=$($config.clientName) | mode=$($global:auth.auth_mode) | tentativa=$($config.attempt)"
+    Write-Log -Level INFO -Module 'Main' -Message "Config recebida do portal | cliente=$($config.clientName) | mode=$($global:auth.auth_mode) | tentativa=$($config.attempt)$(if ($diagnostic) { ' | DIAGNOSTICO' })"
 
     Write-Log -Level INFO -Module 'Main' -Message 'Adquirindo token Microsoft Graph...'
-    $global:TokenGraph = Get-GraphToken
-    if (-not $global:TokenGraph) { throw 'Token Graph nao adquirido.' }
+    try {
+        $global:TokenGraph = Get-GraphToken
+        if (-not $global:TokenGraph) { throw 'Token Graph nao adquirido.' }
+    } catch {
+        # Sem token nada roda: registra na checagem prévia (o portal mostra "Microsoft Graph ✕" com o motivo)
+        $preflight.graph = [ordered]@{ ok = $false; detail = $_.Exception.Message }
+        throw
+    }
     Write-Log -Level SUCCESS -Module 'Main' -Message 'Token Graph adquirido (cache local ativo).'
 
+    Invoke-Preflight
+
     Write-Log -Level INFO -Module 'Main' -Message "Conectando ao banco do cliente ($($global:auth.database))..."
-    $dbConn = New-DbConnection
-    Write-Log -Level SUCCESS -Module 'Main' -Message "Conexao DB ativa em $($global:auth.server)/$($global:auth.database)"
-
-    # Retomada: a mesma execução já tem linha em execution_history (o container anterior caiu no meio)
-    $isResume = $false
-    # Invoke-DbReader ja devolve array (virgula unaria): NAO envolver em @(), senao 0 linhas vira [ [] ] (Count=1)
-    $prev = Invoke-DbReader -Connection $dbConn -Query 'SELECT status FROM dbo.execution_history WHERE execution_id = @exec' -Parameters @{ '@exec' = $global:executionId }
-    if ($null -ne $prev -and $prev.Count -gt 0) {
-        $isResume = $true
-        Invoke-DbNonQuery -Connection $dbConn -Query "UPDATE dbo.execution_history SET status = 'running', end_time = NULL WHERE execution_id = @exec" -Parameters @{ '@exec' = $global:executionId } | Out-Null
-        Write-Log -Level WARNING -Module 'Main' -Message "Retomando execucao $($global:executionId) (status anterior: $($prev[0].status))." -DbConnection $dbConn
-    } else {
-        Start-ExecutionHistory -Connection $dbConn
+    try {
+        $dbConn = New-DbConnection -MaxRetries 3
+        $preflight.database = [ordered]@{ ok = $true; detail = "$($global:auth.server)/$($global:auth.database)" }
+        Write-Log -Level SUCCESS -Module 'Main' -Message "Conexao DB ativa em $($global:auth.server)/$($global:auth.database)"
+    } catch {
+        $preflight.database = [ordered]@{ ok = $false; detail = $_.Exception.Message }
+        throw "Banco do cliente inacessível: $($_.Exception.Message)"
     }
-    $global:isResume = $isResume
-    Write-Log -Level INFO -Module 'Main' -Message "=== CT Assessment iniciado | ExecutionId=$($global:executionId) | Resume=$isResume ==="
+    Send-Workloads
 
-    function Invoke-ResumableModule {
-        param(
-            [Parameter(Mandatory)] [string]      $ModuleName,
-            [Parameter(Mandatory)] [string[]]    $ClearTables,
-            [Parameter(Mandatory)] [scriptblock] $ScriptBlock
-        )
-        if ($isResume -and (Test-ModuleCompleted -Connection $dbConn -ModuleName $ModuleName)) {
-            Write-Log -Level INFO -Module 'Main' -Message "Resume: modulo '$ModuleName' ja concluido nesta execucao - pulando." -DbConnection $dbConn
-            return
+    if ($diagnostic) {
+        $okAll = $preflight.graph.ok -and $preflight.database.ok -and (-not $preflight.sharepoint -or $preflight.sharepoint.ok)
+        $finalStatus = if ($okAll) { 'completed' } elseif ($preflight.graph.ok) { 'partial' } else { 'failed' }
+        if (-not $okAll) { $finalError = 'Diagnóstico encontrou problemas — veja os itens da checagem.' }
+        Write-Log -Level INFO -Module 'Main' -Message "Diagnóstico concluído: $finalStatus."
+    } else {
+        # Retomada: a mesma execução já tem linha em execution_history (o container anterior caiu no meio)
+        $isResume = $false
+        # Invoke-DbReader ja devolve array (virgula unaria): NAO envolver em @(), senao 0 linhas vira [ [] ] (Count=1)
+        $prev = Invoke-DbReader -Connection $dbConn -Query 'SELECT status FROM dbo.execution_history WHERE execution_id = @exec' -Parameters @{ '@exec' = $global:executionId }
+        if ($null -ne $prev -and $prev.Count -gt 0) {
+            $isResume = $true
+            Invoke-DbNonQuery -Connection $dbConn -Query "UPDATE dbo.execution_history SET status = 'running', end_time = NULL WHERE execution_id = @exec" -Parameters @{ '@exec' = $global:executionId } | Out-Null
+            Write-Log -Level WARNING -Module 'Main' -Message "Retomando execucao $($global:executionId) (status anterior: $($prev[0].status))." -DbConnection $dbConn
+        } else {
+            Start-ExecutionHistory -Connection $dbConn
         }
-        if ($isResume) { foreach ($t in $ClearTables) { Clear-ExecutionModuleData -Connection $dbConn -TableName $t } }
-        $ok = & $ScriptBlock
-        if ($ok) { Complete-ModuleProgress -Connection $dbConn -ModuleName $ModuleName }
-    }
+        $global:isResume = $isResume
+        Write-Log -Level INFO -Module 'Main' -Message "=== CT Assessment iniciado | ExecutionId=$($global:executionId) | Resume=$isResume ===" -DbConnection $dbConn
 
-    # 7. EXECUCAO DOS MODULOS HABILITADOS — mesma ordem e condições do main.ps1
-    if ($global:params.process_licensing_info) {
-        Invoke-ResumableModule -ModuleName 'licensing' -ClearTables @('dbo.licensing_info') -ScriptBlock { Get-LicensingData -Connection $dbConn }
-    }
-    if ($global:params.process_adoption_info) {
-        Invoke-ResumableModule -ModuleName 'adoption' -ClearTables @('dbo.user_activity') -ScriptBlock { Get-ActivityInfo -Connection $dbConn }
-    }
-    if ($global:params.process_mailbox_info) {
-        Invoke-ResumableModule -ModuleName 'mailbox' -ClearTables @('dbo.mailbox_info') -ScriptBlock { Get-MailboxInfo -Connection $dbConn }
-    }
-    if ($global:params.process_intune_info) {
-        Invoke-ResumableModule -ModuleName 'intune' -ClearTables @('dbo.intune_devices','dbo.intune_compliance_states') -ScriptBlock { Get-IntuneInfo -Connection $dbConn }
-    }
-    if ($global:params.process_calendar) {
-        Invoke-ResumableModule -ModuleName 'meetings' -ClearTables @('dbo.meetings') -ScriptBlock { Get-MeetingsInfo -Connection $dbConn }
-    }
-    if ($global:params.process_sites_info) {
-        $sitesColetados = @(Get-SitesInfo -Connection $dbConn)
-    }
-    if ($global:params.process_owner_status -and $sitesColetados.Count -gt 0) {
-        Invoke-ResumableModule -ModuleName 'owner_status' -ClearTables @('dbo.site_owner_status') -ScriptBlock { Get-OwnerStatus -Connection $dbConn }
-    }
-    if ($global:params.process_sites -or $global:params.process_subsites) {
-        Get-DataFiles -Sites $sitesColetados -Connection $dbConn
-    }
-    if ($global:params.process_recycle_bin -and $sitesColetados.Count -gt 0) {
-        Get-TrashItems -Sites $sitesColetados -Connection $dbConn
-    }
+        # Mesmo mecanismo de resume do main.ps1 para os workloads "atômicos" (1 chamada cobre o tenant)
+        function Invoke-ResumableModule([string]$ModuleName, [string[]]$ClearTables, [scriptblock]$ScriptBlock) {
+            if ($isResume -and (Test-ModuleCompleted -Connection $dbConn -ModuleName $ModuleName)) {
+                Write-Log -Level INFO -Module 'Main' -Message "Resume: modulo '$ModuleName' ja concluido nesta execucao - pulando." -DbConnection $dbConn
+                return $true
+            }
+            if ($isResume) { foreach ($t in $ClearTables) { Clear-ExecutionModuleData -Connection $dbConn -TableName $t } }
+            $ok = & $ScriptBlock
+            if ($ok) { Complete-ModuleProgress -Connection $dbConn -ModuleName $ModuleName }
+            return [bool]$ok
+        }
 
-    Write-Log -Level SUCCESS -Module 'Main' -Message 'Pipeline executado com sucesso.' -DbConnection $dbConn
-    Complete-ExecutionHistory -Status 'completed' -Connection $dbConn -TotalSites $sitesColetados.Count
-    Write-Log -Level INFO -Module 'Main' -Message 'Atualizando agregacoes do dashboard (sp_RefreshDashboardAggregates)...'
-    if (Invoke-DashboardRefresh -Connection $dbConn) {
-        Write-Log -Level SUCCESS -Module 'Main' -Message 'Agregacoes do dashboard atualizadas.'
-    } else {
-        Write-Log -Level WARNING -Module 'Main' -Message 'Falha ao atualizar agregacoes do dashboard - rode dbo.sp_RefreshDashboardAggregates manualmente.'
+        # 7. EXECUCAO DOS MODULOS — mesma ordem e condições do main.ps1, cada um isolado
+        Invoke-Workload 'licensing' { Invoke-ResumableModule 'licensing' @('dbo.licensing_info') { Get-LicensingData -Connection $dbConn } } | Out-Null
+        Invoke-Workload 'adoption'  { Invoke-ResumableModule 'adoption'  @('dbo.user_activity')  { Get-ActivityInfo -Connection $dbConn } } | Out-Null
+        Invoke-Workload 'mailbox'   { Invoke-ResumableModule 'mailbox'   @('dbo.mailbox_info')   { Get-MailboxInfo -Connection $dbConn } } | Out-Null
+        Invoke-Workload 'intune'    { Invoke-ResumableModule 'intune'    @('dbo.intune_devices','dbo.intune_compliance_states') { Get-IntuneInfo -Connection $dbConn } } | Out-Null
+
+        if ($workloads.Contains('sites')) {
+            $r = Invoke-Workload 'sites' { @(Get-SitesInfo -Connection $dbConn) }
+            $sitesColetados = @($r | Where-Object { $null -ne $_ -and $_ -isnot [bool] })
+            if ($workloads.sites.status -eq 'ok' -and $sitesColetados.Count -eq 0) { Set-Workload 'sites' 'failed' 'Nenhum site retornado pelo SharePoint Admin — veja o log.' }
+            if ($workloads.sites.status -eq 'ok') { $workloads.sites.detail = "$($sitesColetados.Count) sites" ; Send-Workloads }
+        }
+        # Dependem da lista de sites
+        foreach ($dep in 'owner_status','files','trash') {
+            if ($workloads.Contains($dep) -and $workloads[$dep].status -eq 'pending' -and $sitesColetados.Count -eq 0) {
+                Set-Workload $dep 'skipped' $(if ($workloads.Contains('sites')) { 'Sem a lista de sites (o workload Sites e subsites não concluiu).' } else { 'Exige o workload Sites e subsites.' })
+            }
+        }
+        Invoke-Workload 'owner_status' { Invoke-ResumableModule 'owner_status' @('dbo.site_owner_status') { Get-OwnerStatus -Connection $dbConn } } | Out-Null
+        Invoke-Workload 'files' { Get-DataFiles -Sites $sitesColetados -Connection $dbConn; $true } | Out-Null
+        Invoke-Workload 'trash' { Get-TrashItems -Sites $sitesColetados -Connection $dbConn; $true } | Out-Null
+
+        $states = @($workloads.Values | ForEach-Object { $_.status })
+        $okCount = @($states | Where-Object { $_ -eq 'ok' }).Count
+        $finalStatus = if ($okCount -eq $states.Count) { 'completed' } elseif ($okCount -gt 0) { 'partial' } else { 'failed' }
+        if ($finalStatus -ne 'completed') {
+            $finalError = (@($workloads.Values | Where-Object { $_.status -in 'failed','skipped' } | ForEach-Object { "$($_.label): $($_.detail)" }) -join "`n")
+        }
+        Write-Log -Level $(if ($finalStatus -eq 'completed') { 'SUCCESS' } else { 'WARNING' }) -Module 'Main' -Message "Pipeline encerrado: $finalStatus ($okCount de $($states.Count) workloads concluídos)." -DbConnection $dbConn
+        Complete-ExecutionHistory -Status $(if ($okCount -gt 0) { 'completed' } else { 'failed' }) -Connection $dbConn -TotalSites $sitesColetados.Count
+        if ($okCount -gt 0) {
+            Write-Log -Level INFO -Module 'Main' -Message 'Atualizando agregacoes do dashboard (sp_RefreshDashboardAggregates)...'
+            if (Invoke-DashboardRefresh -Connection $dbConn) { Write-Log -Level SUCCESS -Module 'Main' -Message 'Agregacoes do dashboard atualizadas.' }
+            else { Write-Log -Level WARNING -Module 'Main' -Message 'Falha ao atualizar agregacoes do dashboard - rode dbo.sp_RefreshDashboardAggregates manualmente.' }
+        }
     }
-    $finalStatus = 'completed'
 }
 catch {
     $finalError = "$($_.Exception.Message)"
     Write-Log -Level CRITICAL -Module 'Main' -Message 'Falha critica no pipeline.' -Exception $finalError -DbConnection $dbConn
     Write-Host $_.ScriptStackTrace -ForegroundColor DarkGray
-    if ($null -ne $dbConn) { Complete-ExecutionHistory -Status 'failed' -Connection $dbConn -TotalSites $sitesColetados.Count }
+    foreach ($k in @($workloads.Keys)) { if ($workloads[$k].status -in 'pending','running') { $workloads[$k].status = 'skipped'; $workloads[$k].detail = 'Interrompido por falha geral.' } }
+    if ($null -ne $dbConn -and -not $diagnostic) { Complete-ExecutionHistory -Status 'failed' -Connection $dbConn -TotalSites $sitesColetados.Count }
 }
 finally {
     if ($null -ne $dbConn) { try { Close-DbConnection -Connection $dbConn } catch { } }
     if ($certTemp) { Remove-Item $certTemp -Force -ErrorAction SilentlyContinue }
     Write-Log -Level INFO -Module 'Main' -Message "=== CT Assessment finalizado | ExecutionId=$($global:executionId) | $finalStatus ==="
 
-    # último envio de log/progresso e o resultado final
+    # último envio de log/progresso
     $sync.Stop = $true
     Wait-Job $reporter -Timeout 90 | Out-Null
     Remove-Job $reporter -Force -ErrorAction SilentlyContinue
-    $final = @{ status = $finalStatus; totalSites = $sitesColetados.Count }
+
+    # log completo (gzip) para download no portal
+    try {
+        $files = @(Get-ChildItem $logDir -Filter '*.log' -ErrorAction SilentlyContinue | Sort-Object Name)
+        if ($files.Count) {
+            $ms = [IO.MemoryStream]::new()
+            $gz = [IO.Compression.GZipStream]::new($ms, [IO.Compression.CompressionLevel]::Optimal, $true)
+            foreach ($f in $files) { $b = [IO.File]::ReadAllBytes($f.FullName); $gz.Write($b, 0, $b.Length) }
+            $gz.Dispose()
+            Invoke-RestMethod -Uri "$CallbackUrl/log" -Method Post -Headers $headers -ContentType 'application/gzip' -Body $ms.ToArray() -TimeoutSec 300 | Out-Null
+        }
+    } catch { Write-Host "[Job] Não foi possível enviar o log completo: $($_.Exception.Message)" -ForegroundColor Yellow }
+
+    $final = @{ status = $finalStatus; totalSites = $sitesColetados.Count; workloads = $workloads; preflight = $preflight }
     if ($finalError) { $final.error = $finalError }
     if (-not (Send-PortalEvent -Body $final)) { Write-Host '[Job] Não foi possível reportar o resultado final ao portal.' -ForegroundColor Yellow }
 }
-# Falha já registrada no portal: sai com 0 para o Container Apps não repetir uma execução encerrada.
+# Resultado já registrado no portal: sai com 0 para o Container Apps não repetir uma execução encerrada.
 exit 0

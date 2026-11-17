@@ -110,7 +110,9 @@ model Assessment {
   client       Client    @relation(fields: [clientId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   startedById  String?
   startedBy    User?     @relation(fields: [startedById], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  /// QUEUED | STARTING | RUNNING | COMPLETED | FAILED | CANCELED
+  /// COLETA | DIAGNOSTICO (só a checagem prévia: Graph, permissões, SharePoint Admin e banco)
+  kind         String    @default("COLETA")
+  /// QUEUED | STARTING | RUNNING | COMPLETED | PARTIAL (concluída com alertas) | FAILED | CANCELED
   status       String    @default("QUEUED")
   /// módulos e parâmetros no formato do params.json do coletor (JSON)
   params       String    @db.NVarChar(Max)
@@ -125,14 +127,29 @@ model Assessment {
   /// últimas linhas do log (JSON)
   logTail      String?   @db.NVarChar(Max)
   error        String?   @db.NVarChar(Max)
+  /// resultado de cada workload enviado pelo job (JSON: { id: { label, status, detail, seconds } })
+  workloads    String?   @db.NVarChar(Max)
+  /// checagem prévia (JSON: graph, permissions, sharepoint, database)
+  preflight    String?   @db.NVarChar(Max)
   totalSites   Int?
   createdAt    DateTime  @default(now())
   startedAt    DateTime?
   finishedAt   DateTime?
   heartbeatAt  DateTime?
 
+  fullLog      AssessmentLog?
+
   @@index([clientId, createdAt])
   @@index([status])
+}
+
+/// Log completo da execução (gzip), enviado pelo job no fim — o portal guarda só as últimas linhas em Assessment.logTail.
+model AssessmentLog {
+  assessmentId String     @id
+  assessment   Assessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  content      Bytes
+  size         Int
+  createdAt    DateTime   @default(now())
 }
 
 // ───────────── Cofre local (quando não há Key Vault) ─────────────

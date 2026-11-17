@@ -9,6 +9,8 @@ import { requireClientPerm, requirePerm } from "@/lib/session";
 import { deleteSecret, getSecret, secretName, setSecret } from "@/lib/secrets";
 import { dbNameFor, externalConn, inspectDb, normalizeServer, tenantSqlConfigured } from "@/lib/tenantDb";
 import { importExecutions, provisionClientDb } from "@/lib/clientDb";
+import { launchAssessment } from "@/lib/assessments";
+import { buildParams } from "@/lib/collector";
 import { ACTIVE } from "@/lib/status";
 
 const GUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -176,7 +178,7 @@ async function testConnection_(id: string) {
   if (!c.m365TenantId || !c.appClientId) throw new Error("Preencha e salve a conexão primeiro.");
   if (c.authMode === "cert") {
     if (!(await getSecret(secretName(id, "cert")))) throw new Error("Certificado não enviado.");
-    return "Certificado guardado no cofre. A autenticação com certificado é validada no início de cada coleta.";
+    return "Com certificado, use \"Diagnóstico completo\": ele testa Graph, permissões, SharePoint e banco a partir do worker.";
   }
   const secret = await getSecret(secretName(id, "secret"));
   if (!secret) throw new Error("Client secret não informado.");
@@ -268,6 +270,20 @@ async function importDbExecutions_(id: string) {
   return r.created || r.updated ? `${r.created} execução(ões) importada(s), ${r.updated} atualizada(s).` : "Nenhuma execução nova encontrada no banco do cliente.";
 }
 
+/**
+ * Diagnóstico completo: uma execução curta (DIAGNOSTICO) que roda só a checagem prévia do job — token com o
+ * certificado/secret, Graph, permissões concedidas ao app, SharePoint Admin (PnP) e banco do cliente.
+ */
+async function runDiagnostic_(id: string) {
+  const me = await requireClientPerm(id, "clients:manage");
+  const c = await prisma.client.findUniqueOrThrow({ where: { id } });
+  const params = { ...buildParams({ modules: {}, sites: [], parallel: 8, sitesBatch: 100, clientName: c.name }), diagnostic_only: true };
+  const aid = await launchAssessment(id, params, me.id, "DIAGNOSTICO");
+  await audit(prisma, "Client", id, "DIAGNOSTIC", me.id, { execucao: aid });
+  redirect(`/execucoes/${aid}`);
+}
+
 export const provisionDb = act(provisionDb_);
+export const runDiagnostic = act(runDiagnostic_);
 export const importDbExecutions = act(importDbExecutions_);
 export const saveDatabase = act(saveDatabase_);

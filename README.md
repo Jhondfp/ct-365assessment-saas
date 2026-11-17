@@ -35,8 +35,10 @@ Nesta fase só a equipe Cloud Target acessa. Quem não foi cadastrado só entra 
 
    Credenciais (M365 e senha do banco existente) vão direto para o Key Vault e nunca são exibidas de volta. O banco pode ser trocado depois na aba *Cadastro e banco*.
 2. **Executar uma coleta**: escolher os workloads (sites, arquivos, lixeira, donos ativos, licenciamento, adoção, caixas de e-mail, Intune) e, se quiser, limitar a sites específicos. A coleta entra na fila e o próximo worker livre pega.
-3. **Acompanhar**: etapas e log ao vivo na página da execução. Se o worker cair, depois de 10 minutos sem sinal a coleta volta para a fila e o coletor **retoma de onde parou**, sem varrer de novo os sites já concluídos (até 4 tentativas).
-4. **Dashboard**: o mesmo `dashboard.html` do ct-assessmentspo, servido pelo portal com escopo do cliente, com histórico de execuções e exportação PDF/HTML.
+3. **Acompanhar**: cada workload com o próprio status (concluído, falhou ou pulado, com o motivo), a checagem prévia (Graph, permissões concedidas ao app, SharePoint Admin e banco) e o log ao vivo; no fim, o log completo para download. Um workload que falha não derruba os outros: a coleta termina como *Concluída com alertas*. Erros comuns (AADSTS, permissão, firewall, login do banco) aparecem traduzidos para a ação a tomar. Se o worker cair, depois de 10 minutos sem sinal a coleta volta para a fila e o coletor **retoma de onde parou**, sem varrer de novo os sites já concluídos (até 4 tentativas).
+4. **Relatório**: páginas nativas por área (Visão geral, SharePoint, OneDrive, Licenciamento, Adoção, Exchange, Intune), com achados priorizados e recomendação, economia estimada, comparação entre duas execuções, tabelas com busca e exportação CSV, e o **relatório executivo** (2–3 páginas A4) para entregar ao cliente via Imprimir/PDF. O `dashboard.html` original continua acessível como "dashboard clássico".
+
+Antes da primeira coleta, use **Diagnóstico completo** na aba de conexão do cliente: ele roda no worker e testa credencial (inclusive certificado), Graph, permissões, SharePoint Admin e banco.
 
 ## Estrutura
 

@@ -47,7 +47,8 @@ export const canSeeClient = (u: Pick<CurrentUser, "roles" | "clientIds">, client
 
 /** Filtros Prisma do que o usuário enxerga. */
 export const clientWhere = (u: CurrentUser) => (can(u.roles, "clients:all") ? {} : { id: { in: u.clientIds } });
-export const assessmentWhere = (u: CurrentUser) => (can(u.roles, "clients:all") ? {} : { clientId: { in: u.clientIds } });
+/** Coletas que o usuário enxerga (diagnósticos de conexão ficam fora das listagens: aparecem na aba de conexão). */
+export const assessmentWhere = (u: CurrentUser) => ({ kind: "COLETA", ...(can(u.roles, "clients:all") ? {} : { clientId: { in: u.clientIds } }) });
 
 /** Para páginas de um cliente: 404 se o usuário não pode vê-lo (não revela que existe). */
 export async function requireClientPage(clientId: string, perm: Perm = "reports:view") {

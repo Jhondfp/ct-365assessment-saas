@@ -65,7 +65,11 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   }, { headers: { "Cache-Control": "no-store" } });
 }
 
-type EventBody = { status?: "running" | "completed" | "failed"; progress?: unknown; log?: LogLine[]; error?: string; totalSites?: number };
+type EventBody = {
+  status?: "running" | "completed" | "partial" | "failed"; progress?: unknown; log?: LogLine[]; error?: string; totalSites?: number;
+  workloads?: unknown; preflight?: unknown;
+};
+const FINAL: Record<string, string> = { completed: "COMPLETED", partial: "PARTIAL", failed: "FAILED" };
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -81,8 +85,10 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     data.logTail = JSON.stringify(merged);
   }
   if (typeof body.totalSites === "number") data.totalSites = body.totalSites;
-  if (body.status === "completed" || body.status === "failed") {
-    data.status = body.status === "completed" ? "COMPLETED" : "FAILED";
+  if (body.workloads && typeof body.workloads === "object") data.workloads = JSON.stringify(body.workloads).slice(0, 100_000);
+  if (body.preflight && typeof body.preflight === "object") data.preflight = JSON.stringify(body.preflight).slice(0, 100_000);
+  if (body.status && FINAL[body.status]) {
+    data.status = FINAL[body.status];
     data.finishedAt = new Date();
     if (body.error) data.error = String(body.error).slice(0, 8000);
   } else if (a.status !== "RUNNING") data.status = "RUNNING";

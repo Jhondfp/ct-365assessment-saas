@@ -19,6 +19,7 @@ async function startAssessment_(clientId: string, fd: FormData) {
   const modules = Object.fromEntries(MODULES.map((m) => [m.key, fd.get(m.key) === "on"])) as Record<ModuleKey, boolean>;
   if (!Object.values(modules).some(Boolean)) throw new Error("Escolha ao menos um módulo.");
   if (modules.process_owner_status && !modules.process_sites_info) throw new Error("Donos ativos depende do módulo Sites e subsites.");
+  if (modules.process_onedrive && !modules.process_sites_info) throw new Error("OneDrive entra pela lista de sites: marque também Sites e subsites.");
   if ((modules.process_sites || modules.process_subsites || modules.process_recycle_bin) && !modules.process_sites_info)
     throw new Error("Arquivos e lixeira usam a lista de sites coletada pelo módulo Sites e subsites: marque-o também.");
   const sites = lines(s(fd, "sites"));
@@ -49,7 +50,7 @@ async function retryAssessment_(id: string) {
   const a = await prisma.assessment.findUniqueOrThrow({ where: { id } });
   const me = await requireClientPerm(a.clientId, "assessments:run");
   if (a.runner === "importado") throw new Error("Execução importada do banco do cliente: use Nova execução para coletar de novo.");
-  const newId = await launchAssessment(a.clientId, JSON.parse(a.params), me.id);
+  const newId = await launchAssessment(a.clientId, JSON.parse(a.params), me.id, a.kind === "DIAGNOSTICO" ? "DIAGNOSTICO" : "COLETA");
   await audit(prisma, "Assessment", newId, "CREATE", me.id, { repeticao_de: id });
   redirect(`/execucoes/${newId}`);
 }

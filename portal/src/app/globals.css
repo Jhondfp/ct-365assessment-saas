@@ -21,3 +21,13 @@ body { @apply bg-slate-50 text-ct-ink antialiased; }
   .link { @apply font-medium text-[#7A1AA0] hover:underline; }
   .muted { @apply text-sm text-slate-500; }
 }
+
+/* Impressão / PDF (relatório e relatório executivo): só o conteúdo, sem menu, A4 */
+@media print {
+  @page { size: A4; margin: 14mm 12mm; }
+  body { @apply bg-white; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  aside, details.md\:hidden, .print\:hidden { display: none !important; }
+  main { max-width: none !important; padding: 0 !important; }
+  .card { @apply shadow-none; break-inside: avoid; }
+  a { text-decoration: none !important; }
+}

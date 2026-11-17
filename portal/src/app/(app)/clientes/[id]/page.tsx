@@ -8,7 +8,9 @@ import { ACTIVE, DB_STATUS_LABEL } from "@/lib/status";
 import { PERMISSIONS_HELP } from "@/lib/collector";
 import { SECRET_STORE } from "@/lib/secrets";
 import { dateTime } from "@/lib/format";
-import { importDbExecutions, provisionDb, removeCredential, saveConnection, saveDatabase, testConnection, updateClient } from "@/actions/clients";
+import { importDbExecutions, provisionDb, removeCredential, runDiagnostic, saveConnection, saveDatabase, testConnection, updateClient } from "@/actions/clients";
+import { PreflightCard } from "@/components/LiveAssessment";
+import { HAS_DATA, parseJson, type Preflight } from "@/lib/status";
 import { DbFields } from "@/components/DbFields";
 import { tenantSqlConfigured } from "@/lib/tenantDb";
 import { ActionButton, ActionForm } from "@/components/ActionForm";
@@ -23,7 +25,7 @@ export default async function Cliente({ params, searchParams }: { params: Promis
     where: { id },
     include: {
       viewers: { include: { user: { select: { id: true, name: true, email: true, active: true } } } },
-      assessments: { orderBy: { createdAt: "desc" }, take: 50, include: { startedBy: { select: { name: true, email: true } } } },
+      assessments: { where: { kind: "COLETA" }, orderBy: { createdAt: "desc" }, take: 50, include: { startedBy: { select: { name: true, email: true } } } },
     },
   });
   if (!c) notFound();
@@ -39,8 +41,10 @@ export default async function Cliente({ params, searchParams }: { params: Promis
   ];
   const tab = tabs.some((x) => x.key === t) ? t! : "visao";
   const missing = readiness(c);
-  const active = c.assessments.find((a) => (ACTIVE as readonly string[]).includes(a.status));
-  const lastOk = c.assessments.find((a) => a.status === "COMPLETED");
+  const lastDiag = await prisma.assessment.findFirst({ where: { clientId: c.id, kind: "DIAGNOSTICO" }, orderBy: { createdAt: "desc" } });
+  const isActive = (s: string) => (ACTIVE as readonly string[]).includes(s);
+  const active = c.assessments.find((a) => isActive(a.status)) ?? (lastDiag && isActive(lastDiag.status) ? lastDiag : undefined);
+  const lastOk = c.assessments.find((a) => (HAS_DATA as readonly string[]).includes(a.status));
 
   return (
     <>
@@ -48,7 +52,7 @@ export default async function Cliente({ params, searchParams }: { params: Promis
         title={c.name}
         subtitle={<>{c.spoTenant ? `${c.spoTenant}.sharepoint.com` : "Microsoft 365 não configurado"}{!c.active && <span className="ml-2"><Badge>inativo</Badge></span>}</>}
         actions={<>
-          {c.dbStatus === "PROVISIONADO" && <Link href={`/clientes/${c.id}/dashboard`} className="btn-secondary">Dashboard</Link>}
+          {c.dbStatus === "PROVISIONADO" && <Link href={`/clientes/${c.id}/relatorio`} className="btn-secondary">Relatório</Link>}
           {canRun && !active && !missing.length && <Link href={`/clientes/${c.id}/executar`} className="btn">Nova execução</Link>}
           {active && <Link href={`/execucoes/${active.id}`} className="btn">Acompanhar execução</Link>}
         </>}
@@ -74,7 +78,7 @@ export default async function Cliente({ params, searchParams }: { params: Promis
               <p className="mb-3 flex items-center gap-2 text-sm"><StatusBadge status={active.status} /> desde {dateTime(active.startedAt ?? active.createdAt)} — <Link className="link" href={`/execucoes/${active.id}`}>acompanhar</Link></p>
             )}
             {lastOk ? (
-              <p className="mb-3 text-sm">Última coleta concluída em <b>{dateTime(lastOk.finishedAt)}</b>{lastOk.totalSites != null && <> · {lastOk.totalSites} sites</>}. <Link className="link" href={`/clientes/${c.id}/dashboard?execution=${lastOk.id}`}>Abrir dashboard</Link></p>
+              <p className="mb-3 text-sm">Última coleta concluída em <b>{dateTime(lastOk.finishedAt)}</b>{lastOk.totalSites != null && <> · {lastOk.totalSites} sites</>}. <Link className="link" href={`/clientes/${c.id}/relatorio?execucao=${lastOk.id}`}>Ver relatório</Link></p>
             ) : <p className="muted mb-3">Nenhuma coleta concluída ainda.</p>}
             <AssessmentTable rows={c.assessments.slice(0, 5)} showClient={false} />
           </section>
@@ -92,17 +96,31 @@ export default async function Cliente({ params, searchParams }: { params: Promis
               </p>
             </ActionForm>
             <div className="mt-4 flex flex-wrap items-center gap-3 border-t border-slate-100 pt-4">
-              <ActionButton action={testConnection.bind(null, c.id)} className="btn-secondary">Testar conexão</ActionButton>
+              {!missing.length && <ActionButton action={runDiagnostic.bind(null, c.id)} className="btn">Diagnóstico completo</ActionButton>}
+              {c.authMode === "secret" && <ActionButton action={testConnection.bind(null, c.id)} className="btn-secondary">Teste rápido do secret</ActionButton>}
               {c.credentialSetAt && <ActionButton action={removeCredential.bind(null, c.id)} className="btn-secondary" confirm="Remover a credencial do cofre? As próximas execuções vão falhar até uma nova ser enviada.">Remover credencial</ActionButton>}
               {c.connectionOkAt && <Badge tone="green">testada em {dateTime(c.connectionOkAt)}</Badge>}
             </div>
             {c.connectionError && <p className="mt-3 rounded-lg bg-red-50 p-3 text-sm text-red-800">{c.connectionError}</p>}
+            <p className="mt-3 text-xs text-slate-500">O diagnóstico roda no worker (leva cerca de 1 minuto): testa a credencial, o Graph, as permissões concedidas ao app, o SharePoint Admin e o banco do cliente.</p>
           </section>
+          <div className="space-y-6">
+          {lastDiag && (
+            <section className="card">
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <h2 className="card-title !mb-0">Último diagnóstico</h2>
+                <Link className="link text-xs" href={`/execucoes/${lastDiag.id}`}>{dateTime(lastDiag.createdAt)} →</Link>
+              </div>
+              <StatusBadge status={lastDiag.status} />
+              {lastDiag.preflight ? <div className="-mx-5 -mb-5 mt-2 [&>section]:border-0 [&>section]:shadow-none"><PreflightCard p={parseJson<Preflight | null>(lastDiag.preflight, null)} /></div> : null}
+            </section>
+          )}
           <section className="card">
             <h2 className="card-title">Permissões do App Registration</h2>
             <p className="muted mb-2">No Entra ID do cliente, conceda (tipo Application, com consentimento do administrador):</p>
-            <ul className="list-disc space-y-1.5 pl-5 text-sm text-slate-700">{PERMISSIONS_HELP.map((p) => <li key={p}>{p}</li>)}</ul>
+            <ul className="list-disc space-y-1.5 break-words pl-5 text-sm text-slate-700 [overflow-wrap:anywhere]">{PERMISSIONS_HELP.map((p) => <li key={p}>{p}</li>)}</ul>
           </section>
+          </div>
         </div>
       )}
 

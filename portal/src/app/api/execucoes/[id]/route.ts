@@ -15,6 +15,6 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   if (!a || !canSeeClient(u, a.clientId)) return Response.json({ error: "não encontrada" }, { status: 404 });
   return Response.json({
     status: a.status, attempts: a.attempts, error: a.error, startedAt: a.startedAt, finishedAt: a.finishedAt, heartbeatAt: a.heartbeatAt,
-    progress: parseJson(a.progress, null), log: parseJson(a.logTail, []),
+    progress: parseJson(a.progress, null), log: parseJson(a.logTail, []), workloads: parseJson(a.workloads, null), preflight: parseJson(a.preflight, null),
   }, { headers: { "Cache-Control": "no-store" } });
 }

@@ -37,7 +37,7 @@ export default async function NovoCliente() {
         <aside className="card h-fit">
           <h2 className="card-title">Permissões do App Registration</h2>
           <p className="muted mb-2">No Entra ID do cliente, conceda (tipo Application, com consentimento do administrador):</p>
-          <ul className="list-disc space-y-1.5 pl-5 text-sm text-slate-700">{PERMISSIONS_HELP.map((p) => <li key={p}>{p}</li>)}</ul>
+          <ul className="list-disc space-y-1.5 break-words pl-5 text-sm text-slate-700 [overflow-wrap:anywhere]">{PERMISSIONS_HELP.map((p) => <li key={p}>{p}</li>)}</ul>
           <p className="mt-3 text-xs text-slate-500">A credencial vai direto para o cofre (Key Vault) e nunca é exibida de volta.</p>
         </aside>
       </ActionForm>

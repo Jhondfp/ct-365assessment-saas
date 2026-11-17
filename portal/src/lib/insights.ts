@@ -150,3 +150,27 @@ export function delta(cur: number | null | undefined, prev: number | null | unde
   if (prev == null || cur == null) return null;
   return Number(cur) - Number(prev);
 }
+
+// ───────────── idade e concentração ─────────────
+/** Distribuição do conteúdo pela última alteração (as colunas stale_* do coletor são acumuladas: "há mais de N anos"). */
+export function ageBuckets(f: Dash = {}) {
+  const size = Number(f.size_bytes || 0), s1 = Number(f.stale_1y_bytes || 0), s2 = Number(f.stale_2y_bytes || 0), s3 = Number(f.stale_3y_bytes || 0), s5 = Number(f.stale_5y_bytes || 0);
+  const c = Number(f.total || 0), c1 = Number(f.stale_1y || 0), c2 = Number(f.stale_2y || 0), c3 = Number(f.stale_3y || 0), c5 = Number(f.stale_5y || 0);
+  return [
+    { label: "Menos de 1 ano", bytes: Math.max(0, size - s1), files: Math.max(0, c - c1) },
+    { label: "1 a 2 anos", bytes: Math.max(0, s1 - s2), files: Math.max(0, c1 - c2) },
+    { label: "2 a 3 anos", bytes: Math.max(0, s2 - s3), files: Math.max(0, c2 - c3) },
+    { label: "3 a 5 anos", bytes: Math.max(0, s3 - s5), files: Math.max(0, c3 - c5) },
+    { label: "Mais de 5 anos", bytes: s5, files: c5 },
+  ];
+}
+
+/** Quantos sites concentram 80% do armazenamento (sites ordenados do maior para o menor). */
+export function concentration(sizes: number[], total?: number) {
+  const sorted = [...sizes].filter((v) => v > 0).sort((a, b) => b - a);
+  const sum = total && total > 0 ? Math.max(total, sorted.reduce((a, v) => a + v, 0)) : sorted.reduce((a, v) => a + v, 0);
+  let acc = 0, n80 = 0;
+  for (const v of sorted) { acc += v; n80++; if (acc >= sum * 0.8) break; }
+  const top10 = sorted.slice(0, 10).reduce((a, v) => a + v, 0);
+  return { count: sorted.length, n80: sum > 0 ? n80 : 0, top10Share: sum > 0 ? top10 / sum : 0, total: sum };
+}

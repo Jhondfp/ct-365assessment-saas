@@ -9,6 +9,8 @@ import type { ReactNode } from "react";
 export const SERIES = ["#7E1C9F", "#2a78d6", "#eb6834"] as const;
 export const NEUTRAL = "#cbd5e1";
 export const STATUS = { good: "#0ca30c", warning: "#fab219", critical: "#d03b3b" } as const;
+/** Escala ordinal de um tom (roxo da marca), do mais claro ao mais escuro: para faixas ordenadas (ex.: idade do conteúdo). */
+export const RAMP = ["#d8b4e8", "#b57ad0", "#9a47b8", "#7E1C9F", "#521266"] as const;
 
 /** Barras horizontais de uma série (ex.: top sites por tamanho). Cor única: a identidade é a linha, não a cor. */
 export function BarList({ rows, color = SERIES[0], empty = "Sem dados." }: {
@@ -121,5 +123,34 @@ export function Stat({ label, value, hint, delta, deltaGood = "down", tone }: {
       )}
       {hint && <p className="mt-1 text-xs text-slate-500">{hint}</p>}
     </div>
+  );
+}
+
+/**
+ * Evolução de um indicador entre coletas (pequeno múltiplo: cada indicador com a própria escala, nunca dois eixos).
+ * Linha de 2px com pontos; rótulo do primeiro e do último ponto no eixo x; tooltip por ponto.
+ */
+export function Trend({ data, color = SERIES[0], height = 120 }: { data: { label: string; value: number; display: string }[]; color?: string; height?: number }) {
+  if (data.length < 2) return <p className="muted">Precisa de ao menos duas coletas.</p>;
+  const W = 320, H = height, padL = 6, padR = 6, padT = 10, padB = 20;
+  const max = Math.max(...data.map((d) => d.value), 0), min = Math.min(...data.map((d) => d.value), 0);
+  const span = max - min || 1;
+  const x = (i: number) => padL + ((W - padL - padR) * i) / (data.length - 1);
+  const y = (v: number) => padT + (H - padT - padB) * (1 - (v - min) / span);
+  const path = data.map((d, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${y(d.value).toFixed(1)}`).join(" ");
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} className="w-full" role="img" aria-label="Evolução entre coletas">
+      <line x1={padL} x2={W - padR} y1={H - padB} y2={H - padB} stroke="#e2e8f0" strokeWidth={1} />
+      <path d={path} fill="none" stroke={color} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
+      {data.map((d, i) => (
+        <g key={i} className="group">
+          <title>{`${d.label}: ${d.display}`}</title>
+          <rect x={x(i) - (W / data.length) / 2} y={0} width={W / data.length} height={H} fill="transparent" />
+          <circle cx={x(i)} cy={y(d.value)} r={i === data.length - 1 ? 3.5 : 2.5} fill={i === data.length - 1 ? color : "#fff"} stroke={color} strokeWidth={1.5} className="transition-[r] group-hover:[r:4.5]" />
+        </g>
+      ))}
+      <text x={padL} y={H - 5} fontSize={10} fill="#64748b">{data[0].label}</text>
+      <text x={W - padR} y={H - 5} fontSize={10} fill="#64748b" textAnchor="end">{data[data.length - 1].label}</text>
+    </svg>
   );
 }

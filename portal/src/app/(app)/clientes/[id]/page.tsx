@@ -19,7 +19,7 @@ import { Badge, Field, PageHeader, Tabs } from "@/components/ui";
 import { ConnectionFields } from "@/components/ConnectionFields";
 import { AssessmentTable, StatusBadge } from "@/components/assessments";
 
-export default async function Cliente({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ tab?: string; keep?: string; from?: string }> }) {
+export default async function Cliente({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ tab?: string; keep?: string; from?: string; site?: string | string[] }> }) {
   const { id } = await params;
   const u = await requireClientPage(id);
   const c = await prisma.client.findUnique({
@@ -30,7 +30,8 @@ export default async function Cliente({ params, searchParams }: { params: Promis
     },
   });
   if (!c) notFound();
-  const { tab: t, keep: keepQ, from } = await searchParams;
+  const { tab: t, keep: keepQ, from, site } = await searchParams;
+  const presetSites = (Array.isArray(site) ? site : site ? [site] : []).slice(0, 200);
   const keep = Math.min(50000, Math.max(1, Number(keepQ) || 100));
   const canManage = can(u.roles, "clients:manage");
   const canConn = canManage;
@@ -143,7 +144,7 @@ export default async function Cliente({ params, searchParams }: { params: Promis
         </section>
       )}
 
-      {tab === "higienizacao" && canRun && <HygieneTab client={c} keep={keep} from={from} />}
+      {tab === "higienizacao" && canRun && <HygieneTab client={c} keep={keep} from={from} sites={presetSites} />}
 
       {tab === "cadastro" && canManage && (
         <div className="grid gap-6 lg:grid-cols-2">

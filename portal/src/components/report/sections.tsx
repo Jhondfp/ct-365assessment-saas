@@ -1,10 +1,11 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import Link from "next/link";
-import { BarList, Columns, NEUTRAL, SERIES, STATUS, Stat, StackBar } from "@/components/charts";
+import { BarList, Columns, NEUTRAL, RAMP, SERIES, STATUS, Stat, StackBar, Trend } from "@/components/charts";
+import type { EvolutionPoint, UsageSummary, VersionSite } from "@/lib/reportExtras";
 import { DataTable } from "@/components/DataTable";
 import { Empty } from "@/components/ui";
 import {
-  COMPLIANCE_LABEL, GB, SEV_LABEL, SHARING_LABEL, bytes, delta, findings, groupFileTypes, growth, idleLicenses, mb, num, pct, savings, sensitiveKeyword, tr, usd,
+  COMPLIANCE_LABEL, GB, SEV_LABEL, ageBuckets, concentration, SHARING_LABEL, bytes, delta, findings, groupFileTypes, growth, idleLicenses, mb, num, pct, savings, sensitiveKeyword, tr, usd,
   type Dash, type Finding,
 } from "@/lib/insights";
 
@@ -48,7 +49,7 @@ export function FindingList({ items, base, limit }: { items: Finding[]; base?: s
 }
 
 // ───────────── Visão geral ─────────────
-export function Overview({ d, p, base }: { d: Dash; p: Dash | null; base: string }) {
+export function Overview({ d, p, base, evo = [] }: { d: Dash; p: Dash | null; base: string; evo?: EvolutionPoint[] }) {
   const s = d.sites ?? {}, f = d.files ?? {};
   const sv = savings(f, d.trash ?? {});
   const lic = idleLicenses(d.licensing_by_sku ?? []);
@@ -105,12 +106,107 @@ export function Overview({ d, p, base }: { d: Dash; p: Dash | null; base: string
           <BarList rows={types.map((t) => ({ label: t.name, value: t.size_bytes, display: bytes(t.size_bytes), title: `${num(t.count)} arquivos` }))} />
         </Card>
       </div>
+
+      {(f.total ?? 0) > 0 && (
+        <Card title="Idade do conteúdo" aside={<span className="text-xs text-slate-500">pela última alteração · SharePoint + OneDrive</span>}>
+          <AgeBar f={f} />
+        </Card>
+      )}
+
+      {evo.length >= 2 && <Evolution evo={evo} />}
     </div>
   );
 }
 
+/** Conteúdo por faixa de idade (última alteração): base para arquivamento e retenção. */
+export function AgeBar({ f }: { f: Dash }) {
+  const b = ageBuckets(f);
+  const old = b.slice(2).reduce((a, x) => a + x.bytes, 0), total = b.reduce((a, x) => a + x.bytes, 0);
+  return (
+    <div>
+      <StackBar height={16} parts={b.map((x, i) => ({ label: x.label, value: x.bytes, color: RAMP[i], display: bytes(x.bytes) }))} />
+      <p className="mt-3 text-sm text-slate-600">
+        <b className="text-ct-ink">{pct(old, total)}%</b> do conteúdo ({bytes(old)}) não é alterado há mais de 2 anos — candidato a arquivamento, retenção ou camada mais barata.
+      </p>
+    </div>
+  );
+}
+
+const shortDate = (d: Date | null, fallback: string) => (d ? d.toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo", day: "2-digit", month: "2-digit", year: "2-digit" }) : fallback);
+
+/** Pequenos múltiplos: um indicador por gráfico, cada um com a própria escala. */
+export function Evolution({ evo }: { evo: EvolutionPoint[] }) {
+  const files = evo.filter((e) => e.hasFiles), lic = evo.filter((e) => e.hasLicensing);
+  const metrics: { title: string; pts: EvolutionPoint[]; get: (e: EvolutionPoint) => number; fmt: (v: number) => string; good: "up" | "down" | "none" }[] = [
+    { title: "Armazenamento", pts: evo.filter((e) => e.sites > 0), get: (e) => e.storageMB, fmt: (v) => mb(v), good: "none" },
+    { title: "Arquivos", pts: files, get: (e) => e.files, fmt: (v) => num(v), good: "none" },
+    { title: "Parado há +2 anos", pts: files, get: (e) => e.staleBytes, fmt: (v) => bytes(v), good: "down" },
+    { title: "Versões antigas", pts: files, get: (e) => e.versionBytes, fmt: (v) => bytes(v), good: "down" },
+    { title: "Sites com acesso externo", pts: evo.filter((e) => e.sites > 0), get: (e) => e.external, fmt: (v) => num(v), good: "down" },
+    { title: "Licenças pagas não atribuídas", pts: lic, get: (e) => e.idleLicenses, fmt: (v) => num(v), good: "down" },
+  ];
+  return (
+    <Card title="Evolução entre coletas" aside={<span className="text-xs text-slate-500">{evo.length} coletas · {shortDate(evo[0].date, evo[0].label)} a {shortDate(evo[evo.length - 1].date, evo[evo.length - 1].label)}</span>}>
+      <div className="grid gap-x-8 gap-y-6 sm:grid-cols-2 lg:grid-cols-3">
+        {metrics.filter((m) => m.pts.length >= 2).map((m) => {
+          const first = m.get(m.pts[0]), last = m.get(m.pts[m.pts.length - 1]);
+          const change = first ? (last - first) / first : null;
+          const tone = change == null || change === 0 || m.good === "none" ? "text-slate-500" : (change < 0) === (m.good === "down") ? "text-lime-700" : "text-red-700";
+          return (
+            <div key={m.title} className="break-inside-avoid">
+              <div className="flex items-baseline justify-between gap-2">
+                <span className="text-sm font-medium text-slate-700">{m.title}</span>
+                <span className="text-sm font-semibold tabular-nums">{m.fmt(last)}</span>
+              </div>
+              <p className={`text-xs ${tone}`}>{change == null ? "—" : change === 0 ? "sem variação" : `${change > 0 ? "▲" : "▼"} ${Math.abs(Math.round(change * 100))}% desde ${shortDate(m.pts[0].date, m.pts[0].label)}`}</p>
+              <Trend data={m.pts.map((e) => ({ label: shortDate(e.date, e.label), value: m.get(e), display: m.fmt(m.get(e)) }))} />
+            </div>
+          );
+        })}
+      </div>
+    </Card>
+  );
+}
+
+/** Concentração: poucos sites costumam somar quase todo o espaço — é por eles que a ação começa. */
+function Concentration({ sites, totalBytes, word }: { sites: any[]; totalBytes: number; word: string }) {
+  const c = concentration(sites.map((s) => s.size_bytes), totalBytes);
+  if (!c.count) return null;
+  const top = [...sites].sort((a, b) => b.size_bytes - a.size_bytes).slice(0, 10);
+  let acc = 0;
+  return (
+    <Card title="Onde está o armazenamento">
+      <p className="mb-4 text-sm text-slate-600">
+        <b className="text-ct-ink">{num(c.n80)} {word}</b> ({pct(c.n80, c.count)}% do total) concentram 80% do espaço. Os 10 maiores somam <b className="text-ct-ink">{Math.round(c.top10Share * 100)}%</b>.
+      </p>
+      <BarList rows={top.map((s) => { acc += s.size_bytes; return {
+        label: <a className="hover:underline" href={s.url} target="_blank" rel="noopener">{s.title}</a>, value: s.size_bytes, display: bytes(s.size_bytes),
+        sub: `${pct(s.size_bytes, c.total)}% do espaço · acumulado ${pct(acc, c.total)}%`,
+      }; })} />
+    </Card>
+  );
+}
+
+/** Sites com mais espaço em versões antigas, com atalho para simular a limpeza neles. */
+function VersionSites({ rows, word, hygieneHref }: { rows: VersionSite[]; word: string; hygieneHref?: (sites: string[]) => string }) {
+  if (!rows.length) return null;
+  const top = rows.slice(0, 10);
+  const total = rows.reduce((a, r) => a + r.overhead, 0);
+  return (
+    <Card title="Versões antigas por site" aside={hygieneHref && <Link className="btn-secondary btn-sm print:hidden" href={hygieneHref(top.map((r) => r.url))}>Simular limpeza nestes {top.length}</Link>}>
+      <p className="mb-4 text-sm text-slate-600">
+        Versões antigas ocupam <b className="text-ct-ink">{bytes(total)}</b> em {num(rows.length)} {word}; os {top.length} abaixo respondem por {pct(top.reduce((a, r) => a + r.overhead, 0), total)}%.
+      </p>
+      <BarList color={SERIES[1]} rows={top.map((r) => ({
+        label: <a className="hover:underline" href={r.url} target="_blank" rel="noopener">{r.name}</a>, value: r.overhead, display: bytes(r.overhead),
+        sub: r.files100 ? `${num(r.files100)} arquivos com +100 versões` : r.files50 ? `${num(r.files50)} arquivos com +50 versões` : undefined,
+      }))} />
+    </Card>
+  );
+}
+
 // ───────────── SharePoint / OneDrive ─────────────
-export function SiteSection({ d, p, type }: { d: Dash; p: Dash | null; type: "SharePoint" | "OneDrive" }) {
+export function SiteSection({ d, p, type, versions = [], hygieneHref }: { d: Dash; p: Dash | null; type: "SharePoint" | "OneDrive"; versions?: VersionSite[]; hygieneHref?: (sites: string[]) => string }) {
   const sec = (type === "SharePoint" ? d.sharepoint : d.onedrive) ?? {};
   const prev = (type === "SharePoint" ? p?.sharepoint : p?.onedrive) ?? null;
   const s = sec.sites ?? {}, f = sec.files ?? {};
@@ -138,17 +234,16 @@ export function SiteSection({ d, p, type }: { d: Dash; p: Dash | null; type: "Sh
           ]} />
           <p className="mt-2 text-xs text-slate-500">Cálculo arquivo a arquivo sobre as versões coletadas.</p>
         </Card>
-        <Card title="Conteúdo sem alteração">
-          <BarList color={SERIES[2]} rows={[
-            { label: "Há mais de 1 ano", value: f.stale_1y_bytes || 0, display: bytes(f.stale_1y_bytes), title: `${num(f.stale_1y)} arquivos` },
-            { label: "Há mais de 2 anos", value: f.stale_2y_bytes || 0, display: bytes(f.stale_2y_bytes), title: `${num(f.stale_2y)} arquivos` },
-            { label: "Há mais de 3 anos", value: f.stale_3y_bytes || 0, display: bytes(f.stale_3y_bytes), title: `${num(f.stale_3y)} arquivos` },
-            { label: "Há mais de 5 anos", value: f.stale_5y_bytes || 0, display: bytes(f.stale_5y_bytes), title: `${num(f.stale_5y)} arquivos` },
-          ]} />
+        <Card title="Idade do conteúdo">
+          <AgeBar f={f} />
         </Card>
         <Card title="Tipos de arquivo">
           <BarList rows={groupFileTypes(sec.file_types ?? []).slice(0, 6).map((t) => ({ label: t.name, value: t.size_bytes, display: bytes(t.size_bytes), title: `${num(t.count)} arquivos` }))} />
         </Card>
+      </div>
+      <div className="grid gap-6 lg:grid-cols-2">
+        <Concentration sites={sites} totalBytes={(s.storage_mb || 0) * 1048576} word={word} />
+        <VersionSites rows={versions.filter((v) => v.type === type)} word={word} hygieneHref={hygieneHref} />
       </div>
       {type === "SharePoint" && (d.critical_sites?.length ?? 0) > 0 && (
         <Card title="Sites sensíveis com acesso externo" aside={<span className="rounded-full bg-red-100 px-2 py-0.5 text-[11px] font-semibold text-red-800">Crítico</span>}>
@@ -187,7 +282,7 @@ export function SiteSection({ d, p, type }: { d: Dash; p: Dash | null; type: "Sh
 }
 
 // ───────────── Licenciamento ─────────────
-export function Licensing({ d, p }: { d: Dash; p: Dash | null }) {
+export function Licensing({ d, p, use }: { d: Dash; p: Dash | null; use?: UsageSummary | null }) {
   const l = d.licensing ?? {};
   if (!l.total_skus) return <Empty>Esta coleta não tem dados de licenciamento. Inclua o workload Licenciamento na próxima execução.</Empty>;
   const idle = idleLicenses(d.licensing_by_sku ?? []);
@@ -206,6 +301,7 @@ export function Licensing({ d, p }: { d: Dash; p: Dash | null }) {
           label: r.name, value: r.used_licenses, display: `${num(r.used_licenses)} de ${num(r.total_licenses)}`, sub: r.idle > 0 ? `${num(r.idle)} não atribuídas${r.price ? ` · ${usd(r.idleCost)}/mês` : ""}` : undefined,
         }))} />
       </Card>
+      {use && use.total > 0 && <RealUsage u={use} />}
       <Card title="Todas as SKUs">
         <DataTable file="licencas" initialSort={{ key: "idle", dir: "desc" }} cols={[
           { key: "name", label: "Licença" }, { key: "sku_part_number", label: "SKU" }, { key: "total_licenses", label: "Contratadas", kind: "num" }, { key: "used_licenses", label: "Em uso", kind: "num" },
@@ -213,6 +309,28 @@ export function Licensing({ d, p }: { d: Dash; p: Dash | null }) {
         ]} rows={rows} />
       </Card>
     </div>
+  );
+}
+
+/** Licença × uso real: quem usa colaboração, quem só usa e-mail e quem não usa nada (30 dias antes da coleta). */
+function RealUsage({ u }: { u: UsageSummary }) {
+  return (
+    <Card title="Uso real dos usuários licenciados" aside={<span className="text-xs text-slate-500">30 dias antes da coleta · {num(u.total)} usuários</span>}>
+      <StackBar height={16} parts={[
+        { label: "Usa Teams, SharePoint ou OneDrive", value: u.collab, color: SERIES[0], display: num(u.collab) },
+        { label: "Só e-mail", value: u.emailOnly, color: SERIES[1], display: num(u.emailOnly) },
+        { label: "Sem atividade", value: u.inactive, color: SERIES[2], display: num(u.inactive) },
+      ]} />
+      <div className="mt-4 grid gap-4 text-sm text-slate-600 md:grid-cols-2">
+        <p><b className="text-ct-ink">{num(u.inactive)} usuários</b> não usaram nenhum serviço no período: candidatos a remover a licença (confira desligados, contas de serviço e afastados).</p>
+        <p><b className="text-ct-ink">{num(u.emailOnly)} usuários</b> só usam e-mail: candidatos a um plano mais simples (ex.: Exchange Online ou F3) no lugar de uma suíte completa.</p>
+      </div>
+      <div className="mt-4 grid gap-6 xl:grid-cols-2">
+        <DataTable file="usuarios-sem-atividade" pageSize={8} cols={[{ key: "user", label: "Sem atividade" }, { key: "last", label: "Última atividade", kind: "date" }]} rows={u.inactiveUsers} empty="Nenhum." />
+        <DataTable file="usuarios-so-email" pageSize={8} cols={[{ key: "user", label: "Só e-mail" }, { key: "last", label: "Última atividade", kind: "date" }]} rows={u.emailOnlyUsers} empty="Nenhum." />
+      </div>
+      <p className="mt-2 text-xs text-slate-500">O coletor não grava qual SKU cada usuário tem; o cruzamento é por atividade nos relatórios do Microsoft 365, que listam os usuários licenciados de cada serviço.</p>
+    </Card>
   );
 }
 

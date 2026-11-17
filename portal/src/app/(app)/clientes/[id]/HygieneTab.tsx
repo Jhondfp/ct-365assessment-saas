@@ -11,7 +11,7 @@ import { StatusBadge } from "@/components/assessments";
 import { Badge, Empty } from "@/components/ui";
 
 /** Aba Higienização do cliente: formulário (limpeza de versões) e histórico de simulações/execuções. */
-export async function HygieneTab({ client, keep, from }: { client: { id: string; slug: string; dbMode: string; dbServer: string | null; dbUser: string | null; dbName: string | null; dbStatus: string }; keep: number; from?: string }) {
+export async function HygieneTab({ client, keep, from, sites = [] }: { client: { id: string; slug: string; dbMode: string; dbServer: string | null; dbUser: string | null; dbName: string | null; dbStatus: string }; keep: number; from?: string; sites?: string[] }) {
   const history = await prisma.assessment.findMany({
     where: { clientId: client.id, kind: "HIGIENIZACAO" }, orderBy: { createdAt: "desc" }, take: 20,
     include: { startedBy: { select: { name: true, email: true } } },
@@ -41,8 +41,8 @@ export async function HygieneTab({ client, keep, from }: { client: { id: string;
         {error ? <Empty>Não foi possível ler o banco do cliente: {error}</Empty>
           : !source ? <Empty>Nenhuma coleta concluída com o workload Arquivos. Rode uma coleta antes: é ela que aponta os arquivos com excesso de versões.</Empty>
           : candidates.length === 0 ? <Empty>Nenhum arquivo com mais de {keep} versões na coleta de {source.label}. Experimente um número menor de versões a manter.</Empty>
-          : <HygieneForm key={`${keep}-${from ?? ""}`} action={startHygiene.bind(null, client.id)} keep={keep} candidates={candidates} source={source}
-              defaults={pp ? { scope: pp.scope, sites: pp.sites, permanent: !pp.recycle, method: pp.mode, maxFiles: pp.maxFiles } : undefined} />}
+          : <HygieneForm key={`${keep}-${from ?? ""}-${sites.length}`} action={startHygiene.bind(null, client.id)} keep={keep} candidates={candidates} source={source}
+              defaults={pp ? { scope: pp.scope, sites: pp.sites, permanent: !pp.recycle, method: pp.mode, maxFiles: pp.maxFiles } : sites.length ? { scope: "sites", sites } : undefined} />}
       </div>
       <section className="card h-fit">
         <h2 className="card-title">Histórico</h2>

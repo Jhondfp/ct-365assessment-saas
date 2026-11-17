@@ -2,6 +2,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireClientPage } from "@/lib/session";
+import { can } from "@/lib/rbac";
+import { evolution, usage, versionSites } from "@/lib/reportExtras";
 import { reportData, reportExecutions, sectionCounts, SECTIONS, SECTION_WORKLOAD, type SectionKey } from "@/lib/report";
 import { Empty, PageHeader } from "@/components/ui";
 import { PrintButton, ReportToolbar } from "@/components/report/ReportToolbar";
@@ -10,7 +12,7 @@ import { Adoption, Exchange, Intune, Licensing, Overview, SiteSection } from "@/
 export default async function Relatorio({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ execucao?: string; comparar?: string; secao?: string }> }) {
   const { id } = await params;
   const sp = await searchParams;
-  await requireClientPage(id);
+  const u = await requireClientPage(id);
   const c = await prisma.client.findUnique({ where: { id }, select: { id: true, name: true, dbStatus: true } });
   if (!c) notFound();
   if (c.dbStatus !== "PROVISIONADO") {
@@ -22,11 +24,20 @@ export default async function Relatorio({ params, searchParams }: { params: Prom
   if (!current) {
     return (<><PageHeader title="Relatório" subtitle={<Link className="link" href={`/clientes/${c.id}`}>{c.name}</Link>} /><Empty>Nenhuma coleta com dados ainda. Rode uma coleta ou importe as execuções do banco (aba Execuções do cliente).</Empty></>);
   }
-  const [d, p] = await Promise.all([reportData(c.id, current), compare ? reportData(c.id, compare) : Promise.resolve(null)]);
+  const secao0 = (SECTIONS.some((s) => s.key === sp.secao) ? sp.secao : "visao") as SectionKey;
+  const [d, p, evo, versions, use] = await Promise.all([
+    reportData(c.id, current), compare ? reportData(c.id, compare) : Promise.resolve(null),
+    secao0 === "visao" ? evolution(c.id, execs.slice(execs.findIndex((e) => e.id === current))) : Promise.resolve([]),
+    secao0 === "sharepoint" || secao0 === "onedrive" ? versionSites(c.id, current) : Promise.resolve([]),
+    secao0 === "licencas" ? usage(c.id, current) : Promise.resolve(null),
+  ]);
+  const hygieneHref = can(u.roles, "assessments:run")
+    ? (sites: string[]) => `/clientes/${c.id}?${new URLSearchParams([["tab", "higienizacao"], ...sites.map((s) => ["site", s])]).toString()}`
+    : undefined;
   if (!d || d.error) return (<><PageHeader title="Relatório" subtitle={c.name} /><Empty>Não foi possível ler o banco do cliente: {String(d?.error ?? "sem dados")}</Empty></>);
 
   const counts = sectionCounts(d);
-  const secao = (SECTIONS.some((s) => s.key === sp.secao) ? sp.secao : "visao") as SectionKey;
+  const secao = secao0;
   const qs = (extra: Record<string, string>) => `?${new URLSearchParams({ execucao: current, ...(compare ? { comparar: compare } : {}), ...extra }).toString()}`;
   const base = `/clientes/${c.id}/relatorio${qs({})}`;
   const label = execs.find((e) => e.id === current)?.label;
@@ -56,10 +67,10 @@ export default async function Relatorio({ params, searchParams }: { params: Prom
           );
         })}
       </nav>
-      {secao === "visao" && <Overview d={d} p={p} base={base} />}
-      {secao === "sharepoint" && <SiteSection d={d} p={p} type="SharePoint" />}
-      {secao === "onedrive" && <SiteSection d={d} p={p} type="OneDrive" />}
-      {secao === "licencas" && <Licensing d={d} p={p} />}
+      {secao === "visao" && <Overview d={d} p={p} base={base} evo={evo} />}
+      {secao === "sharepoint" && <SiteSection d={d} p={p} type="SharePoint" versions={versions} hygieneHref={hygieneHref} />}
+      {secao === "onedrive" && <SiteSection d={d} p={p} type="OneDrive" versions={versions} hygieneHref={hygieneHref} />}
+      {secao === "licencas" && <Licensing d={d} p={p} use={use} />}
       {secao === "adocao" && <Adoption d={d} />}
       {secao === "exchange" && <Exchange d={d} />}
       {secao === "intune" && <Intune d={d} />}

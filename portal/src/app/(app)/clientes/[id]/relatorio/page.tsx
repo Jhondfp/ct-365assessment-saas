@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireClientPage } from "@/lib/session";
 import { can } from "@/lib/rbac";
-import { evolution, usage, versionSites } from "@/lib/reportExtras";
+import { duplicateGroups, evolution, usage, versionSites } from "@/lib/reportExtras";
 import { reportData, reportExecutions, sectionCounts, SECTIONS, SECTION_WORKLOAD, type SectionKey } from "@/lib/report";
 import { Empty, PageHeader } from "@/components/ui";
 import { PrintButton, ReportToolbar } from "@/components/report/ReportToolbar";
@@ -25,12 +25,14 @@ export default async function Relatorio({ params, searchParams }: { params: Prom
     return (<><PageHeader title="Relatório" subtitle={<Link className="link" href={`/clientes/${c.id}`}>{c.name}</Link>} /><Empty>Nenhuma coleta com dados ainda. Rode uma coleta ou importe as execuções do banco (aba Execuções do cliente).</Empty></>);
   }
   const secao0 = (SECTIONS.some((s) => s.key === sp.secao) ? sp.secao : "visao") as SectionKey;
-  const [d, p, evo, versions, use] = await Promise.all([
+  const [d, p, evo, versions, use, dups] = await Promise.all([
     reportData(c.id, current), compare ? reportData(c.id, compare) : Promise.resolve(null),
     secao0 === "visao" ? evolution(c.id, execs.slice(execs.findIndex((e) => e.id === current))) : Promise.resolve([]),
     secao0 === "sharepoint" || secao0 === "onedrive" ? versionSites(c.id, current) : Promise.resolve([]),
     secao0 === "licencas" ? usage(c.id, current) : Promise.resolve(null),
+    secao0 === "sharepoint" ? duplicateGroups(c.id, current) : Promise.resolve([]),
   ]);
+  const dupHref = (hash: string) => `/api/relatorio/${c.id}/duplicados?${new URLSearchParams({ execution: current, hash }).toString()}`;
   const hygieneHref = can(u.roles, "assessments:run")
     ? (sites: string[]) => `/clientes/${c.id}?${new URLSearchParams([["tab", "higienizacao"], ...sites.map((s) => ["site", s])]).toString()}`
     : undefined;
@@ -68,7 +70,7 @@ export default async function Relatorio({ params, searchParams }: { params: Prom
         })}
       </nav>
       {secao === "visao" && <Overview d={d} p={p} base={base} evo={evo} />}
-      {secao === "sharepoint" && <SiteSection d={d} p={p} type="SharePoint" versions={versions} hygieneHref={hygieneHref} />}
+      {secao === "sharepoint" && <SiteSection d={d} p={p} type="SharePoint" versions={versions} hygieneHref={hygieneHref} duplicates={dups} dupHref={dupHref} />}
       {secao === "onedrive" && <SiteSection d={d} p={p} type="OneDrive" versions={versions} hygieneHref={hygieneHref} />}
       {secao === "licencas" && <Licensing d={d} p={p} use={use} />}
       {secao === "adocao" && <Adoption d={d} />}

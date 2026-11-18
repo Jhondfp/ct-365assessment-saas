@@ -119,3 +119,20 @@ export const usage = cache(async (clientId: string, executionId: string): Promis
     };
   } catch { return null; }
 });
+
+export type DuplicateGroup = { hash: string; name: string; type: string; copies: number; sites: number; size: number; wasted: number };
+
+/** Candidatos a duplicata (mesmo hash), com o hash para baixar a lista de cópias. */
+export const duplicateGroups = cache(async (clientId: string, executionId: string): Promise<DuplicateGroup[]> => {
+  const db = await conn(clientId);
+  if (!db) return [];
+  try {
+    const rows = await readQuery(db, `
+      SELECT TOP 100 file_hash, sample_file_name, file_type, copy_count, distinct_sites, file_size_bytes, wasted_bytes
+      FROM dbo.agg_duplicate_candidates WHERE execution_id = @e ORDER BY wasted_bytes DESC`, { e: executionId }, 60_000);
+    return rows.map((r) => ({
+      hash: String(r.file_hash ?? ""), name: String(r.sample_file_name ?? ""), type: String(r.file_type ?? ""), copies: N(r.copy_count),
+      sites: N(r.distinct_sites), size: N(r.file_size_bytes), wasted: N(r.wasted_bytes),
+    }));
+  } catch { return []; }
+});

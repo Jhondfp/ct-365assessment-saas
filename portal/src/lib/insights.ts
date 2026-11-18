@@ -174,3 +174,37 @@ export function concentration(sizes: number[], total?: number) {
   const top10 = sorted.slice(0, 10).reduce((a, v) => a + v, 0);
   return { count: sorted.length, n80: sum > 0 ? n80 : 0, top10Share: sum > 0 ? top10 / sum : 0, total: sum };
 }
+
+/** Extensões que caem em "Outros" (sem grupo conhecido), da maior para a menor: para investigar o que é. */
+export function otherExtensions(ft: { type: string; count: number; size_bytes: number }[] = []) {
+  const known = new Set(Object.values(FILE_GROUPS).flat());
+  return ft.filter((f) => !known.has((f.type || "").toLowerCase())).sort((a, b) => b.size_bytes - a.size_bytes);
+}
+
+/**
+ * Crescimento do armazenamento e previsão de quando a cota enche. O histórico é reconstruído a partir do uso atual
+ * menos o conteúdo criado depois de cada mês (pela data de criação dos arquivos); a projeção usa a média dos
+ * últimos 12 meses com dado.
+ */
+export function growthProjection(storageMB: number, quotaMB: number, monthly: Dash[] = []) {
+  const usedGB = (storageMB || 0) / 1024, quotaGB = (quotaMB || 0) / 1024;
+  const hist = monthly.slice(-24);
+  const g = growth({ storage_mb: storageMB, quota_mb: quotaMB }, monthly);
+  const after = (i: number) => hist.slice(i + 1).reduce((a, r) => a + Number(r.bytes_created_gb || 0), 0);
+  const history = hist.map((r, i) => ({ y: Number(r.year), m: Number(r.month), gb: Math.max(0, usedGB - after(i)) }));
+  const last = hist[hist.length - 1];
+  const projection: { y: number; m: number; gb: number }[] = [];
+  if (last && g.monthlyGB && g.monthlyGB > 0) {
+    const horizon = g.monthsToFull != null ? Math.min(g.monthsToFull + 3, 120) : 36;
+    for (let k = 1; k <= horizon; k++) {
+      const mm = (Number(last.month) - 1 + k) % 12 + 1, yy = Number(last.year) + Math.floor((Number(last.month) - 1 + k) / 12);
+      projection.push({ y: yy, m: mm, gb: usedGB + g.monthlyGB * k });
+    }
+  }
+  let fullAt: { y: number; m: number } | null = null;
+  if (g.monthsToFull != null && last) {
+    const k = g.monthsToFull + 1;
+    fullAt = { m: (Number(last.month) - 1 + k) % 12 + 1, y: Number(last.year) + Math.floor((Number(last.month) - 1 + k) / 12) };
+  }
+  return { history, projection, usedGB, quotaGB, monthlyGB: g.monthlyGB, monthsToFull: g.monthsToFull, fullAt };
+}

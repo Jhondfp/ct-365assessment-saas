@@ -154,3 +154,56 @@ export function Trend({ data, color = SERIES[0], height = 120 }: { data: { label
     </svg>
   );
 }
+
+const MES = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
+const gbFmt = (v: number) => (v >= 1024 ? `${(v / 1024).toLocaleString("pt-BR", { maximumFractionDigits: 2 })} TB` : `${v.toLocaleString("pt-BR", { maximumFractionDigits: 0 })} GB`);
+
+/**
+ * Uso do armazenamento no tempo + projeção (mesma série, tracejada) até a cota, que é uma linha de limite rotulada.
+ * Um eixo só (GB). Tooltip nativo por ponto.
+ */
+export function GrowthChart({ history, projection, quotaGB, showQuota = true, height = 220 }: {
+  history: { y: number; m: number; gb: number }[]; projection: { y: number; m: number; gb: number }[]; quotaGB: number; showQuota?: boolean; height?: number;
+}) {
+  const pts = [...history.map((p) => ({ ...p, proj: false })), ...projection.map((p) => ({ ...p, proj: true }))];
+  if (pts.length < 2) return <p className="muted">Sem histórico suficiente.</p>;
+  const W = 680, H = height, padL = 54, padR = 12, padT = 14, padB = 24;
+  const top = niceMax(Math.max(showQuota ? quotaGB || 0 : 0, ...pts.map((p) => p.gb)) * 1.1);
+  const x = (i: number) => padL + ((W - padL - padR) * i) / (pts.length - 1);
+  const y = (v: number) => padT + (H - padT - padB) * (1 - v / top);
+  const nh = history.length;
+  const line = (a: typeof pts, off: number) => a.map((p, i) => `${i ? "L" : "M"}${x(i + off).toFixed(1)},${y(p.gb).toFixed(1)}`).join(" ");
+  const histPath = line(pts.slice(0, nh), 0);
+  const projPath = projection.length ? line(pts.slice(nh - 1), nh - 1) : "";
+  const every = Math.max(1, Math.ceil(pts.length / 8));
+  const ticks = [0, top / 2, top];
+  const label = (p: { y: number; m: number }) => `${MES[p.m - 1]}/${String(p.y).slice(2)}`;
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} className="w-full" role="img" aria-label="Uso do armazenamento e projeção">
+      {ticks.map((t) => (
+        <g key={t}>
+          <line x1={padL} x2={W - padR} y1={y(t)} y2={y(t)} stroke="#e2e8f0" strokeWidth={1} />
+          <text x={padL - 6} y={y(t) + 4} textAnchor="end" fontSize={10} fill="#64748b">{gbFmt(t)}</text>
+        </g>
+      ))}
+      {showQuota && quotaGB > 0 && quotaGB <= top && (
+        <g>
+          <line x1={padL} x2={W - padR} y1={y(quotaGB)} y2={y(quotaGB)} stroke={STATUS.critical} strokeWidth={1.5} strokeDasharray="2 3" />
+          <text x={W - padR} y={y(quotaGB) - 5} textAnchor="end" fontSize={10} fill="#475569">Cota do tenant · {gbFmt(quotaGB)}</text>
+        </g>
+      )}
+      <path d={histPath} fill="none" stroke={SERIES[0]} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
+      {projPath && <path d={projPath} fill="none" stroke={SERIES[0]} strokeWidth={2} strokeDasharray="5 4" strokeLinecap="round" opacity={0.75} />}
+      <line x1={x(nh - 1)} x2={x(nh - 1)} y1={padT} y2={H - padB} stroke="#cbd5e1" strokeWidth={1} />
+      <text x={x(nh - 1) + 4} y={padT + 10} fontSize={10} fill="#64748b">hoje</text>
+      {pts.map((p, i) => (
+        <g key={i} className="group">
+          <title>{`${label(p)}: ${gbFmt(p.gb)}${p.proj ? " (projeção)" : ""}`}</title>
+          <rect x={x(i) - (W / pts.length) / 2} y={padT} width={W / pts.length} height={H - padT - padB} fill="transparent" />
+          <circle cx={x(i)} cy={y(p.gb)} r={3} fill={p.proj ? "#fff" : SERIES[0]} stroke={SERIES[0]} strokeWidth={1.5} className="opacity-0 group-hover:opacity-100" />
+          {i % every === 0 && <text x={x(i)} y={H - 6} textAnchor="middle" fontSize={10} fill="#64748b">{label(p)}</text>}
+        </g>
+      ))}
+    </svg>
+  );
+}

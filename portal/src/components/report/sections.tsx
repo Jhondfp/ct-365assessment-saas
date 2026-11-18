@@ -1,11 +1,11 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import Link from "next/link";
-import { BarList, Columns, NEUTRAL, RAMP, SERIES, STATUS, Stat, StackBar, Trend } from "@/components/charts";
-import type { EvolutionPoint, UsageSummary, VersionSite } from "@/lib/reportExtras";
+import { BarList, Columns, GrowthChart, NEUTRAL, RAMP, SERIES, STATUS, Stat, StackBar, Trend } from "@/components/charts";
+import type { DuplicateGroup, EvolutionPoint, UsageSummary, VersionSite } from "@/lib/reportExtras";
 import { DataTable } from "@/components/DataTable";
 import { Empty } from "@/components/ui";
 import {
-  COMPLIANCE_LABEL, GB, SEV_LABEL, ageBuckets, concentration, SHARING_LABEL, bytes, delta, findings, groupFileTypes, growth, idleLicenses, mb, num, pct, savings, sensitiveKeyword, tr, usd,
+  COMPLIANCE_LABEL, GB, SEV_LABEL, ageBuckets, concentration, growthProjection, otherExtensions, SHARING_LABEL, bytes, delta, findings, groupFileTypes, growth, idleLicenses, mb, num, pct, savings, sensitiveKeyword, tr, usd,
   type Dash, type Finding,
 } from "@/lib/insights";
 
@@ -56,7 +56,6 @@ export function Overview({ d, p, base, evo = [] }: { d: Dash; p: Dash | null; ba
   const g = growth(s, d.sharepoint?.growth_monthly ?? []);
   const F = findings(d);
   const gm = (d.sharepoint?.growth_monthly ?? []).slice(-24);
-  const types = groupFileTypes(d.file_types ?? []).slice(0, 8);
   const versionsOver = Math.max(0, (f.versioned_bytes || 0) - (f.size_bytes || 0));
   return (
     <div className="space-y-6">
@@ -103,9 +102,11 @@ export function Overview({ d, p, base, evo = [] }: { d: Dash; p: Dash | null; ba
           <p className="mt-1 text-xs text-slate-500">SharePoint, pela data de criação dos arquivos.</p>
         </Card>
         <Card title="Tipos de arquivo (por volume)" className="lg:col-span-2">
-          <BarList rows={types.map((t) => ({ label: t.name, value: t.size_bytes, display: bytes(t.size_bytes), title: `${num(t.count)} arquivos` }))} />
+          <FileTypes ft={d.file_types ?? []} />
         </Card>
       </div>
+
+      <SpoGrowth d={d} />
 
       {(f.total ?? 0) > 0 && (
         <Card title="Idade do conteúdo" aside={<span className="text-xs text-slate-500">pela última alteração · SharePoint + OneDrive</span>}>
@@ -115,6 +116,58 @@ export function Overview({ d, p, base, evo = [] }: { d: Dash; p: Dash | null; ba
 
       {evo.length >= 2 && <Evolution evo={evo} />}
     </div>
+  );
+}
+
+/** Tipos de arquivo com a participação de cada um no total; "Outros" abre a lista de extensões para investigar. */
+export function FileTypes({ ft, limit = 8 }: { ft: { type: string; count: number; size_bytes: number }[]; limit?: number }) {
+  const groups = groupFileTypes(ft);
+  const total = groups.reduce((a, g) => a + g.size_bytes, 0);
+  const others = otherExtensions(ft);
+  return (
+    <div>
+      <BarList rows={groups.slice(0, limit).map((g) => ({
+        label: g.name, value: g.size_bytes, display: `${bytes(g.size_bytes)} · ${pct(g.size_bytes, total)}%`, title: `${num(g.count)} arquivos`,
+        sub: g.name === "Outros" && others.length ? `${others.length} extensões: ${others.slice(0, 4).map((o) => o.type || "sem extensão").join(", ")}${others.length > 4 ? "…" : ""}` : undefined,
+      }))} />
+      {others.length > 0 && (
+        <details className="mt-3 text-sm">
+          <summary className="cursor-pointer text-xs font-medium text-ct-purple">O que tem em “Outros”</summary>
+          <table className="tbl mt-2">
+            <thead><tr><th>Extensão</th><th className="text-right">Arquivos</th><th className="text-right">Tamanho</th><th className="text-right">% do total</th></tr></thead>
+            <tbody>
+              {others.slice(0, 25).map((o) => (
+                <tr key={o.type}><td className="font-mono text-xs">{o.type ? `.${o.type}` : "sem extensão"}</td><td className="text-right tabular-nums">{num(o.count)}</td><td className="text-right tabular-nums">{bytes(o.size_bytes)}</td><td className="text-right tabular-nums">{pct(o.size_bytes, total)}%</td></tr>
+              ))}
+            </tbody>
+          </table>
+          <p className="mt-1 text-xs text-slate-500">As 30 maiores extensões da coleta; extensões sem grupo conhecido (ex.: .bam e .fastq de laboratório, bancos de dados, executáveis) caem em “Outros”.</p>
+        </details>
+      )}
+    </div>
+  );
+}
+
+const MESES = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
+
+/** Uso do SharePoint no tempo e quando a cota do tenant enche no ritmo atual. */
+export function SpoGrowth({ d }: { d: Dash }) {
+  const sp = d.sharepoint ?? {};
+  const s = sp.sites ?? {};
+  if (!(sp.growth_monthly?.length >= 2) || !s.storage_mb) return null;
+  const g = growthProjection(s.storage_mb, s.quota_mb, sp.growth_monthly);
+  const when = g.fullAt ? `${MESES[g.fullAt.m - 1]}/${g.fullAt.y}` : null;
+  return (
+    <Card title="Crescimento do SharePoint e prazo da cota" aside={<span className="text-xs text-slate-500">média de {bytes((g.monthlyGB ?? 0) * GB)}/mês nos últimos 12 meses</span>}>
+      <div className="mb-3 grid gap-3 sm:grid-cols-3">
+        <div><p className="text-xs uppercase tracking-wide text-slate-500">Em uso</p><p className="text-lg font-semibold tabular-nums">{bytes(g.usedGB * GB)}</p><p className="text-xs text-slate-500">{g.quotaGB ? `${pct(g.usedGB, g.quotaGB)}% da cota de ${bytes(g.quotaGB * GB)}` : "cota não informada"}</p></div>
+        <div><p className="text-xs uppercase tracking-wide text-slate-500">Crescimento orgânico</p><p className="text-lg font-semibold tabular-nums">{g.monthlyGB ? `${bytes(g.monthlyGB * GB)}/mês` : "—"}</p><p className="text-xs text-slate-500">{g.monthlyGB ? `≈ ${bytes(g.monthlyGB * 12 * GB)} por ano` : "sem histórico"}</p></div>
+        <div><p className="text-xs uppercase tracking-wide text-slate-500">Cota cheia em</p><p className={`text-lg font-semibold tabular-nums ${g.monthsToFull != null && g.monthsToFull <= 12 ? "text-red-700" : ""}`}>{g.monthsToFull != null ? `~${g.monthsToFull} meses` : "mais de 10 anos"}</p><p className="text-xs text-slate-500">{when ? `por volta de ${when}, no ritmo atual` : "no ritmo atual"}</p></div>
+      </div>
+      <GrowthChart history={g.history} projection={g.projection} quotaGB={g.quotaGB} showQuota={g.monthsToFull != null} />
+      {g.monthsToFull == null && g.quotaGB > 0 && <p className="mt-1 text-xs text-slate-500">A cota ({bytes(g.quotaGB * GB)}) fica fora da escala: no ritmo atual ela não é atingida nos próximos 3 anos.</p>}
+      <p className="mt-1 text-xs text-slate-500">Linha cheia: uso reconstruído pela data de criação dos arquivos; tracejada: projeção pela média mensal. A cota é a do tenant (SharePoint). Não conta versões e lixeira criadas no período, então o prazo real tende a ser menor.</p>
+    </Card>
   );
 }
 
@@ -206,13 +259,26 @@ function VersionSites({ rows, word, hygieneHref }: { rows: VersionSite[]; word: 
 }
 
 // ───────────── SharePoint / OneDrive ─────────────
-export function SiteSection({ d, p, type, versions = [], hygieneHref }: { d: Dash; p: Dash | null; type: "SharePoint" | "OneDrive"; versions?: VersionSite[]; hygieneHref?: (sites: string[]) => string }) {
+export function SiteSection({ d, p, type, versions = [], hygieneHref, duplicates = [], dupHref }: {
+  d: Dash; p: Dash | null; type: "SharePoint" | "OneDrive"; versions?: VersionSite[]; hygieneHref?: (sites: string[]) => string;
+  duplicates?: DuplicateGroup[]; dupHref?: (hash: string) => string;
+}) {
   const sec = (type === "SharePoint" ? d.sharepoint : d.onedrive) ?? {};
   const prev = (type === "SharePoint" ? p?.sharepoint : p?.onedrive) ?? null;
   const s = sec.sites ?? {}, f = sec.files ?? {};
   const vs = sec.version_savings ?? {};
   const versionsOver = Math.max(0, (f.versioned_bytes || 0) - (f.size_bytes || 0));
-  const sites = (d.all_sites ?? []).filter((x: any) => x.site_type === type).map((x: any) => ({ ...x, capability: tr(SHARING_LABEL, x.capability), sensivel: sensitiveKeyword(x.url, x.title) ? "Sim" : "" }));
+  // tipo pelo endereço: o site_type gravado varia entre coletas (SharePoint, Site, template…)
+  const isOd = (u: string) => /-my\.sharepoint\.com/i.test(u ?? "");
+  const totalBytes = (s.storage_mb || 0) * 1048576;
+  const orphan = new Set((sec.orphaned_sites ?? []).map((o: any) => String(o.url).toLowerCase()));
+  const verByUrl = new Map(versions.map((v) => [v.url.toLowerCase(), v.overhead]));
+  const sites = (d.all_sites ?? []).filter((x: any) => isOd(x.url) === (type === "OneDrive")).map((x: any) => ({
+    ...x, capability: tr(SHARING_LABEL, x.capability), sensivel: sensitiveKeyword(x.url, x.title) ? "Sim" : "",
+    share: totalBytes ? (x.size_bytes / totalBytes) * 100 : 0, versoes: verByUrl.get(String(x.url).toLowerCase()) ?? 0,
+    semDono: orphan.has(String(x.url).toLowerCase()) ? "Sim" : "", externo: x.external_sharing ? "Sim" : "",
+  }));
+  const vrows = versions.filter((v) => v.type === type);
   const word = type === "SharePoint" ? "sites" : "OneDrives";
   if (!s.total) return <Empty>Esta coleta não tem dados de {type}. Inclua o workload {type === "SharePoint" ? "Sites e subsites + Arquivos" : "OneDrive dos usuários"} na próxima execução.</Empty>;
   return (
@@ -238,13 +304,16 @@ export function SiteSection({ d, p, type, versions = [], hygieneHref }: { d: Das
           <AgeBar f={f} />
         </Card>
         <Card title="Tipos de arquivo">
-          <BarList rows={groupFileTypes(sec.file_types ?? []).slice(0, 6).map((t) => ({ label: t.name, value: t.size_bytes, display: bytes(t.size_bytes), title: `${num(t.count)} arquivos` }))} />
+          <FileTypes ft={sec.file_types ?? []} limit={6} />
         </Card>
       </div>
-      <div className="grid gap-6 lg:grid-cols-2">
-        <Concentration sites={sites} totalBytes={(s.storage_mb || 0) * 1048576} word={word} />
-        <VersionSites rows={versions.filter((v) => v.type === type)} word={word} hygieneHref={hygieneHref} />
-      </div>
+      {type === "SharePoint" && <SpoGrowth d={d} />}
+      {(sites.length > 0 || vrows.length > 0) && (
+        <div className={`grid gap-6 ${sites.length > 0 && vrows.length > 0 ? "lg:grid-cols-2" : ""}`}>
+          {sites.length > 0 && <Concentration sites={sites} totalBytes={totalBytes} word={word} />}
+          {vrows.length > 0 && <VersionSites rows={vrows} word={word} hygieneHref={hygieneHref} />}
+        </div>
+      )}
       {type === "SharePoint" && (d.critical_sites?.length ?? 0) > 0 && (
         <Card title="Sites sensíveis com acesso externo" aside={<span className="rounded-full bg-red-100 px-2 py-0.5 text-[11px] font-semibold text-red-800">Crítico</span>}>
           <DataTable file="sites-sensiveis" cols={[{ key: "title", label: "Site", kind: "link", hrefKey: "url" }, { key: "capability", label: "Compartilhamento" }, { key: "storage_bytes", label: "Tamanho", kind: "bytes" }]} rows={(d.critical_sites ?? []).map((x: any) => ({ ...x, capability: tr(SHARING_LABEL, x.capability) }))} />
@@ -255,12 +324,16 @@ export function SiteSection({ d, p, type, versions = [], hygieneHref }: { d: Das
           <DataTable file={`sem-dono-${type.toLowerCase()}`} cols={[{ key: "title", label: "Site", kind: "link", hrefKey: "url" }, { key: "total_owners", label: "Donos cadastrados", kind: "num" }, { key: "storage_bytes", label: "Tamanho", kind: "bytes" }]} rows={sec.orphaned_sites} />
         </Card>
       )}
-      <Card title={`Todos os ${word}`}>
-        <DataTable file={`${word}`} initialSort={{ key: "size_bytes", dir: "desc" }} cols={[
-          { key: "title", label: "Nome", kind: "link", hrefKey: "url" }, { key: "total_files", label: "Arquivos", kind: "num" }, { key: "size_bytes", label: "Tamanho", kind: "bytes" },
-          { key: "capability", label: "Compartilhamento" }, ...(type === "SharePoint" ? [{ key: "sensivel", label: "Nome sensível" }] : []),
-        ]} rows={sites} />
-      </Card>
+      {sites.length > 0 && (
+        <Card title={`Todos os ${word}`} aside={<span className="text-xs text-slate-500">{num(sites.length)} {word}{(d.all_sites?.length ?? 0) >= 500 ? " (os 500 maiores do tenant)" : ""}</span>}>
+          <DataTable file={`${word}`} initialSort={{ key: "size_bytes", dir: "desc" }} cols={[
+            { key: "title", label: "Nome", kind: "link", hrefKey: "url" }, { key: "size_bytes", label: "Tamanho", kind: "bytes" }, { key: "share", label: "% do total", kind: "pct" },
+            { key: "total_files", label: "Arquivos", kind: "num" }, { key: "versoes", label: "Versões antigas", kind: "bytes" },
+            { key: "capability", label: "Compartilhamento" }, { key: "semDono", label: "Sem dono ativo" },
+            ...(type === "SharePoint" ? [{ key: "sensivel", label: "Nome sensível" }] : []),
+          ]} rows={sites} />
+        </Card>
+      )}
       <div className="grid gap-6 xl:grid-cols-2">
         <Card title="Maiores arquivos">
           <DataTable file={`maiores-arquivos-${type.toLowerCase()}`} pageSize={10} cols={[{ key: "file_name", label: "Arquivo", kind: "link", hrefKey: "file_url" }, { key: "site_name", label: "Site" }, { key: "file_size", label: "Tamanho", kind: "bytes" }, { key: "total_file_size", label: "Com versões", kind: "bytes" }]} rows={sec.top_heaviest ?? []} />
@@ -269,9 +342,17 @@ export function SiteSection({ d, p, type, versions = [], hygieneHref }: { d: Das
           <DataTable file={`mais-versoes-${type.toLowerCase()}`} pageSize={10} cols={[{ key: "file_name", label: "Arquivo", kind: "link", hrefKey: "file_url" }, { key: "site_name", label: "Site" }, { key: "versions_count", label: "Versões", kind: "num" }, { key: "total_file_size", label: "Com versões", kind: "bytes" }]} rows={sec.top_versioned ?? []} />
         </Card>
       </div>
-      {type === "SharePoint" && (d.duplicates?.length ?? 0) > 0 && (
-        <Card title="Arquivos duplicados (candidatos)">
-          <DataTable file="duplicados" pageSize={10} cols={[{ key: "sample_file_name", label: "Arquivo" }, { key: "file_type", label: "Tipo" }, { key: "copy_count", label: "Cópias", kind: "num" }, { key: "distinct_sites", label: "Sites", kind: "num" }, { key: "wasted_bytes", label: "Espaço repetido", kind: "bytes" }]} rows={d.duplicates} />
+      {type === "SharePoint" && (duplicates.length > 0 || (d.duplicates?.length ?? 0) > 0) && (
+        <Card title="Arquivos duplicados (candidatos)" aside={<span className="text-xs text-slate-500">mesmo conteúdo (hash) em mais de um lugar</span>}>
+          {duplicates.length > 0 ? (
+            <DataTable file="duplicados" pageSize={10} initialSort={{ key: "wasted", dir: "desc" }} cols={[
+              { key: "name", label: "Arquivo" }, { key: "type", label: "Tipo" }, { key: "copies", label: "Cópias", kind: "num" }, { key: "sites", label: "Sites", kind: "num" },
+              { key: "size", label: "Tamanho", kind: "bytes" }, { key: "wasted", label: "Espaço repetido", kind: "bytes" }, { key: "csv", label: "Onde estão", kind: "link", hrefKey: "csvHref" },
+            ]} rows={duplicates.map((x) => ({ ...x, csv: "Baixar CSV", csvHref: dupHref ? dupHref(x.hash) : "" }))} />
+          ) : (
+            <DataTable file="duplicados" pageSize={10} cols={[{ key: "sample_file_name", label: "Arquivo" }, { key: "file_type", label: "Tipo" }, { key: "copy_count", label: "Cópias", kind: "num" }, { key: "distinct_sites", label: "Sites", kind: "num" }, { key: "wasted_bytes", label: "Espaço repetido", kind: "bytes" }]} rows={d.duplicates} />
+          )}
+          <p className="mt-2 text-xs text-slate-500">“Baixar CSV” traz todas as cópias do arquivo: site, endereço, tamanho, quem criou e datas.</p>
         </Card>
       )}
       {type === "SharePoint" && sec.trash && (

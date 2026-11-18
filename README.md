@@ -6,7 +6,7 @@ O portal usa o mesmo layout e a mesma autenticação mista do **Target360** (Nex
 
 ```
                  ┌──────────────── Azure Container Apps ────────────────┐
- equipe CT ──►   │  portal (Next.js)            worker(s) de coleta     │
+ equipe CT ──►   │  portal (Next.js)            coletor (job da fila)   │
  (M365/senha)    │   ├ clientes, conexões  ◄──  pede a próxima coleta   │──► Microsoft 365 do cliente
                  │   ├ fila e progresso    ◄──  job/ = coletor PS + PnP  │    (Graph + SharePoint/PnP)
                  │   └ dashboard              │                          │
@@ -53,18 +53,23 @@ portal/                 Next.js 15 (App Router, Server Actions) · Auth.js v5 ·
 job/
   src/                  coletor (connection, modules, utils) — mantido neste repositório
   Invoke-SaasAssessment.ps1  roda UMA coleta (substitui o main.ps1 e o monitor local)
-  Start-Worker.ps1      worker: pede coletas ao portal e roda cada uma num processo pwsh separado
+  Start-Worker.ps1      pede trabalho ao portal (coleta ou lote) e roda; -Once = um trabalho por container
+  Invoke-SaasBatches.ps1  coleta de arquivos dividida em lotes paralelos
   Dockerfile            PowerShell 7.4 + PnP.PowerShell
-infra/main.bicep        Azure SQL + elastic pool, Key Vault, ACR, Container Apps (portal + worker), Log Analytics
+infra/main.bicep        Azure SQL + elastic pool, Key Vault, ACR, Container Apps (portal + job do coletor), Log Analytics
 infra/deploy.sh         implantação completa (infra + build das imagens no ACR)
 ```
 
-### Como o worker conversa com o portal
+### Como o coletor conversa com o portal
 
-O worker chama `POST /api/jobs/claim` com o `WORKER_TOKEN` e recebe a próxima coleta: `ASSESSMENT_ID`, `CALLBACK_URL` e `CALLBACK_TOKEN` (HMAC do id da execução). Com eles, o `Invoke-SaasAssessment.ps1`:
+O coletor roda como **Container Apps Job disparado pela fila**: a cada 30 s uma regra KEDA `mssql` conta, no banco do portal, o trabalho pendente mais o que já está rodando, e o Azure sobe uma execução (um container, 2 vCPU / 4 GiB) para cada trabalho novo, até `maxCollectors`. Sem trabalho, nada fica ligado. Publicar uma versão nova não interrompe execuções em andamento.
+
+Cada container chama `POST /api/jobs/claim` com o `WORKER_TOKEN` e recebe **um** trabalho: `ASSESSMENT_ID`, `CALLBACK_URL`, `CALLBACK_TOKEN` (HMAC do id da execução) e, se for um lote de uma coleta dividida, `TASK_ID`. Com eles, o `Invoke-SaasAssessment.ps1`:
 
 - `GET /api/jobs/<id>` devolve a configuração no formato do `auth.json` + `params.json` do coletor, incluindo a credencial do M365 (lida do Key Vault) e a do banco do cliente.
 - `POST /api/jobs/<id>`, a cada 10 s, envia o `global_status.json` e as linhas novas do log; no fim, o resultado.
+
+**Coleta dividida em lotes**: com mais de 60 sites, depois da lista de sites a coleta reparte arquivos e lixeira em lotes de até 40 sites (sites muito grandes ficam sozinhos) e registra os lotes no portal (`/api/jobs/<id>/tasks`). Outros containers pegam lotes até o teto da coleta ("Containers em paralelo" na tela de execução; padrão 4) e a própria coleta também trabalha enquanto espera. A página da execução mostra lotes, sites concluídos e containers ativos. Lote sem sinal por 10 min volta para a fila; cada site tem progresso próprio no banco do cliente, então só o que faltou é refeito.
 
 O token só é aceito enquanto a execução está ativa. Nenhum segredo de cliente fica na imagem, na configuração do worker ou em disco (o `.pfx` vai para um arquivo temporário apagado no fim). Cancelar no portal encerra o processo da coleta no próximo envio de progresso.
 
@@ -112,7 +117,7 @@ infra/deploy.sh
 
 Guarde `AUTH_SECRET` e `JOB_SIGNING_SECRET`: trocá-los derruba as sessões e invalida execuções em andamento. O script imprime a URL do portal e a **Redirect URI** do login Microsoft. Para habilitar o login Microsoft 365, crie no Entra ID da Cloud Target um App Registration multi-tenant ("contas em qualquer diretório organizacional"), com essa Redirect URI, e rode de novo com `ENTRA_CLIENT_ID` e `ENTRA_CLIENT_SECRET`.
 
-Recursos criados: Azure SQL (banco do portal S0 + elastic pool Standard 50 eDTU para os clientes), Key Vault (access policy só para a identidade do portal), ACR (usuário admin), Container Apps Environment, Container App do portal e Container App do worker **elástico** (0 réplicas sem coleta na fila; sobe sozinho por uma regra KEDA `mssql` que conta a fila no banco do portal; `workerConcurrency` = coletas simultâneas por worker, padrão 2 com 3 vCPU/6 GiB; `workerReplicas` = máximo de workers). **Nenhuma atribuição de papel (RBAC) é criada**: basta Contributor no resource group.
+Recursos criados: Azure SQL (banco do portal S0 + elastic pool Standard 50 eDTU para os clientes), Key Vault (access policy só para a identidade do portal), ACR (usuário admin), Container Apps Environment, Container App do portal e o **job do coletor** disparado pela fila (`<prefix>-coletor`; `maxCollectors` = máximo de containers ao mesmo tempo, padrão 10; `collectorTimeoutSeconds` = tempo máximo de um container, padrão 24 h). Ambientes criados antes desta versão têm um worker sempre ligado (`<prefix>-worker`): rode o deploy com `REMOVE_OLD_WORKER=1` depois que as coletas dele terminarem. **Nenhuma atribuição de papel (RBAC) é criada**: basta Contributor no resource group.
 
 ## O coletor
 

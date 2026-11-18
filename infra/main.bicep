@@ -58,14 +58,12 @@ param customUrl string = ''
 @secure()
 @description('Token compartilhado entre portal e workers para pegar coletas da fila (openssl rand -base64 33)')
 param workerToken string
-@description('Máximo de workers de coleta. O worker é elástico: sobe quando há coleta na fila e desliga (0 réplicas) quando não há')
+@description('Máximo de containers do coletor ao mesmo tempo (coletas + lotes de todas as coletas). Cada um: 2 vCPU / 4 GiB')
 @minValue(1)
-@maxValue(10)
-param workerReplicas int = 1
-@description('Coletas simultâneas em cada worker (de clientes diferentes; cada uma num processo e pasta próprios)')
-@minValue(1)
-@maxValue(4)
-param workerConcurrency int = 2
+@maxValue(50)
+param maxCollectors int = 10
+@description('Tempo máximo de um container do coletor (s). Passou disso, o trabalho volta para a fila e é retomado')
+param collectorTimeoutSeconds int = 86400
 
 var suffix = uniqueString(resourceGroup().id)
 var names = {
@@ -77,7 +75,7 @@ var names = {
   portalDb: 'ctassessment_portal'
   env: '${prefix}-env'
   portal: '${prefix}-portal'
-  worker: '${prefix}-worker'
+  collector: '${prefix}-coletor'
   idPortal: '${prefix}-id-portal'
 }
 
@@ -178,15 +176,39 @@ var useAcrJob = startsWith(jobImage, acr.properties.loginServer)
 var acrSecret = [{ name: 'acr-password', value: acr.listCredentials().passwords[0].value }]
 var acrRegistry = [{ server: acr.properties.loginServer, username: acr.listCredentials().username, passwordSecretRef: 'acr-password' }]
 
-// Worker de coleta: pede a próxima coleta ao portal (fila) e roda o coletor. Nenhum segredo de cliente fica aqui:
-// a configuração de cada coleta vem do portal, autenticada pelo token da execução.
-resource worker 'Microsoft.App/containerApps@2024-03-01' = {
-  name: names.worker
+// Coletor: Container Apps Job disparado pela fila (sem worker sempre ligado). A cada 30 s o KEDA conta, no banco do
+// portal, o trabalho que precisa de container (coletas novas ou paradas, lotes de coletas divididas respeitando o teto
+// de cada coleta) somado ao que já está rodando; cada execução do job pega UM trabalho (Start-Worker.ps1 -Once), roda
+// e termina. Publicar uma versão nova não interrompe execuções em andamento. Nenhum segredo de cliente fica aqui.
+var queueQuery = 'SELECT (SELECT COUNT(*) FROM dbo.Assessment a WHERE a.runner = \'queue\' AND (a.status IN (\'STARTING\', \'RUNNING\') OR (a.status = \'QUEUED\' AND NOT EXISTS (SELECT 1 FROM dbo.Assessment b WHERE b.clientId = a.clientId AND b.id <> a.id AND b.status IN (\'STARTING\', \'RUNNING\'))))) + ISNULL((SELECT SUM(CASE WHEN x.pend < x.free THEN x.pend ELSE x.free END + x.busy) FROM (SELECT SUM(CASE WHEN t.status = \'QUEUED\' OR (t.status = \'RUNNING\' AND t.heartbeatAt < DATEADD(MINUTE, -10, SYSUTCDATETIME())) THEN 1 ELSE 0 END) AS pend, SUM(CASE WHEN t.status = \'RUNNING\' AND t.heartbeatAt >= DATEADD(MINUTE, -10, SYSUTCDATETIME()) AND ISNULL(t.runnerRef, \'\') <> \'main\' THEN 1 ELSE 0 END) AS busy, CASE WHEN MAX(ISNULL(TRY_CAST(JSON_VALUE(a.params, \'$.files_containers\') AS INT), 4)) - 1 - SUM(CASE WHEN t.status = \'RUNNING\' AND t.heartbeatAt >= DATEADD(MINUTE, -10, SYSUTCDATETIME()) AND ISNULL(t.runnerRef, \'\') <> \'main\' THEN 1 ELSE 0 END) > 0 THEN MAX(ISNULL(TRY_CAST(JSON_VALUE(a.params, \'$.files_containers\') AS INT), 4)) - 1 - SUM(CASE WHEN t.status = \'RUNNING\' AND t.heartbeatAt >= DATEADD(MINUTE, -10, SYSUTCDATETIME()) AND ISNULL(t.runnerRef, \'\') <> \'main\' THEN 1 ELSE 0 END) ELSE 0 END AS free FROM dbo.AssessmentTask t JOIN dbo.Assessment a ON a.id = t.assessmentId WHERE a.status = \'RUNNING\' GROUP BY t.assessmentId) x), 0)'
+
+resource collector 'Microsoft.App/jobs@2024-03-01' = {
+  name: names.collector
   location: location
   properties: {
     environmentId: env.id
     configuration: {
-      activeRevisionsMode: 'Single'
+      triggerType: 'Event'
+      replicaTimeout: collectorTimeoutSeconds
+      // falha ou queda do container: o portal devolve o trabalho à fila (10 min sem sinal) e outra execução retoma
+      replicaRetryLimit: 0
+      eventTriggerConfig: {
+        parallelism: 1
+        replicaCompletionCount: 1
+        scale: {
+          minExecutions: 0
+          maxExecutions: maxCollectors
+          pollingInterval: 30
+          rules: [
+            {
+              name: 'fila-de-coletas'
+              type: 'mssql'
+              metadata: { query: queueQuery, targetValue: '1' }
+              auth: [{ secretRef: 'queue-sql', triggerParameter: 'connectionString' }]
+            }
+          ]
+        }
+      }
       registries: useAcrJob ? acrRegistry : []
       secrets: concat([{ name: 'worker-token', value: workerToken }, { name: 'queue-sql', value: queueSqlConn }], useAcrJob ? acrSecret : [])
     }
@@ -196,38 +218,19 @@ resource worker 'Microsoft.App/containerApps@2024-03-01' = {
           name: 'collector'
           image: jobImage
           command: useAcrJob ? ['pwsh', '-NoLogo', '-NoProfile', '-NonInteractive', '-File', '/app/Start-Worker.ps1'] : []
-          resources: workerConcurrency > 1 ? { cpu: json('3.0'), memory: '6Gi' } : { cpu: json('2.0'), memory: '4Gi' }
+          resources: { cpu: json('2.0'), memory: '4Gi' }
           env: [
             { name: 'PORTAL_URL', value: portalUrl }
-            { name: 'WORKER_CONCURRENCY', value: string(workerConcurrency) }
+            { name: 'WORKER_ONCE', value: '1' }
             { name: 'WORKER_TOKEN', secretRef: 'worker-token' }
             { name: 'POWERSHELL_TELEMETRY_OPTOUT', value: '1' }
           ]
         }
       ]
-      // Elástico: o KEDA conta as coletas da fila no banco do portal. Sem coleta = 0 réplicas (sem custo);
-      // só desliga quando nada está na fila nem rodando, então nunca derruba coleta em andamento.
-      scale: {
-        minReplicas: 0
-        maxReplicas: workerReplicas
-        rules: [
-          {
-            name: 'fila-de-coletas'
-            custom: {
-              type: 'mssql'
-              metadata: {
-                query: 'SELECT COUNT(*) FROM dbo.Assessment WHERE runner = \'queue\' AND status IN (\'QUEUED\', \'STARTING\', \'RUNNING\')'
-                targetValue: string(workerConcurrency)
-                activationTargetValue: '0'
-              }
-              auth: [{ secretRef: 'queue-sql', triggerParameter: 'connectionString' }]
-            }
-          }
-        ]
-      }
     }
   }
 }
+
 
 var entraEnabled = !empty(entraClientId) && !empty(entraClientSecret)
 var baseSecrets = [
@@ -305,5 +308,5 @@ output acrLoginServer string = acr.properties.loginServer
 output acrName string = acr.name
 output keyVaultUri string = kv.properties.vaultUri
 output sqlServer string = sqlFqdn
-output workerName string = worker.name
+output collectorJobName string = collector.name
 output entraRedirectUri string = '${portalUrl}/api/auth/callback/microsoft-entra-id'

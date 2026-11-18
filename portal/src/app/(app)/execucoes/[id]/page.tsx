@@ -15,6 +15,7 @@ import { Badge, PageHeader } from "@/components/ui";
 import { StatusBadge } from "@/components/assessments";
 import { LiveAssessment } from "@/components/LiveAssessment";
 import { HygieneResultView } from "@/components/HygieneResult";
+import { taskSummary } from "@/lib/tasks";
 import type { HygieneParams, HygieneResult } from "@/lib/hygiene";
 
 export default async function Execucao({ params }: { params: Promise<{ id: string }> }) {
@@ -36,6 +37,7 @@ export default async function Execucao({ params }: { params: Promise<{ id: strin
   const canRun = can(u.roles, "assessments:run");
   const cmd = a.runner === "manual" && active && can(u.roles, "clients:manage") ? manualCommand(a.id) : null;
   const explained = explainError(a.error);
+  const lotes = await taskSummary(a.id);
 
   return (
     <>
@@ -85,6 +87,7 @@ export default async function Execucao({ params }: { params: Promise<{ id: strin
           status: a.status, attempts: a.attempts, error: a.error, heartbeatAt: a.heartbeatAt?.toISOString() ?? null,
           progress: parseJson<Progress | null>(a.progress, null), log: parseJson<LogLine[]>(a.logTail, []),
           workloads: parseJson<Record<string, Workload> | null>(a.workloads, null), preflight: parseJson<Preflight | null>(a.preflight, null),
+          batches: lotes.total ? { total: lotes.total, queued: lotes.queued, running: lotes.running, done: lotes.done, failed: lotes.failed, sites: lotes.sites, sitesDone: lotes.sitesDone, containers: lotes.containers } : null,
         }}
       />
 

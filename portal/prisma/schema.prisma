@@ -116,7 +116,7 @@ model Assessment {
   status       String    @default("QUEUED")
   /// módulos e parâmetros no formato do params.json do coletor (JSON)
   params       String    @db.NVarChar(Max)
-  /// aca | docker | manual
+  /// queue | aca | docker | manual | importado
   runner       String
   /// nome da execução no Container Apps Job, id do container docker…
   runnerRef    String?
@@ -140,6 +140,7 @@ model Assessment {
   heartbeatAt  DateTime?
 
   fullLog      AssessmentLog?
+  tasks        AssessmentTask[]
 
   @@index([clientId, createdAt])
   @@index([status])
@@ -177,4 +178,30 @@ model AuditLog {
 
   @@index([entity, entityId])
   @@index([createdAt])
+}
+
+/// Lote de uma coleta dividida: a coleta de arquivos/lixeira de um grupo de sites, rodado por qualquer container
+/// da fila (inclusive o da própria coleta). Ver job/Invoke-SaasAssessment.ps1 (Invoke-FilesFanOut).
+model AssessmentTask {
+  id           String     @id @default(uuid())
+  assessmentId String
+  assessment   Assessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  seq          Int
+  /// JSON [{ Url, Title, Id, StorageUsageCurrent }]
+  sites        String     @db.NVarChar(Max)
+  siteCount    Int
+  /// QUEUED | RUNNING | DONE | FAILED
+  status       String     @default("QUEUED")
+  attempts     Int        @default(0)
+  /// "main" = a própria coleta pegou o lote; senão, o nome do container que pegou
+  runnerRef    String?
+  done         Int        @default(0)
+  error        String?    @db.NVarChar(Max)
+  createdAt    DateTime   @default(now())
+  startedAt    DateTime?
+  finishedAt   DateTime?
+  heartbeatAt  DateTime?
+
+  @@unique([assessmentId, seq])
+  @@index([status])
 }

@@ -6,7 +6,9 @@ import type { LogLine, Preflight, Progress, Workload } from "@/lib/status";
 type Data = {
   status: string; attempts: number; error: string | null; heartbeatAt: string | null;
   progress: Progress | null; log: LogLine[]; workloads: Record<string, Workload> | null; preflight: Preflight | null;
+  batches?: Batches | null;
 };
+export type Batches = { total: number; queued: number; running: number; done: number; failed: number; sites: number; sitesDone: number; containers: number };
 const ACTIVE = ["QUEUED", "STARTING", "RUNNING"];
 const LEVEL: Record<string, string> = { ERROR: "text-red-400", CRITICAL: "text-fuchsia-400", WARNING: "text-amber-300", SUCCESS: "text-lime-300", DEBUG: "text-slate-500" };
 /** Etapa do global_status.json do coletor que mostra o progresso de cada workload. */
@@ -80,6 +82,7 @@ export function LiveAssessment({ id, initial, diagnostic }: { id: string; initia
                   })}
                 </ul>
               )}
+            {d.batches && <BatchesCard b={d.batches} active={ACTIVE.includes(d.status)} />}
             {d.attempts > 1 && <p className="mt-4 rounded-lg bg-sky-50 p-2 text-xs text-sky-900">Retomada nº {d.attempts - 1}: o worker reiniciou e a coleta continuou do ponto em que parou.</p>}
           </section>
         )}
@@ -164,5 +167,23 @@ export function PreflightCard({ p }: { p: Preflight | null; active?: boolean }) 
         </div>
       )}
     </section>
+  );
+}
+
+/** Coleta dividida em lotes: quantos lotes/sites concluídos e quantos containers trabalhando agora. */
+function BatchesCard({ b, active }: { b: Batches; active: boolean }) {
+  const pct = b.sites ? Math.round((b.sitesDone / b.sites) * 100) : 0;
+  return (
+    <div className="mt-4 rounded-lg border border-slate-200 p-3 text-sm">
+      <div className="flex items-center justify-between gap-3">
+        <span className="font-medium">Arquivos em lotes paralelos</span>
+        {active && b.containers > 0 && <span className="text-xs font-medium text-ct-purple">{b.containers} container(s) trabalhando</span>}
+      </div>
+      <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-ct-purple transition-all" style={{ width: `${pct}%` }} /></div>
+      <p className="mt-1 text-xs text-slate-500">
+        {b.sitesDone.toLocaleString("pt-BR")} de {b.sites.toLocaleString("pt-BR")} sites · {b.done} de {b.total} lotes concluídos
+        {b.running ? ` · ${b.running} em andamento` : ""}{b.queued ? ` · ${b.queued} na fila` : ""}{b.failed ? ` · ${b.failed} com falha` : ""}
+      </p>
+    </div>
   );
 }

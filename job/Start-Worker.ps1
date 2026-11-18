@@ -6,6 +6,9 @@
 #  separado e numa CÓPIA da pasta do job (o coletor grava logs\ e src\progress\
 #  relativos à raiz), então coletas simultâneas não se misturam.
 #  WORKER_CONCURRENCY = quantas coletas ao mesmo tempo neste worker (padrão 1).
+#  -Once (WORKER_ONCE=1): pega UM trabalho, roda e sai — é o modo do Container Apps
+#  Job disparado pela fila (cada execução do job = um container = uma coleta ou um lote).
+#  Um trabalho é uma coleta ou um lote de uma coleta dividida (TASK_ID).
 #  O portal entrega no máximo uma coleta por cliente de cada vez.
 #  Se o container cair (reinício, nova versão), o portal devolve a coleta para a
 #  fila depois de 10 min sem sinal e ela é retomada de onde parou.
@@ -17,7 +20,8 @@ param(
     [string] $WorkerToken = $env:WORKER_TOKEN,
     [int]    $IdleSeconds = $(if ($env:WORKER_IDLE_SECONDS) { [int]$env:WORKER_IDLE_SECONDS } else { 15 }),
     [int]    $Concurrency = $(if ($env:WORKER_CONCURRENCY) { [int]$env:WORKER_CONCURRENCY } else { 1 }),
-    [string] $WorkRoot    = $(Join-Path ([IO.Path]::GetTempPath()) 'ct-runs')
+    [string] $WorkRoot    = $(Join-Path ([IO.Path]::GetTempPath()) 'ct-runs'),
+    [switch] $Once        = $([bool]($env:WORKER_ONCE -in '1', 'true'))
 )
 $ErrorActionPreference = 'Stop'
 if (-not $PortalUrl -or -not $WorkerToken) { Write-Host 'Informe PORTAL_URL e WORKER_TOKEN.' -ForegroundColor Red; exit 2 }
@@ -40,19 +44,21 @@ function New-RunFolder([string]$Id) {
     $dir
 }
 
-$running = @{}   # ASSESSMENT_ID -> @{ Process; Dir }
+$running = @{}   # chave (coleta ou coleta:lote) -> @{ Process; Dir }
+$claimedAny = $false
 while ($true) {
     foreach ($id in @($running.Keys)) {
         $r = $running[$id]
         if ($r.Process.HasExited) {
-            Write-Host "[Worker] coleta $id encerrada (exit $($r.Process.ExitCode))"
+            Write-Host "[Worker] $id encerrada (exit $($r.Process.ExitCode))"
             Remove-Item $r.Dir -Recurse -Force -ErrorAction SilentlyContinue
             $running.Remove($id)
         }
     }
+    if ($Once -and $claimedAny -and $running.Count -eq 0) { exit 0 }
 
     $job = $null
-    if ($running.Count -lt $Concurrency) {
+    if ($running.Count -lt $Concurrency -and -not ($Once -and $claimedAny)) {
         try {
             $resp = Invoke-WebRequest -Uri "$PortalUrl/api/jobs/claim" -Method Post -Headers @{ Authorization = "Bearer $WorkerToken" } `
                 -ContentType 'application/json' -Body (@{ worker = $worker } | ConvertTo-Json -Compress) -TimeoutSec 60 -SkipHttpErrorCheck
@@ -64,25 +70,30 @@ while ($true) {
     }
 
     if ($job) {
-        $id = [string]$job.ASSESSMENT_ID
-        if ($id -notmatch '^[\w-]+$') { Write-Host "[Worker] resposta inválida do portal" -ForegroundColor Yellow; Start-Sleep -Seconds $IdleSeconds; continue }
+        $aid = [string]$job.ASSESSMENT_ID
+        $tid = if ($job.PSObject.Properties['TASK_ID']) { [string]$job.TASK_ID } else { '' }
+        if ($aid -notmatch '^[\w-]+$' -or ($tid -and $tid -notmatch '^[\w-]+$')) { Write-Host "[Worker] resposta inválida do portal" -ForegroundColor Yellow; Start-Sleep -Seconds $IdleSeconds; continue }
+        $id = if ($tid) { "lote $tid da coleta $aid" } else { "coleta $aid" }
         if ($running.ContainsKey($id)) { Start-Sleep -Seconds 1; continue }   # já está rodando aqui
+        $claimedAny = $true
         try {
-            $dir = New-RunFolder $id
+            $dir = New-RunFolder $(if ($tid) { $tid } else { $aid })
             # o processo filho herda o ambiente no início; as variáveis são trocadas a cada coleta
-            $env:ASSESSMENT_ID  = $id
+            $env:ASSESSMENT_ID  = $aid
             $env:CALLBACK_URL   = $job.CALLBACK_URL
             $env:CALLBACK_TOKEN = $job.CALLBACK_TOKEN
+            $env:TASK_ID        = $tid
             $p = Start-Process -FilePath 'pwsh' -WorkingDirectory $dir -NoNewWindow -PassThru `
                 -ArgumentList @('-NoLogo', '-NoProfile', '-NonInteractive', '-File', (Join-Path $dir 'Invoke-SaasAssessment.ps1'))
             $running[$id] = @{ Process = $p; Dir = $dir }
-            Write-Host "[Worker] coleta $id iniciada (pid $($p.Id); $($running.Count) de $Concurrency)"
+            Write-Host "[Worker] $id iniciada (pid $($p.Id); $($running.Count) de $Concurrency)"
         } catch {
-            Write-Host "[Worker] não consegui iniciar a coleta ${id}: $($_.Exception.Message)" -ForegroundColor Red
+            Write-Host "[Worker] não consegui iniciar ${id}: $($_.Exception.Message)" -ForegroundColor Red
         } finally {
-            Remove-Item Env:ASSESSMENT_ID, Env:CALLBACK_URL, Env:CALLBACK_TOKEN -ErrorAction SilentlyContinue
+            Remove-Item Env:ASSESSMENT_ID, Env:CALLBACK_URL, Env:CALLBACK_TOKEN, Env:TASK_ID -ErrorAction SilentlyContinue
         }
         continue   # tenta pegar outra logo em seguida, se houver vaga
     }
-    Start-Sleep -Seconds $IdleSeconds
+    if ($Once -and -not $claimedAny) { Write-Host '[Worker] nada na fila; encerrando.'; exit 0 }
+    Start-Sleep -Seconds $(if ($running.Count) { 5 } else { $IdleSeconds })
 }

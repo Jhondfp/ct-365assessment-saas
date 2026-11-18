@@ -28,6 +28,7 @@ async function startAssessment_(clientId: string, fd: FormData) {
   const params = buildParams({
     modules, sites,
     parallel: int(fd, "parallel", 8, 1, 16), sitesBatch: int(fd, "sitesBatch", 100, 10, 1000), clientName: c.name,
+    containers: int(fd, "containers", 4, 1, 16),
   });
   const id = await launchAssessment(clientId, params, me.id);
   await audit(prisma, "Assessment", id, "CREATE", me.id, { cliente: c.name, modulos: Object.entries(modules).filter(([, v]) => v).map(([k]) => k).join(",") });

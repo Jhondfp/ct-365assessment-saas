@@ -9,7 +9,7 @@
 #   AUTH_SECRET, JOB_SIGNING_SECRET, WORKER_TOKEN   openssl rand -base64 33
 # Não cria atribuições de papel (RBAC): Contributor no resource group basta.
 # Opcionais: PREFIX, ENTRA_CLIENT_ID, ENTRA_CLIENT_SECRET, ADMIN_EMAILS, INTERNAL_EMAIL_DOMAINS,
-#            BOOTSTRAP_ADMIN_EMAIL, BOOTSTRAP_ADMIN_PASSWORD, TAG
+#            BOOTSTRAP_ADMIN_EMAIL, BOOTSTRAP_ADMIN_PASSWORD, TAG, REMOVE_OLD_WORKER=1
 set -euo pipefail
 cd "$(dirname "$0")/.."
 : "${RG:?defina RG}" "${LOCATION:?defina LOCATION}" "${SQL_ADMIN_PASSWORD:?}" "${AUTH_SECRET:?}" "${JOB_SIGNING_SECRET:?}" "${WORKER_TOKEN:?}"
@@ -36,7 +36,14 @@ echo "== 2/3 build das imagens no ACR $ACR (tag $TAG)"
 az acr build -r "$ACR" -t "ctassessment-portal:$TAG" portal
 az acr build -r "$ACR" -t "ctassessment-job:$TAG" job
 
-echo "== 3/3 portal e worker com as imagens novas"
+echo "== 3/3 portal e coletor (Container Apps Job da fila) com as imagens novas"
 az deployment group create -g "$RG" -f infra/main.bicep \
   -p "${common[@]}" portalImage="$LOGIN/ctassessment-portal:$TAG" jobImage="$LOGIN/ctassessment-job:$TAG" \
   --query "properties.outputs.{portal:portalUrl.value, redirectUri:entraRedirectUri.value, keyVault:keyVaultUri.value, sql:sqlServer.value}" -o table
+
+# Versões anteriores tinham um worker sempre ligado (<prefix>-worker). O coletor agora é o job <prefix>-coletor.
+# Só remove o worker antigo quando pedido (REMOVE_OLD_WORKER=1), depois que as coletas que ele roda terminarem.
+if [ "${REMOVE_OLD_WORKER:-0}" = "1" ] && az containerapp show -g "$RG" -n "${PREFIX}-worker" -o none 2>/dev/null; then
+  echo "== removendo o worker antigo ${PREFIX}-worker"
+  az containerapp delete -g "$RG" -n "${PREFIX}-worker" --yes -o none
+fi

@@ -33,6 +33,8 @@ export function buildParams(input: {
   parallel: number;
   sitesBatch: number;
   clientName: string;
+  /** teto de containers trabalhando ao mesmo tempo nos lotes de arquivos (1 = sem dividir) */
+  containers?: number;
 }): CollectorParams {
   const p: CollectorParams = {
     client_name: input.clientName,
@@ -51,6 +53,10 @@ export function buildParams(input: {
     sql_command_timeout: 120,
     graph_page_size: 999,
     output_data_format: "yyyy-MM-dd HH:mm:ss",
+    files_containers: input.containers ?? 4,
+    files_split: (input.containers ?? 4) > 1,
+    files_batch_sites: 40,
+    files_split_min_sites: 60,
   };
   for (const m of MODULES) p[m.key] = !!input.modules[m.key];
   return p;

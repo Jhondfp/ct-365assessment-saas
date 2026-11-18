@@ -1,5 +1,6 @@
 import { prisma } from "./prisma";
 import { ensureClientDb } from "./clientDb";
+import { claimTask } from "./tasks";
 import { acaExecutionStatus, startJob } from "./jobs";
 import { ACTIVE } from "./status";
 import type { CollectorParams } from "./collector";
@@ -91,4 +92,11 @@ export async function claimNext(workerId: string) {
     if (r.count) return n.id;
   }
   return null;
+}
+
+/** Próximo trabalho da fila: uma coleta (nova ou parada) ou, se não houver, um lote de uma coleta dividida. */
+export async function claimWork(workerId: string): Promise<{ assessmentId: string; taskId?: string } | null> {
+  const id = await claimNext(workerId);
+  if (id) return { assessmentId: id };
+  return claimTask(workerId);
 }

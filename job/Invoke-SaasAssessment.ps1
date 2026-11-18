@@ -23,7 +23,9 @@
 param(
     [string] $AssessmentId  = $env:ASSESSMENT_ID,
     [string] $CallbackUrl   = $env:CALLBACK_URL,
-    [string] $CallbackToken = $env:CALLBACK_TOKEN
+    [string] $CallbackToken = $env:CALLBACK_TOKEN,
+    # lote de uma coleta dividida (Invoke-SaasBatches.ps1): roda só arquivos/lixeira dos sites do lote
+    [string] $TaskId        = $env:TASK_ID
 )
 
 $ErrorActionPreference = 'Stop'
@@ -63,7 +65,7 @@ Write-Host "[Job] Execução $AssessmentId — buscando configuração no portal
 $config = $null
 for ($i = 1; $i -le 8; $i++) {
     try {
-        $config = Invoke-RestMethod -Uri $CallbackUrl -Method Get -Headers $headers -TimeoutSec 60
+        $config = Invoke-RestMethod -Uri $(if ($TaskId) { "$($CallbackUrl)?task=$TaskId" } else { $CallbackUrl }) -Method Get -Headers $headers -TimeoutSec 60
         break
     } catch {
         $code = try { [int]$_.Exception.Response.StatusCode } catch { 0 }
@@ -97,6 +99,7 @@ if (-not $config) { Write-Host '[Job] Sem configuração do portal.' -Foreground
 . (Join-Path $projectRoot 'src\modules\Get-OwnerStatus.ps1')
 . (Join-Path $projectRoot 'src\modules\Get-DataFiles.ps1')
 . (Join-Path $projectRoot 'src\modules\Get-TrashItems.ps1')
+. (Join-Path $projectRoot 'Invoke-SaasBatches.ps1')
 
 $global:executionId = [string]$config.executionId
 # Start-ExecutionHistory grava machine_name/user_name (no Linux essas variáveis não existem)
@@ -145,7 +148,8 @@ if ($global:auth.auth_mode -eq 'cert') {
 # 3. THREAD DE REPORTE AO PORTAL (status + log a cada 10 s)
 # ------------------------------------------------------------------------------
 $sync = [hashtable]::Synchronized(@{ Stop = $false })
-$reporter = Start-ThreadJob -Name 'portal-reporter' -ArgumentList $CallbackUrl, $CallbackToken, (Join-Path $progressDir 'global_status.json'), $logDir, $sync -ScriptBlock {
+$reportUrl = if ($TaskId) { "$CallbackUrl/tasks/$TaskId" } else { $CallbackUrl }
+$reporter = Start-ThreadJob -Name 'portal-reporter' -ArgumentList $reportUrl, $CallbackToken, (Join-Path $progressDir 'global_status.json'), $logDir, $sync -ScriptBlock {
     param($url, $token, $statusFile, $logDir, $sync)
     $offsets = @{}
     $re = '^\[(?<ts>[^\]]+)\]\s+\[(?<lvl>[^\]]+)\]\s+\[(?<mod>[^\]]+)\]\s+(?<msg>.+)$'
@@ -199,6 +203,22 @@ $reporter = Start-ThreadJob -Name 'portal-reporter' -ArgumentList $CallbackUrl, 
         if ($last) { break }
         for ($i = 0; $i -lt 10 -and -not $sync.Stop; $i++) { Start-Sleep -Seconds 1 }
     }
+}
+
+# Lote de uma coleta dividida: só arquivos/lixeira dos sites do lote, reportando no canal do lote
+if ($TaskId) {
+    $taskErr = $null
+    try { $taskErr = Invoke-TaskMode -Task $config.task }
+    catch { $taskErr = $_.Exception.Message }
+    finally {
+        if ($certTemp) { Remove-Item $certTemp -Force -ErrorAction SilentlyContinue }
+        $sync.Stop = $true
+        Wait-Job $reporter -Timeout 90 | Out-Null
+        Remove-Job $reporter -Force -ErrorAction SilentlyContinue
+    }
+    $fin = if ($taskErr) { @{ status = 'failed'; error = [string]$taskErr } } else { @{ status = 'done' } }
+    try { [void](Invoke-PortalApi -Method Post -Path "/tasks/$TaskId" -Body $fin) } catch { Write-Host "[Job] Não foi possível reportar o fim do lote: $($_.Exception.Message)" -ForegroundColor Yellow }
+    exit 0
 }
 
 # Higienização (kind HIGIENIZACAO no portal): fluxo próprio, sem o pipeline de coleta
@@ -414,8 +434,17 @@ try {
             }
         }
         Invoke-Workload 'owner_status' { Invoke-ResumableModule 'owner_status' @('dbo.site_owner_status') { Get-OwnerStatus -Connection $dbConn } } | Out-Null
-        Invoke-Workload 'files' { Get-DataFiles -Sites $sitesColetados -Connection $dbConn; $true } | Out-Null
-        Invoke-Workload 'trash' { Get-TrashItems -Sites $sitesColetados -Connection $dbConn; $true } | Out-Null
+        $doFiles = $workloads.Contains('files') -and $workloads.files.status -eq 'pending'
+        $doTrash = $workloads.Contains('trash') -and $workloads.trash.status -eq 'pending'
+        if (($doFiles -or $doTrash) -and (Test-FilesFanOut $sitesColetados)) {
+            # Muitos sites: arquivos e lixeira divididos em lotes, com outros containers ajudando (Invoke-SaasBatches.ps1)
+            $id1 = if ($doFiles) { 'files' } else { 'trash' }
+            Invoke-Workload $id1 { Invoke-FilesFanOut -Sites $sitesColetados -Connection $dbConn -IncludeFiles:$doFiles -IncludeTrash:$doTrash } | Out-Null
+            if ($doFiles -and $doTrash) { Set-Workload 'trash' $workloads.files.status 'Coletada junto com os arquivos, nos lotes.' $workloads.files.seconds }
+        } else {
+            Invoke-Workload 'files' { Get-DataFiles -Sites $sitesColetados -Connection $dbConn; $true } | Out-Null
+            Invoke-Workload 'trash' { Get-TrashItems -Sites $sitesColetados -Connection $dbConn; $true } | Out-Null
+        }
 
         $states = @($workloads.Values | ForEach-Object { $_.status })
         $okCount = @($states | Where-Object { $_ -eq 'ok' }).Count

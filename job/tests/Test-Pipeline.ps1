@@ -18,6 +18,8 @@ $cases = @(
     @{ name='SharePoint indisponível';                    scenario='spofail';   diag=$false; final='partial'; expect=@{ licensing='ok'; sites='skipped'; files='skipped' } }
     @{ name='nenhum site retornado';                      scenario='nosites';   diag=$false; final='partial'; expect=@{ sites='failed'; files='skipped'; trash='skipped' } }
     @{ name='diagnóstico';                                scenario='ok';        diag=$true;  final='completed'; expect=@{} }
+    @{ name='coleta dividida em lotes (130 sites)';       scenario='fanout';    diag=$false; final='partial'; expect=@{ sites='ok'; files='ok'; trash='ok' }; check={ $global:TASKS.Count -ge 4 -and @($global:TASKS[0].sites).Count -eq 1 -and @($global:TASKS | Where-Object status -ne 'DONE').Count -eq 0 -and $global:CLAIMED.Count -ge 1 -and $global:CLAIMED -notcontains 2 } }
+    @{ name='lote com falha deixa arquivos como falha';   scenario='fanoutfail'; diag=$false; final='partial'; expect=@{ files='failed'; trash='failed' } }
 )
 $fail = 0
 foreach ($c in $cases) {
@@ -29,6 +31,7 @@ foreach ($c in $cases) {
     $errs = @()
     if ($out.final -ne $c.final) { $errs += "final=$($out.final) (esperado $($c.final))" }
     foreach ($k in $c.expect.Keys) { if ($out.workloads[$k] -ne $c.expect[$k]) { $errs += "$k=$($out.workloads[$k]) (esperado $($c.expect[$k]))" } }
+    if ($c.ContainsKey('check') -and -not (& $c.check)) { $errs += "verificação extra: $(@($global:TASKS).Count) lotes, 1º lote com $(@($global:TASKS[0].sites).Count) site(s), pegos pela coleta: $($global:CLAIMED -join ',')" }
     if ($errs) { $fail++; Write-Host "FALHOU  $($c.name): $($errs -join '; ')" -ForegroundColor Red } else { Write-Host "ok      $($c.name)" -ForegroundColor Green }
 }
 exit [int]($fail -gt 0)

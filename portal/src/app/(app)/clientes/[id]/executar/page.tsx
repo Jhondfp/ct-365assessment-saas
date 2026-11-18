@@ -45,8 +45,13 @@ export default async function Executar({ params }: { params: Promise<{ id: strin
             <div className="grid grid-cols-2 gap-3">
               <Field label="Sites em paralelo"><input name="parallel" type="number" min={1} max={16} defaultValue={Number(prev?.sites_parallel_size ?? 8)} className="input" /></Field>
               <Field label="Lote de sites"><input name="sitesBatch" type="number" min={10} max={1000} defaultValue={Number(prev?.sites_batch_size ?? 100)} className="input" /></Field>
+              <Field label="Containers em paralelo (arquivos)" className="col-span-2"><input name="containers" type="number" min={1} max={16} defaultValue={Number(prev?.files_containers ?? 4)} className="input" /></Field>
             </div>
-            <p className="text-xs text-slate-500">Se o container cair no meio, a execução é retomada do ponto em que parou (sites já concluídos não são varridos de novo).</p>
+            <p className="text-xs text-slate-500">
+              Com mais de 60 sites, a coleta de arquivos e lixeira é dividida em lotes de até 40 sites (sites muito grandes ficam sozinhos num lote), e até esse número de containers
+              trabalha ao mesmo tempo. Cada container usa "Sites em paralelo"; o total de acessos ao SharePoint do cliente é containers × sites em paralelo. Use 1 para não dividir.
+            </p>
+            <p className="text-xs text-slate-500">Se um container cair no meio, a execução é retomada do ponto em que parou (sites já concluídos não são varridos de novo).</p>
           </section>
         </ActionForm>
       )}

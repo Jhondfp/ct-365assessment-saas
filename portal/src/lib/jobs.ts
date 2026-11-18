@@ -18,11 +18,12 @@ export type Runner = "queue" | "aca" | "docker" | "manual";
 export const RUNNER: Runner = (["queue", "aca", "docker", "manual"] as const).find((r) => r === process.env.JOB_RUNNER) ?? "manual";
 export const RUNNER_LABEL: Record<Runner | "importado", string> = { queue: "Worker de coleta (fila)", aca: "Azure Container Apps Job", docker: "Docker local", manual: "Execução manual", importado: "Fora do portal (importada do banco do cliente)" };
 
-export function jobEnv(assessmentId: string) {
+export function jobEnv(assessmentId: string, taskId?: string) {
   return {
     ASSESSMENT_ID: assessmentId,
     CALLBACK_URL: `${callbackBase()}/api/jobs/${assessmentId}`,
     CALLBACK_TOKEN: jobToken(assessmentId),
+    ...(taskId ? { TASK_ID: taskId } : {}),
   };
 }
 

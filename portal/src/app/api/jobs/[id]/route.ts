@@ -19,7 +19,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   const { a, err } = await load(req, id);
   if (err) return err;
   const c = a.client;
-  const dbOnly = a.kind === "EXCLUSAO";
+  const dbOnly = a.kind === "EXCLUSAO" || a.kind === "MANUTENCAO";
   if (!c.dbName || (!dbOnly && (!c.m365TenantId || !c.appClientId || !c.spoTenant))) return Response.json({ error: "cliente sem conexão ou banco configurado" }, { status: 409 });
 
   const db = await clientConn(c);

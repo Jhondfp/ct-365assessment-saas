@@ -573,6 +573,42 @@ function Clear-SiteData {
     return $true
 }
 
+# Linhas de um site e dos subsites dele (site_url igual ou abaixo da URL), quando não há site_id para agrupar.
+function Clear-SiteTreeData {
+    param([Parameter(Mandatory)] $Connection, [Parameter(Mandatory)] [string] $TableName, [Parameter(Mandatory)] [string] $SiteUrl)
+    $base = $SiteUrl.TrimEnd('/')
+    $like = ($base -replace '([\[\]%_])', '[$1]') + '/%'
+    $sql = "DELETE TOP (5000) FROM $TableName WHERE execution_id = @exec AND (site_url = @url OR site_url LIKE @like)"
+    try {
+        do { $n = Invoke-DbNonQuery -Query $sql -Connection $Connection -MaxRetries 3 -TimeoutSeconds 600 -Parameters @{ '@exec' = $global:executionId; '@url' = $base; '@like' = $like } } while ($n -ge 5000)
+    } catch {
+        Write-Host "[DB] Falha ao limpar dados parciais de $TableName para ${SiteUrl}: $($_.Exception.Message)" -ForegroundColor Yellow
+    }
+}
+
+# ------------------------------------------------------------------------------
+# Duplicatas de uma coleta (retomadas antigas regravavam sites sem apagar): mantém a
+# gravação mais nova de cada site, arquivo e item da lixeira. Seguro rodar sempre:
+# numa coleta sem duplicatas não apaga nada. Devolve o total de linhas removidas.
+# ------------------------------------------------------------------------------
+function Repair-ExecutionDuplicates {
+    param([Parameter(Mandatory)] $Connection, [string] $ExecutionId = $global:executionId)
+    $defs = @(
+        @{ T = 'dbo.sites_info';  K = "site_url, ISNULL(site_type, '')" },
+        @{ T = 'dbo.files_info';  K = 'COALESCE(file_id, site_url + relative_url)' },
+        @{ T = 'dbo.trash_items'; K = 'COALESCE(item_id, site_url + item_title + CONVERT(NVARCHAR(30), deleted_date, 126))' }
+    )
+    $total = 0L
+    foreach ($d in $defs) {
+        $sql = ";WITH d AS (SELECT id, ROW_NUMBER() OVER (PARTITION BY $($d.K) ORDER BY id DESC) AS rn FROM $($d.T) WHERE execution_id = @exec) DELETE TOP (20000) t FROM $($d.T) t JOIN d ON d.id = t.id WHERE d.rn > 1;"
+        $n = 0L
+        do { $x = Invoke-DbNonQuery -Query $sql -Connection $Connection -TimeoutSeconds 1800 -MaxRetries 2 -Parameters @{ '@exec' = $ExecutionId }; $n += $x } while ($x -ge 20000)
+        if ($n) { Write-Log -Level WARNING -Module 'Main' -Message "Duplicatas removidas em $($d.T): $n linhas." }
+        $total += $n
+    }
+    return $total
+}
+
 # ------------------------------------------------------------------------------
 # Retomada: limpa as linhas parciais SO dos sites que tem linhas desta execucao
 # (1 consulta pelo indice execution_id/site_url em vez de 1 DELETE por site).

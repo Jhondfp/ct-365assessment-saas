@@ -12,7 +12,7 @@ RUN pwsh -NoLogo -NoProfile -Command " \
 
 WORKDIR /app
 COPY src ./src
-COPY Invoke-SaasAssessment.ps1 Invoke-SaasHygiene.ps1 Invoke-SaasBatches.ps1 Invoke-SaasDelete.ps1 Start-Worker.ps1 ./
+COPY Invoke-SaasAssessment.ps1 Invoke-SaasHygiene.ps1 Invoke-SaasBatches.ps1 Invoke-SaasDelete.ps1 Invoke-SaasRepair.ps1 Start-Worker.ps1 ./
 # higienização (limpeza de versões etc.) — scripts que ALTERAM o tenant; ver job/hygiene
 COPY hygiene ./hygiene
 

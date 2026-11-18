@@ -18,6 +18,17 @@
 # dbo.sites_info, porque roda dentro do bloco -Parallel, que NAO herda o
 # Set-StrictMode do script principal (cada runspace paralelo tem sua propria
 # sessao) - por isso nunca lancou erro, so gravou silenciosamente errado.
+# Chave do progresso/retomada: o id do site quando existe; senão a URL. A lista do PnP Admin pode vir sem id
+# (SiteId/Id vazios): sem esta alternativa nenhum site era marcado como concluído e a retomada regravava todos os
+# sites sem apagar os anteriores (sites_info duplicado).
+function Get-SiteProgressKey {
+    param($Site)
+    $k = Get-SiteKey -Site $Site
+    if ($k) { return $k }
+    if ($Site.PSObject.Properties['Url'] -and $Site.Url) { return "$($Site.Url)" }
+    return $null
+}
+
 function Get-SiteKey {
     param($Site)
     if ($Site.PSObject.Properties['SiteId'] -and $Site.SiteId -and "$($Site.SiteId)" -ne [Guid]::Empty.ToString()) {
@@ -165,12 +176,13 @@ function Get-SitesInfo {
         $completedSiteIds = Get-CompletedSiteUrls -Connection $Connection -ModuleName 'sites'
         if ($completedSiteIds.Count -gt 0) {
             $totalAntes = $sitesToProcess.Count
-            $sitesToProcess = @($sitesToProcess | Where-Object { -not $completedSiteIds.Contains((Get-SiteKey -Site $_)) })
+            $sitesToProcess = @($sitesToProcess | Where-Object { -not $completedSiteIds.Contains([string](Get-SiteProgressKey -Site $_)) })
             Write-Log -Level INFO -Module 'Sites' -Message "Resume: $($totalAntes - $sitesToProcess.Count) de $totalAntes sites ja concluidos - pulando." -DbConnection $Connection
         }
         foreach ($s in $sitesToProcess) {
             $key = Get-SiteKey -Site $s
-            if ($key) { Clear-SiteData -Connection $Connection -TableName 'dbo.sites_info' -SiteUrl $key -Column 'site_id' }
+            if ($key) { [void](Clear-SiteData -Connection $Connection -TableName 'dbo.sites_info' -SiteUrl $key -Column 'site_id') }
+            elseif ($s.PSObject.Properties['Url'] -and $s.Url) { Clear-SiteTreeData -Connection $Connection -TableName 'dbo.sites_info' -SiteUrl ([string]$s.Url) }
         }
     }
     # Total "de verdade" (todos os sites, nao so os reprocessados agora) - so
@@ -460,8 +472,9 @@ function Get-SitesInfo {
             $siteOk = $false
         }
         finally {
-            if ($siteOk -and $siteKey -and $using:storeSql -and $null -ne $dbConn) {
-                Complete-SiteProgress -Connection $dbConn -ModuleName 'sites' -SiteUrl $siteKey
+            $progressKey = Get-SiteProgressKey -Site $site
+            if ($siteOk -and $progressKey -and $using:storeSql -and $null -ne $dbConn) {
+                Complete-SiteProgress -Connection $dbConn -ModuleName 'sites' -SiteUrl $progressKey
             }
             if ($null -ne $dbConn) { Close-DbConnection -Connection $dbConn }
         }

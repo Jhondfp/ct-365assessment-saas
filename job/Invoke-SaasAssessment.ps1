@@ -221,6 +221,12 @@ if ($TaskId) {
     exit 0
 }
 
+# Correção de duplicatas de uma coleta (kind MANUTENCAO no portal)
+if ($global:params['repair_execution']) {
+    . (Join-Path $projectRoot 'Invoke-SaasRepair.ps1')
+    exit 0
+}
+
 # Exclusão de uma coleta (kind EXCLUSAO no portal): apaga os dados dela no banco do cliente
 if ($global:params['delete_execution']) {
     . (Join-Path $projectRoot 'Invoke-SaasDelete.ps1')
@@ -461,6 +467,8 @@ try {
         Write-Log -Level $(if ($finalStatus -eq 'completed') { 'SUCCESS' } else { 'WARNING' }) -Module 'Main' -Message "Pipeline encerrado: $finalStatus ($okCount de $($states.Count) workloads concluídos)." -DbConnection $dbConn
         Complete-ExecutionHistory -Status $(if ($okCount -gt 0) { 'completed' } else { 'failed' }) -Connection $dbConn -TotalSites $sitesColetados.Count
         if ($okCount -gt 0) {
+            # coleta retomada: garante que nada ficou gravado duas vezes antes de montar as agregações
+            if ([bool]$global:isResume) { try { [void](Repair-ExecutionDuplicates -Connection $dbConn) } catch { Write-Log -Level WARNING -Module 'Main' -Message 'Não foi possível conferir duplicatas.' -Exception $_.Exception.Message } }
             Write-Log -Level INFO -Module 'Main' -Message 'Atualizando agregacoes do dashboard (sp_RefreshDashboardAggregates)...'
             if (Invoke-DashboardRefresh -Connection $dbConn) { Write-Log -Level SUCCESS -Module 'Main' -Message 'Agregacoes do dashboard atualizadas.' }
             else { Write-Log -Level WARNING -Module 'Main' -Message 'Falha ao atualizar agregacoes do dashboard - rode dbo.sp_RefreshDashboardAggregates manualmente.' }

@@ -18,10 +18,10 @@ export function readiness(c: { active: boolean; m365TenantId: string | null; app
  * Cria a execução e dispara o job. Uma execução ativa por cliente: duas coletas simultâneas no mesmo banco
  * disputariam as mesmas tabelas e o throttling do mesmo tenant.
  */
-export async function launchAssessment(clientId: string, params: CollectorParams, userId: string, kind: "COLETA" | "DIAGNOSTICO" | "HIGIENIZACAO" | "EXCLUSAO" = "COLETA") {
+export async function launchAssessment(clientId: string, params: CollectorParams, userId: string, kind: "COLETA" | "DIAGNOSTICO" | "HIGIENIZACAO" | "EXCLUSAO" | "MANUTENCAO" = "COLETA") {
   const c = await prisma.client.findUniqueOrThrow({ where: { id: clientId } });
   // a exclusão de coleta só mexe no banco do cliente: não precisa da conexão com o Microsoft 365
-  const missing = kind === "EXCLUSAO" ? (c.dbName ? [] : ["banco do cliente"]) : readiness(c);
+  const missing = kind === "EXCLUSAO" || kind === "MANUTENCAO" ? (c.dbName ? [] : ["banco do cliente"]) : readiness(c);
   if (missing.length) throw new Error(`Antes de executar, configure: ${missing.join(", ")}.`);
   const running = await prisma.assessment.findFirst({ where: { clientId, status: { in: [...ACTIVE] } } });
   if (running) throw new Error(running.kind === "DIAGNOSTICO" ? "Há um diagnóstico em andamento para este cliente. Aguarde terminar (leva menos de 1 minuto depois de começar)." : "Já existe uma execução ativa para este cliente. Aguarde terminar ou cancele.");

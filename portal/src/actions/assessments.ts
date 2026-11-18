@@ -78,7 +78,19 @@ async function deleteCollection_(id: string, fd: FormData) {
   redirect(`/execucoes/${jobId}`);
 }
 
+/** Corrige duplicatas de uma coleta (retomadas antigas) e remonta o relatório. Roda no coletor (MANUTENCAO). */
+async function repairCollection_(id: string) {
+  const a = await prisma.assessment.findUniqueOrThrow({ where: { id }, include: { client: { select: { name: true } } } });
+  const me = await requireClientPerm(a.clientId, "assessments:run");
+  if (a.kind !== "COLETA") throw new Error("Só coletas podem ser corrigidas.");
+  if ((ACTIVE as readonly string[]).includes(a.status) || a.status === "EXCLUINDO") throw new Error("A coleta ainda está em andamento.");
+  const jobId = await launchAssessment(a.clientId, { repair_execution: id }, me.id, "MANUTENCAO");
+  await audit(prisma, "Assessment", id, "REPAIR", me.id, { cliente: a.client.name, coleta: id, execucao: jobId });
+  redirect(`/execucoes/${jobId}`);
+}
+
 export const startAssessment = act(startAssessment_);
+export const repairCollection = act(repairCollection_);
 export const deleteCollection = act(deleteCollection_);
 export const cancelAssessment = act(cancelAssessment_);
 export const retryAssessment = act(retryAssessment_);

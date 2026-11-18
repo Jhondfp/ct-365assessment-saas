@@ -40,6 +40,7 @@ function Get-TrashItems {
     # parcial em trash_items dos sites que serao (re)processados agora - evita
     # duplicar o que ja tinha sido "flushado" antes do processo morrer.
     $isResume = [bool]$global:isResume
+    $dirtySites = @()
     if ($storeSql -and $isResume -and $null -ne $Connection) {
         $completedSites = Get-CompletedSiteUrls -Connection $Connection -ModuleName 'trash'
         if ($completedSites.Count -gt 0) {
@@ -47,9 +48,7 @@ function Get-TrashItems {
             $Sites = @($Sites | Where-Object { -not $completedSites.Contains($_.Url) })
             Write-Log -Level INFO -Module 'Trash' -Message "Resume: $($totalAntes - $Sites.Count) de $totalAntes sites ja concluidos - pulando." -DbConnection $Connection
         }
-        foreach ($s in $Sites) {
-            Clear-SiteData -Connection $Connection -TableName 'dbo.trash_items' -SiteUrl $s.Url
-        }
+        $dirtySites = Clear-PartialSiteData -Connection $Connection -TableName 'dbo.trash_items' -Sites $Sites
     }
 
     $scriptRoot = (Resolve-Path .).Path
@@ -215,6 +214,10 @@ function Get-TrashItems {
         }
     }
 
+    if (@($dirtySites).Count -gt 0 -and $null -ne $Connection) {
+        Write-Log -Level WARNING -Module 'Trash' -Message "Removendo duplicatas de $(@($dirtySites).Count) site(s) cuja limpeza da retomada falhou." -DbConnection $Connection
+        Remove-DuplicateSiteRows -Connection $Connection -TableName 'dbo.trash_items' -SiteUrls @($dirtySites) -KeyExpr 'COALESCE(item_id, item_title)'
+    }
     Write-Log -Level SUCCESS -Module 'Trash' -Message 'Coleta de lixeiras finalizada.' -DbConnection $Connection
     Report-Step -StepName 'Coleta de Lixeiras' -Status 'completed' -Progress 100 -Info 'OK'
 }

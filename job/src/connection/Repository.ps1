@@ -562,12 +562,93 @@ function Clear-SiteData {
     $totalDeleted = 0
     try {
         do {
-            $deleted = Invoke-DbNonQuery -Query $sql -Connection $Connection -MaxRetries 2 -TimeoutSeconds 120 `
+            $deleted = Invoke-DbNonQuery -Query $sql -Connection $Connection -MaxRetries 3 -TimeoutSeconds 600 `
                 -Parameters @{ '@exec' = $global:executionId; '@url' = $SiteUrl; '@batch' = $BatchSize }
             $totalDeleted += $deleted
         } while ($deleted -eq $BatchSize)
     } catch {
         Write-Host "[DB] Falha ao limpar dados parciais de $TableName para ${SiteUrl} (removidas $totalDeleted linhas antes da falha): $($_.Exception.Message)" -ForegroundColor Yellow
+        return $false
+    }
+    return $true
+}
+
+# ------------------------------------------------------------------------------
+# Retomada: limpa as linhas parciais SO dos sites que tem linhas desta execucao
+# (1 consulta pelo indice execution_id/site_url em vez de 1 DELETE por site).
+# Devolve os sites cuja limpeza falhou: o modulo coleta assim mesmo e, no fim,
+# Remove-DuplicateSiteRows mantem so a gravacao mais nova de cada arquivo.
+# ------------------------------------------------------------------------------
+function Clear-PartialSiteData {
+    param(
+        [Parameter(Mandatory)] $Connection,
+        [Parameter(Mandatory)] [string] $TableName,
+        [Parameter(Mandatory)] $Sites
+    )
+    $failed = [System.Collections.Generic.List[string]]::new()
+    $want = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+    foreach ($s in $Sites) { if ($s.Url) { [void]$want.Add([string]$s.Url) } }
+    $withRows = @()
+    try {
+        $withRows = Invoke-DbReader -Query "SELECT DISTINCT site_url FROM $TableName WHERE execution_id = @exec" -Connection $Connection -TimeoutSeconds 600 `
+            -Parameters @{ '@exec' = $global:executionId }
+    } catch {
+        Write-Host "[DB] Falha ao listar dados parciais de ${TableName}: $($_.Exception.Message)" -ForegroundColor Yellow
+        foreach ($u in $want) { $failed.Add($u) }   # sem saber quem tem linha: deduplica todos no fim
+        return ,$failed
+    }
+    foreach ($r in $withRows) {
+        $u = [string]$r.site_url
+        if (-not $want.Contains($u)) { continue }
+        if (-not (Clear-SiteData -Connection $Connection -TableName $TableName -SiteUrl $u)) { $failed.Add($u) }
+    }
+    return ,$failed
+}
+
+# Mantem so a gravacao mais nova de cada item (por file_id/relative_url) nos sites indicados.
+function Remove-DuplicateSiteRows {
+    param(
+        [Parameter(Mandatory)] $Connection,
+        [Parameter(Mandatory)] [string] $TableName,
+        [Parameter(Mandatory)] [string[]] $SiteUrls,
+        [Parameter(Mandatory)] [string] $KeyExpr
+    )
+    foreach ($u in $SiteUrls) {
+        $sql = @"
+;WITH d AS (SELECT id, ROW_NUMBER() OVER (PARTITION BY $KeyExpr ORDER BY id DESC) AS rn
+            FROM $TableName WHERE execution_id = @exec AND site_url = @url)
+DELETE TOP (5000) t FROM $TableName t JOIN d ON d.id = t.id WHERE d.rn > 1;
+"@
+        try {
+            do { $n = Invoke-DbNonQuery -Query $sql -Connection $Connection -MaxRetries 3 -TimeoutSeconds 900 -Parameters @{ '@exec' = $global:executionId; '@url' = $u } } while ($n -ge 5000)
+        } catch {
+            Write-Host "[DB] Falha ao remover duplicatas de $TableName para ${u}: $($_.Exception.Message)" -ForegroundColor Yellow
+        }
+    }
+}
+
+# ------------------------------------------------------------------------------
+# Indices que a retomada e a limpeza usam (execution_id + site_url). Bancos
+# criados antes nao tem: cria aqui, no job (pode levar minutos em bancos grandes),
+# com ONLINE quando a edicao suporta. Idempotente.
+# ------------------------------------------------------------------------------
+function Initialize-CollectorIndexes {
+    param([Parameter(Mandatory)] $Connection)
+    $defs = @(
+        @{ Name = 'IX_files_exec_site'; Table = 'dbo.files_info';  Cols = '(execution_id, site_url)' },
+        @{ Name = 'IX_trash_exec_site'; Table = 'dbo.trash_items'; Cols = '(execution_id, site_url)' }
+    )
+    foreach ($d in $defs) {
+        $exists = Invoke-DbScalar -Query "SELECT COUNT(*) FROM sys.indexes WHERE name = @n AND object_id = OBJECT_ID(@t)" -Connection $Connection -Parameters @{ '@n' = $d.Name; '@t' = $d.Table }
+        if ([int]$exists -gt 0) { continue }
+        Write-Log -Level INFO -Module 'Main' -Message "Criando indice $($d.Name) em $($d.Table) (uma vez por banco; pode levar alguns minutos)..." -DbConnection $Connection
+        $base = "CREATE NONCLUSTERED INDEX $($d.Name) ON $($d.Table) $($d.Cols)"
+        try {
+            Invoke-DbNonQuery -Query "$base WITH (ONLINE = ON)" -Connection $Connection -MaxRetries 1 -TimeoutSeconds 3600 | Out-Null
+        } catch {
+            try { Invoke-DbNonQuery -Query $base -Connection $Connection -MaxRetries 1 -TimeoutSeconds 3600 | Out-Null }
+            catch { Write-Log -Level WARNING -Module 'Main' -Message "Nao foi possivel criar $($d.Name): a retomada fica mais lenta." -Exception $_.Exception.Message -DbConnection $Connection }
+        }
     }
 }
 

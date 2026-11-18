@@ -250,6 +250,7 @@ CREATE TABLE dbo.files_info (
 CREATE NONCLUSTERED INDEX IX_files_exec ON dbo.files_info (execution_id);
 CREATE NONCLUSTERED INDEX IX_files_site ON dbo.files_info (site_url);
 CREATE NONCLUSTERED INDEX IX_files_type ON dbo.files_info (file_type);
+CREATE NONCLUSTERED INDEX IX_files_exec_site ON dbo.files_info (execution_id, site_url);
 GO
 
 -- ── trash_items ──────────────────────────────────────────────────────────────
@@ -271,6 +272,7 @@ CREATE TABLE dbo.trash_items (
     CONSTRAINT PK_trash_items PRIMARY KEY (id)
 );
 CREATE NONCLUSTERED INDEX IX_trash_exec ON dbo.trash_items (execution_id);
+CREATE NONCLUSTERED INDEX IX_trash_exec_site ON dbo.trash_items (execution_id, site_url);
 GO
 
 -- ── licensing_info ───────────────────────────────────────────────────────────

@@ -34,6 +34,7 @@ function Get-DataFiles {
     # parcial em files_info dos sites que serao (re)processados agora - evita
     # duplicar o que ja tinha sido "flushado" antes do processo morrer.
     $isResume = [bool]$global:isResume
+    $dirtySites = @()
     if ($storeSql -and $isResume -and $null -ne $Connection) {
         $completedSites = Get-CompletedSiteUrls -Connection $Connection -ModuleName 'files'
         if ($completedSites.Count -gt 0) {
@@ -41,9 +42,7 @@ function Get-DataFiles {
             $Sites = @($Sites | Where-Object { -not $completedSites.Contains($_.Url) })
             Write-Log -Level INFO -Module 'Files' -Message "Resume: $($totalAntes - $Sites.Count) de $totalAntes sites ja concluidos - pulando." -DbConnection $Connection
         }
-        foreach ($s in $Sites) {
-            Clear-SiteData -Connection $Connection -TableName 'dbo.files_info' -SiteUrl $s.Url
-        }
+        $dirtySites = Clear-PartialSiteData -Connection $Connection -TableName 'dbo.files_info' -Sites $Sites
     }
 
     $scriptRoot    = (Resolve-Path .).Path
@@ -200,6 +199,10 @@ function Get-DataFiles {
         }
     }
 
+    if (@($dirtySites).Count -gt 0 -and $null -ne $Connection) {
+        Write-Log -Level WARNING -Module 'Files' -Message "Removendo duplicatas de $(@($dirtySites).Count) site(s) cuja limpeza da retomada falhou." -DbConnection $Connection
+        Remove-DuplicateSiteRows -Connection $Connection -TableName 'dbo.files_info' -SiteUrls @($dirtySites) -KeyExpr 'COALESCE(file_id, relative_url)'
+    }
     Write-Log -Level SUCCESS -Module 'Files' -Message 'Coleta de arquivos finalizada.' -DbConnection $Connection
     Report-Step -StepName 'Coleta de Arquivos' -Status 'completed' -Progress 100 -Info 'OK'
 }

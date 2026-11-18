@@ -356,6 +356,7 @@ try {
         $dbConn = New-DbConnection -MaxRetries 3
         $preflight.database = [ordered]@{ ok = $true; detail = "$($global:auth.server)/$($global:auth.database)" }
         Write-Log -Level SUCCESS -Module 'Main' -Message "Conexao DB ativa em $($global:auth.server)/$($global:auth.database)"
+        if (-not $diagnostic) { try { Initialize-CollectorIndexes -Connection $dbConn } catch { Write-Log -Level WARNING -Module 'Main' -Message 'Nao foi possivel conferir os indices do banco.' -Exception $_.Exception.Message } }
     } catch {
         $preflight.database = [ordered]@{ ok = $false; detail = $_.Exception.Message }
         throw "Banco do cliente inacessível: $($_.Exception.Message)"

@@ -133,14 +133,18 @@ export function FileTypes({ ft, limit = 8 }: { ft: { type: string; count: number
       {others.length > 0 && (
         <details className="mt-3 text-sm">
           <summary className="cursor-pointer text-xs font-medium text-ct-purple">O que tem em “Outros”</summary>
-          <table className="tbl mt-2">
-            <thead><tr><th>Extensão</th><th className="text-right">Arquivos</th><th className="text-right">Tamanho</th><th className="text-right">% do total</th></tr></thead>
-            <tbody>
-              {others.slice(0, 25).map((o) => (
-                <tr key={o.type}><td className="font-mono text-xs">{o.type ? `.${o.type}` : "sem extensão"}</td><td className="text-right tabular-nums">{num(o.count)}</td><td className="text-right tabular-nums">{bytes(o.size_bytes)}</td><td className="text-right tabular-nums">{pct(o.size_bytes, total)}%</td></tr>
-              ))}
-            </tbody>
-          </table>
+          <ul className="mt-2 divide-y divide-slate-100 text-xs">
+            {others.slice(0, 25).map((o) => {
+              const noExt = !o.type || /^sem.extens/i.test(o.type);
+              const share = total ? (o.size_bytes / total) * 100 : 0;
+              return (
+                <li key={o.type || "-"} className="flex items-baseline justify-between gap-2 py-1.5" title={`${num(o.count)} arquivos`}>
+                  <span className="min-w-0 truncate"><span className="font-mono">{noExt ? "sem extensão" : `.${o.type}`}</span> <span className="text-slate-400">· {num(o.count)} arq.</span></span>
+                  <span className="shrink-0 tabular-nums text-slate-700">{bytes(o.size_bytes)} · {share > 0 && share < 1 ? "<1" : Math.round(share)}%</span>
+                </li>
+              );
+            })}
+          </ul>
           <p className="mt-1 text-xs text-slate-500">As 30 maiores extensões da coleta; extensões sem grupo conhecido (ex.: .bam e .fastq de laboratório, bancos de dados, executáveis) caem em “Outros”.</p>
         </details>
       )}
@@ -162,10 +166,15 @@ export function SpoGrowth({ d }: { d: Dash }) {
       <div className="mb-3 grid gap-3 sm:grid-cols-3">
         <div><p className="text-xs uppercase tracking-wide text-slate-500">Em uso</p><p className="text-lg font-semibold tabular-nums">{bytes(g.usedGB * GB)}</p><p className="text-xs text-slate-500">{g.quotaGB ? `${pct(g.usedGB, g.quotaGB)}% da cota de ${bytes(g.quotaGB * GB)}` : "cota não informada"}</p></div>
         <div><p className="text-xs uppercase tracking-wide text-slate-500">Crescimento orgânico</p><p className="text-lg font-semibold tabular-nums">{g.monthlyGB ? `${bytes(g.monthlyGB * GB)}/mês` : "—"}</p><p className="text-xs text-slate-500">{g.monthlyGB ? `≈ ${bytes(g.monthlyGB * 12 * GB)} por ano` : "sem histórico"}</p></div>
-        <div><p className="text-xs uppercase tracking-wide text-slate-500">Cota cheia em</p><p className={`text-lg font-semibold tabular-nums ${g.monthsToFull != null && g.monthsToFull <= 12 ? "text-red-700" : ""}`}>{g.monthsToFull != null ? `~${g.monthsToFull} meses` : "mais de 10 anos"}</p><p className="text-xs text-slate-500">{when ? `por volta de ${when}, no ritmo atual` : "no ritmo atual"}</p></div>
+        {g.over ? (
+          <div><p className="text-xs uppercase tracking-wide text-slate-500">Cota</p><p className="text-lg font-semibold tabular-nums text-red-700">Estourada · +{bytes(g.overGB * GB)}</p><p className="text-xs text-slate-500">{g.exceededAt ? `acima da cota ${g.exceededAt === g.history[0] ? "pelo menos " : ""}desde ~${MESES[g.exceededAt.m - 1]}/${g.exceededAt.y}` : "acima da cota"}{g.monthlyGB ? ` · cresce ${bytes(g.monthlyGB * GB)}/mês de armazenamento extra` : ""}</p></div>
+        ) : (
+          <div><p className="text-xs uppercase tracking-wide text-slate-500">Cota cheia em</p><p className={`text-lg font-semibold tabular-nums ${g.monthsToFull != null && g.monthsToFull <= 12 ? "text-red-700" : ""}`}>{g.monthsToFull != null ? `~${g.monthsToFull} meses` : "mais de 10 anos"}</p><p className="text-xs text-slate-500">{when ? `por volta de ${when}, no ritmo atual` : "no ritmo atual"}</p></div>
+        )}
       </div>
-      <GrowthChart history={g.history} projection={g.projection} quotaGB={g.quotaGB} showQuota={g.monthsToFull != null} />
-      {g.monthsToFull == null && g.quotaGB > 0 && <p className="mt-1 text-xs text-slate-500">A cota ({bytes(g.quotaGB * GB)}) fica fora da escala: no ritmo atual ela não é atingida nos próximos 3 anos.</p>}
+      <GrowthChart history={g.history} projection={g.projection} quotaGB={g.quotaGB} showQuota={g.over || g.monthsToFull != null} />
+      {g.over && <p className="mt-1 text-xs text-red-800">O tenant usa mais do que a cota contratada: o excedente é cobrado como armazenamento extra (ou bloqueia gravação, conforme o contrato). Higienizar versões, lixeira e conteúdo parado reduz o uso imediatamente.</p>}
+      {!g.over && g.monthsToFull == null && g.quotaGB > 0 && <p className="mt-1 text-xs text-slate-500">A cota ({bytes(g.quotaGB * GB)}) fica fora da escala: no ritmo atual ela não é atingida nos próximos 3 anos.</p>}
       <p className="mt-1 text-xs text-slate-500">Linha cheia: uso reconstruído pela data de criação dos arquivos; tracejada: projeção pela média mensal. A cota é a do tenant (SharePoint). Não conta versões e lixeira criadas no período, então o prazo real tende a ser menor.</p>
     </Card>
   );

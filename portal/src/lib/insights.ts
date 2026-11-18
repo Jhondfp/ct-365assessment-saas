@@ -194,8 +194,11 @@ export function growthProjection(storageMB: number, quotaMB: number, monthly: Da
   const history = hist.map((r, i) => ({ y: Number(r.year), m: Number(r.month), gb: Math.max(0, usedGB - after(i)) }));
   const last = hist[hist.length - 1];
   const projection: { y: number; m: number; gb: number }[] = [];
+  const over = quotaGB > 0 && usedGB >= quotaGB;
+  // quando passou da cota: primeiro mês do histórico em que o uso já estava acima dela
+  const exceededAt = over ? history.find((p) => p.gb >= quotaGB) ?? null : null;
   if (last && g.monthlyGB && g.monthlyGB > 0) {
-    const horizon = g.monthsToFull != null ? Math.min(g.monthsToFull + 3, 120) : 36;
+    const horizon = over ? 24 : g.monthsToFull != null ? Math.min(g.monthsToFull + 3, 120) : 36;
     for (let k = 1; k <= horizon; k++) {
       const mm = (Number(last.month) - 1 + k) % 12 + 1, yy = Number(last.year) + Math.floor((Number(last.month) - 1 + k) / 12);
       projection.push({ y: yy, m: mm, gb: usedGB + g.monthlyGB * k });
@@ -206,5 +209,5 @@ export function growthProjection(storageMB: number, quotaMB: number, monthly: Da
     const k = g.monthsToFull + 1;
     fullAt = { m: (Number(last.month) - 1 + k) % 12 + 1, y: Number(last.year) + Math.floor((Number(last.month) - 1 + k) / 12) };
   }
-  return { history, projection, usedGB, quotaGB, monthlyGB: g.monthlyGB, monthsToFull: g.monthsToFull, fullAt };
+  return { history, projection, usedGB, quotaGB, monthlyGB: g.monthlyGB, monthsToFull: over ? 0 : g.monthsToFull, fullAt, over, overGB: over ? usedGB - quotaGB : 0, exceededAt };
 }

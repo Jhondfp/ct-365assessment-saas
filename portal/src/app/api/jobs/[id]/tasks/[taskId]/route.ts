@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { loadActive, mergeLog } from "@/lib/jobChannel";
 import type { LogLine } from "@/lib/status";
+import { TASK_MAX_ATTEMPTS } from "@/lib/tasks";
 
 /**
  * Canal de um lote: sinal de vida, progresso (sites concluídos), linhas de log (vão para o log da coleta, marcadas
@@ -26,7 +27,12 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     if (m) done = Number(m[1]);
   }
   if (done != null) data.done = Math.max(task.done, Math.min(done, task.siteCount));
-  if (body.status === "done" || body.status === "failed") {
+  if (body.status === "failed" && task.attempts < TASK_MAX_ATTEMPTS) {
+    // falhou: volta para a fila (outro container tenta de novo; só os sites que faltaram são refeitos)
+    data.status = "QUEUED";
+    data.runnerRef = null;
+    if (body.error) data.error = String(body.error).slice(0, 4000);
+  } else if (body.status === "done" || body.status === "failed") {
     data.status = body.status === "done" ? "DONE" : "FAILED";
     data.finishedAt = new Date();
     if (body.status === "done") data.done = task.siteCount;

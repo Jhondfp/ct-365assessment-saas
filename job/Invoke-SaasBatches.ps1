@@ -68,12 +68,13 @@ function Test-FilesFanOut($Sites) {
 # Arquivos (e lixeira) de um grupo de sites. Sempre em modo retomada: pula o que já terminou e limpa linhas parciais.
 function Invoke-SiteBatch {
     param($Sites, $Connection, [switch]$IncludeTrash, [switch]$IncludeFiles)
-    $prev = $global:isResume
+    # StrictMode: no container de um lote a variável não existe (só a coleta principal a define)
+    $prev = Get-Variable -Name isResume -Scope Global -ValueOnly -ErrorAction SilentlyContinue
     $global:isResume = $true
     try {
         if ($IncludeFiles) { Get-DataFiles -Sites $Sites -Connection $Connection }
         if ($IncludeTrash) { Get-TrashItems -Sites $Sites -Connection $Connection }
-    } finally { $global:isResume = $prev }
+    } finally { $global:isResume = [bool]$prev }
 }
 
 # Coleta principal: cria os lotes, trabalha neles e espera os outros containers terminarem.

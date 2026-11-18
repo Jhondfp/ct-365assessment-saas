@@ -34,12 +34,13 @@ export async function createTasks(assessmentId: string, batches: TaskSite[][]) {
 export async function taskSummary(assessmentId: string) {
   const tasks = await prisma.assessmentTask.findMany({ where: { assessmentId }, orderBy: { seq: "asc" } });
   const stale = Date.now() - TASK_STALE_MS;
-  const n = (s: string) => tasks.filter((t) => t.status === s).length;
+  const gaveUp = (t: { status: string; attempts: number }) => t.status === "FAILED" && t.attempts >= TASK_MAX_ATTEMPTS;
+  const n = (s: string) => tasks.filter((t) => t.status === s && (s !== "FAILED" || gaveUp(t))).length;
   return {
-    total: tasks.length, queued: n("QUEUED"), running: n("RUNNING"), done: n("DONE"), failed: n("FAILED"),
+    total: tasks.length, queued: n("QUEUED") + tasks.filter((t) => t.status === "FAILED" && !gaveUp(t)).length, running: n("RUNNING"), done: n("DONE"), failed: n("FAILED"),
     sites: tasks.reduce((a, t) => a + t.siteCount, 0), sitesDone: tasks.reduce((a, t) => a + (t.status === "DONE" ? t.siteCount : Math.min(t.done, t.siteCount)), 0),
     containers: new Set(tasks.filter((t) => t.status === "RUNNING" && (t.heartbeatAt?.getTime() ?? 0) > stale).map((t) => t.runnerRef ?? "?")).size,
-    finished: tasks.length > 0 && tasks.every((t) => t.status === "DONE" || t.status === "FAILED"),
+    finished: tasks.length > 0 && tasks.every((t) => t.status === "DONE" || gaveUp(t)),
     tasks: tasks.map((t) => ({ id: t.id, seq: t.seq, status: t.status, siteCount: t.siteCount, done: t.done, attempts: t.attempts, runnerRef: t.runnerRef, error: t.error, heartbeatAt: t.heartbeatAt, startedAt: t.startedAt, finishedAt: t.finishedAt })),
   };
 }
@@ -55,7 +56,7 @@ export async function claimTask(workerId: string, assessmentId?: string): Promis
     where: {
       ...(assessmentId ? { assessmentId } : {}),
       assessment: { status: "RUNNING" },
-      OR: [{ status: "QUEUED" }, { status: "RUNNING", heartbeatAt: { lt: stale } }],
+      OR: [{ status: "QUEUED" }, { status: "RUNNING", heartbeatAt: { lt: stale } }, { status: "FAILED", attempts: { lt: TASK_MAX_ATTEMPTS } }],
     },
     orderBy: [{ createdAt: "asc" }, { seq: "asc" }], take: 20,
     include: { assessment: { select: { params: true } } },
@@ -74,7 +75,7 @@ export async function claimTask(workerId: string, assessmentId?: string): Promis
       if (!capCache.get(t.assessmentId)) continue;
     }
     const r = await prisma.assessmentTask.updateMany({
-      where: { id: t.id, status: t.status, heartbeatAt: t.heartbeatAt },
+      where: { id: t.id, status: t.status, heartbeatAt: t.heartbeatAt, attempts: t.attempts },
       data: { status: "RUNNING", runnerRef: assessmentId ? "main" : workerId, attempts: { increment: 1 }, heartbeatAt: new Date(), startedAt: t.startedAt ?? new Date() },
     });
     if (r.count) { capCache.delete(t.assessmentId); return { assessmentId: t.assessmentId, taskId: t.id }; }

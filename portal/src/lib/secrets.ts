@@ -40,7 +40,7 @@ const dec = (stored: string) => {
 };
 
 /** Nomes válidos no Key Vault: letras, números e hífen. */
-export const secretName = (clientId: string, kind: "secret" | "cert" | "certpwd" | "dbpwd") => `m365-${clientId.replace(/[^a-zA-Z0-9-]/g, "")}-${kind}`;
+export const secretName = (clientId: string, kind: "secret" | "cert" | "certpwd" | "dbpwd" | "dbapp") => `m365-${clientId.replace(/[^a-zA-Z0-9-]/g, "")}-${kind}`;
 
 export async function setSecret(name: string, value: string) {
   if (SECRET_STORE === "keyvault") {

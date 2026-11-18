@@ -17,20 +17,25 @@ cd "$(dirname "$0")/.."
 PREFIX="${PREFIX:-ctassess}"
 # Segredos do deploy guardados no Key Vault do ambiente (deploy-<nome>): o que não estiver exportado vem de lá.
 KV=$(az keyvault list -g "$RG" --query "[?starts_with(name, '${PREFIX}-kv')].name | [0]" -o tsv 2>/dev/null || true)
-for v in LOCATION SQL_ADMIN_PASSWORD AUTH_SECRET JOB_SIGNING_SECRET WORKER_TOKEN BOOTSTRAP_ADMIN_EMAIL BOOTSTRAP_ADMIN_PASSWORD ADMIN_EMAILS INTERNAL_EMAIL_DOMAINS; do
+for v in LOCATION SQL_ADMIN_PASSWORD AUTH_SECRET JOB_SIGNING_SECRET WORKER_TOKEN QUEUE_SQL_PASSWORD BOOTSTRAP_ADMIN_EMAIL BOOTSTRAP_ADMIN_PASSWORD ADMIN_EMAILS INTERNAL_EMAIL_DOMAINS; do
   if [ -z "${!v:-}" ] && [ -n "$KV" ]; then
     val=$(az keyvault secret show --vault-name "$KV" -n "deploy-$(echo "$v" | tr '_A-Z' '-a-z')" --query value -o tsv 2>/dev/null || true)
     [ -n "$val" ] && export "$v=$val"
   fi
 done
 : "${LOCATION:?defina LOCATION}" "${SQL_ADMIN_PASSWORD:?}" "${AUTH_SECRET:?}" "${JOB_SIGNING_SECRET:?}" "${WORKER_TOKEN:?}"
+# senha do usuário só leitura da fila: gerada uma vez e guardada no cofre
+if [ -z "${QUEUE_SQL_PASSWORD:-}" ]; then
+  QUEUE_SQL_PASSWORD="$(openssl rand -base64 30 | tr -d '/+=' )Aa1!"
+  [ -n "$KV" ] && az keyvault secret set --vault-name "$KV" -n deploy-queue-sql-password --value "$QUEUE_SQL_PASSWORD" -o none
+fi
 # Quem roda o deploy continua com acesso aos segredos (a política do Key Vault é recriada a cada deploy)
 OPERATORS="${OPERATOR_OBJECT_IDS:-$(az ad signed-in-user show --query id -o tsv 2>/dev/null || true)}"
 TAG="${TAG:-$(git rev-parse --short HEAD 2>/dev/null || date +%Y%m%d%H%M)}"
 
 common=(
   prefix="$PREFIX"
-  sqlAdminPassword="$SQL_ADMIN_PASSWORD" authSecret="$AUTH_SECRET" jobSigningSecret="$JOB_SIGNING_SECRET" workerToken="$WORKER_TOKEN"
+  sqlAdminPassword="$SQL_ADMIN_PASSWORD" authSecret="$AUTH_SECRET" jobSigningSecret="$JOB_SIGNING_SECRET" workerToken="$WORKER_TOKEN" queueSqlPassword="$QUEUE_SQL_PASSWORD"
   entraClientId="${ENTRA_CLIENT_ID:-}" entraClientSecret="${ENTRA_CLIENT_SECRET:-}"
   adminEmails="${ADMIN_EMAILS:-}" internalEmailDomains="${INTERNAL_EMAIL_DOMAINS:-cloudtarget.com.br}"
   bootstrapAdminEmail="${BOOTSTRAP_ADMIN_EMAIL:-}" bootstrapAdminPassword="${BOOTSTRAP_ADMIN_PASSWORD:-}"

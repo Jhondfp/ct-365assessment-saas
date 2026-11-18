@@ -1,18 +1,42 @@
 import { prisma } from "./prisma";
-import { getSecret, secretName } from "./secrets";
-import { dbNameFor, externalConn, latestTenantVersion, managedConn, provisionTenantDb, type DbConn } from "./tenantDb";
+import { randomBytes } from "node:crypto";
+import { getSecret, secretName, setSecret } from "./secrets";
+import { dbNameFor, ensureAppUser, externalConn, latestTenantVersion, managedConn, provisionTenantDb, type DbConn } from "./tenantDb";
 
 type ClientDbFields = { id: string; slug: string; dbMode: string; dbServer: string | null; dbUser: string | null; dbName: string | null };
 
-/** Conexão com o banco do cliente: gerenciado (servidor dos clientes) ou existente (senha no cofre). */
-export async function clientConn(c: ClientDbFields): Promise<DbConn> {
+/**
+ * Conexão com o banco do cliente: gerenciado (servidor dos clientes) ou existente (senha no cofre).
+ * Banco gerenciado com usuário próprio (dbUser): usa esse usuário, que só enxerga aquele banco (leitura, escrita e
+ * procedures). `admin` só para preparar o banco e aplicar migrações.
+ */
+export async function clientConn(c: ClientDbFields, opts: { admin?: boolean } = {}): Promise<DbConn> {
   if (c.dbMode === "EXTERNAL") {
     if (!c.dbServer || !c.dbUser || !c.dbName) throw new Error("Conexão do banco existente incompleta (servidor, banco e usuário).");
     const pwd = await getSecret(secretName(c.id, "dbpwd"));
     if (!pwd) throw new Error("Senha do banco existente não encontrada no cofre.");
     return externalConn(c.dbServer, c.dbName, c.dbUser, pwd);
   }
-  return managedConn(c.dbName ?? dbNameFor(c.slug));
+  const base = managedConn(c.dbName ?? dbNameFor(c.slug));
+  if (opts.admin || !c.dbUser) return base;
+  const pwd = await getSecret(secretName(c.id, "dbapp"));
+  if (!pwd) throw new Error("Senha do usuário do banco do cliente não encontrada no cofre.");
+  return { ...base, user: c.dbUser, password: pwd };
+}
+
+/** Usuário próprio do banco gerenciado (contido no banco): criado uma vez, senha forte no cofre. */
+async function ensureManagedAppUser(c: ClientDbFields & { name?: string }, admin: DbConn, log: (m: string) => void) {
+  if (c.dbMode === "EXTERNAL") return null;
+  const user = c.dbUser ?? `app_${c.slug.replace(/[^a-z0-9]/gi, "").slice(0, 40) || "cliente"}`;
+  let pwd = c.dbUser ? await getSecret(secretName(c.id, "dbapp")) : null;
+  const created = !pwd;
+  if (!pwd) pwd = `${randomBytes(30).toString("base64url")}Aa1!`;
+  await ensureAppUser(admin, user, pwd, created);
+  if (created) {
+    await setSecret(secretName(c.id, "dbapp"), pwd);
+    log(`Usuário ${user} criado no banco (só leitura, escrita e procedures deste banco); a senha fica no cofre.`);
+  }
+  return user;
 }
 
 /** Prepara o banco e grava a situação no cliente. Devolve as etapas executadas. */
@@ -21,8 +45,14 @@ export async function provisionClientDb(clientId: string) {
   const steps: string[] = [];
   const dbName = c.dbName ?? dbNameFor(c.slug);
   try {
-    const version = await provisionTenantDb(await clientConn({ ...c, dbName }), c.dbSchemaVersion, (m) => steps.push(m));
-    await prisma.client.update({ where: { id: clientId }, data: { dbName, dbStatus: "PROVISIONADO", dbSchemaVersion: version, dbError: null } });
+    const admin = await clientConn({ ...c, dbName }, { admin: true });
+    const version = await provisionTenantDb(admin, c.dbSchemaVersion, (m) => steps.push(m));
+    let dbUser = c.dbUser;
+    if (c.dbMode !== "EXTERNAL") {
+      try { dbUser = await ensureManagedAppUser({ ...c, dbName }, admin, (m) => steps.push(m)); }
+      catch (e) { steps.push(`Não foi possível criar o usuário próprio do banco (segue com o acesso do servidor): ${e instanceof Error ? e.message : e}`); }
+    }
+    await prisma.client.update({ where: { id: clientId }, data: { dbName, dbStatus: "PROVISIONADO", dbSchemaVersion: version, dbError: null, ...(c.dbMode !== "EXTERNAL" ? { dbUser } : {}) } });
     try {
       const imp = await importExecutions(clientId);
       if (imp.created) steps.push(`${imp.created} execução(ões) anterior(es) encontrada(s) no banco e trazida(s) para o portal.`);

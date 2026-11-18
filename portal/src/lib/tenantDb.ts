@@ -168,3 +168,26 @@ export async function provisionTenantDb(c: DbConn, currentVersion: number, log: 
   }
   return version;
 }
+
+/**
+ * Usuário contido no banco do cliente (Azure SQL): entra só nesse banco, com leitura, escrita e EXECUTE nas
+ * procedures — sem DDL nem acesso ao servidor. `reset` troca a senha de um usuário que já exista.
+ */
+export async function ensureAppUser(admin: DbConn, user: string, password: string, reset: boolean) {
+  if (!/^[A-Za-z0-9_]{1,64}$/.test(user)) throw new Error("Nome de usuário inválido.");
+  const db = await pool(admin);
+  const q = quoteName(user);
+  const exists = (await db.request().input("u", user).query("SELECT 1 AS x FROM sys.database_principals WHERE name = @u")).recordset.length > 0;
+  const pwdLit = password.replace(/'/g, "''");
+  if (!exists) {
+    try { await db.request().batch(`CREATE USER ${q} WITH PASSWORD = N'${pwdLit}'`); }
+    catch (e) {
+      // SQL Server fora do Azure: usuário com senha exige banco "contido" (o Azure SQL já é)
+      if (!String((e as Error).message).includes("contained database")) throw e;
+      await db.request().batch("ALTER DATABASE CURRENT SET CONTAINMENT = PARTIAL");
+      await db.request().batch(`CREATE USER ${q} WITH PASSWORD = N'${pwdLit}'`);
+    }
+  }
+  else if (reset) await db.request().batch(`ALTER USER ${q} WITH PASSWORD = N'${pwdLit}'`);
+  await db.request().batch(`ALTER ROLE db_datareader ADD MEMBER ${q}; ALTER ROLE db_datawriter ADD MEMBER ${q}; GRANT EXECUTE TO ${q};`);
+}

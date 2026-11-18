@@ -58,6 +58,9 @@ param customUrl string = ''
 @secure()
 @description('Token compartilhado entre portal e workers para pegar coletas da fila (openssl rand -base64 33)')
 param workerToken string
+@secure()
+@description('Senha do usuário queue_reader (só leitura da fila) no banco do portal, usado pela regra de escala do coletor')
+param queueSqlPassword string
 @description('Máximo de containers do coletor ao mesmo tempo (coletas + lotes de todas as coletas). Cada um: 2 vCPU / 4 GiB')
 @minValue(1)
 @maxValue(50)
@@ -197,8 +200,9 @@ resource env 'Microsoft.App/managedEnvironments@2024-03-01' = {
 var portalUrl = empty(customUrl) ? 'https://${names.portal}.${env.properties.defaultDomain}' : customUrl
 var sqlFqdn = sql.properties.fullyQualifiedDomainName
 // Senha com ; = { } precisa ir entre chaves na connection string do Prisma
-// Conexão ADO.NET ao banco do portal, só para a regra de escala do worker (KEDA mssql) contar a fila
-var queueSqlConn = 'Server=tcp:${sqlFqdn},1433;Database=${names.portalDb};User ID=${sqlAdminLogin};Password=${sqlAdminPassword};Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;'
+// Conexão ADO.NET ao banco do portal só para a regra de escala do coletor (KEDA mssql) contar a fila: usuário
+// queue_reader, que só lê dbo.Assessment e dbo.AssessmentTask (criado pelo portal ao iniciar)
+var queueSqlConn = 'Server=tcp:${sqlFqdn},1433;Database=${names.portalDb};User ID=queue_reader;Password=${queueSqlPassword};Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;'
 var databaseUrl = 'sqlserver://${sqlFqdn}:1433;database=${names.portalDb};user=${sqlAdminLogin};password={${sqlAdminPassword}};encrypt=true;trustServerCertificate=false;hostNameInCertificate=*.database.windows.net;loginTimeout=30'
 var useAcrPortal = startsWith(portalImage, acr.properties.loginServer)
 var useAcrJob = startsWith(jobImage, acr.properties.loginServer)
@@ -268,6 +272,7 @@ var baseSecrets = [
   { name: 'auth-secret', value: authSecret }
   { name: 'job-signing-secret', value: jobSigningSecret }
   { name: 'worker-token', value: workerToken }
+  { name: 'queue-sql-password', value: queueSqlPassword }
 ]
 var entraSecrets = entraEnabled ? [{ name: 'entra-secret', value: entraClientSecret }] : []
 var bootstrapSecrets = empty(bootstrapAdminPassword) ? [] : [{ name: 'bootstrap-admin-password', value: bootstrapAdminPassword }]
@@ -289,6 +294,7 @@ var baseEnv = [
   { name: 'JOB_RUNNER', value: 'queue' }
   { name: 'JOB_SIGNING_SECRET', secretRef: 'job-signing-secret' }
   { name: 'WORKER_TOKEN', secretRef: 'worker-token' }
+  { name: 'QUEUE_SQL_PASSWORD', secretRef: 'queue-sql-password' }
   { name: 'PORTAL_CALLBACK_URL', value: portalUrl }
   { name: 'JOB_IMAGE', value: jobImage }
 ]

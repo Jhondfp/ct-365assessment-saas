@@ -22,6 +22,7 @@ Coletor de governança Microsoft 365 em SaaS (PowerShell + PnP + SQL Server). Na
 - Retomada: `Initialize-CollectorIndexes` cria no job os índices `(execution_id, site_url)` de `files_info`/`trash_items` (bancos antigos não têm); `Clear-PartialSiteData` limpa só os sites com linhas parciais e, se a limpeza falhar, `Remove-DuplicateSiteRows` deduplica no fim do módulo.
 - O coletor roda com StrictMode: o entrypoint completa `auth`/`params` com as chaves padrão dos `*.example.json`. Nunca envolva o retorno de `Invoke-DbReader` em `@()` (ele já devolve array).
 - **Higienização** (`job/hygiene/`) ALTERA o tenant do cliente: simular é sempre o padrão, execução exige confirmação (`SupportsShouldProcess`), nada toca a Preservation Hold Library nem a versão atual, e cada item vai para `dbo.hygiene_version_items` (migração tenant 002). Limpeza de versões: modo `PorArquivo` (padrão, versões vão para a lixeira) ou `JobSharePoint` (trim do servidor, permanente).
+- **Excluir coleta** (só Administrador, `assessments:delete`): a coleta fica `EXCLUINDO` (some do relatório) e uma execução `kind = EXCLUSAO` roda `job/Invoke-SaasDelete.ps1`, que apaga em lotes todas as tabelas da coleta no banco do cliente (`execution_history` por último). Concluída, o portal apaga a coleta; se falhar, ela volta ao status anterior.
 - Server actions seguem o padrão do Target360: função `async` privada + `export const x = act(x_)`. Nunca exporte helper de um arquivo `"use server"` (vira endpoint público); helpers vão para `src/lib`.
 - Toda action de cliente checa `requireClientPerm(clientId, perm)`; toda página de cliente, `requireClientPage`. Alterações relevantes gravam `audit(...)`.
 - Schema dos clientes: `001_schema.sql` faz DROP + CREATE e só roda em banco vazio (banco com o schema é adotado). Mudanças novas = migração incremental `NNN_nome.sql` idempotente.
@@ -47,6 +48,10 @@ pwsh -File job/tests/Test-Pipeline.ps1   # pipeline do entrypoint sob StrictMode
 
 ```bash
 pwsh -File job/tests/Test-VersionCleanup.ps1   # higienização: limpeza de versões, SharePoint/banco simulados
+```
+
+```bash
+pwsh -File job/tests/Test-Delete.ps1   # exclusão de coleta: lotes, tabelas inexistentes, falha
 ```
 
 ```bash

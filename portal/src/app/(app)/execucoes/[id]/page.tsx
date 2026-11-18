@@ -16,6 +16,7 @@ import { StatusBadge } from "@/components/assessments";
 import { LiveAssessment } from "@/components/LiveAssessment";
 import { HygieneResultView } from "@/components/HygieneResult";
 import { taskSummary } from "@/lib/tasks";
+import { DeleteCollection } from "@/components/DeleteCollection";
 import type { HygieneParams, HygieneResult } from "@/lib/hygiene";
 
 export default async function Execucao({ params }: { params: Promise<{ id: string }> }) {
@@ -32,6 +33,8 @@ export default async function Execucao({ params }: { params: Promise<{ id: strin
   const hasData = (HAS_DATA as readonly string[]).includes(a.status);
   const diagnostic = a.kind === "DIAGNOSTICO";
   const hygiene = a.kind === "HIGIENIZACAO";
+  const deletion = a.kind === "EXCLUSAO";
+  const canDelete = a.kind === "COLETA" && !active && a.status !== "EXCLUINDO" && can(u.roles, "assessments:delete");
   const hp = (params_ as { hygiene?: HygieneParams }).hygiene;
   const imported = a.runner === "importado";
   const canRun = can(u.roles, "assessments:run");
@@ -42,14 +45,14 @@ export default async function Execucao({ params }: { params: Promise<{ id: strin
   return (
     <>
       <PageHeader
-        title={hygiene ? `${hp?.dryRun ? "Simulação de higienização" : "Higienização"} · ${a.client.name}` : diagnostic ? `Diagnóstico · ${a.client.name}` : `Execução · ${a.client.name}`}
+        title={deletion ? `Exclusão de coleta · ${a.client.name}` : hygiene ? `${hp?.dryRun ? "Simulação de higienização" : "Higienização"} · ${a.client.name}` : diagnostic ? `Diagnóstico · ${a.client.name}` : `Execução · ${a.client.name}`}
         subtitle={<span className="flex flex-wrap items-center gap-2"><StatusBadge status={a.status} run={a} /><span>{dateTime(a.startedAt ?? a.createdAt)}</span>{a.startedAt && (a.finishedAt || active) && <span className="text-slate-400">· {duration(a.startedAt, a.finishedAt)}</span>}</span>}
         actions={<>
-          {hasData && !diagnostic && !hygiene && <Link className="btn" href={`/clientes/${a.clientId}/relatorio?execucao=${a.id}`}>Ver relatório</Link>}
+          {hasData && !diagnostic && !hygiene && !deletion && <Link className="btn" href={`/clientes/${a.clientId}/relatorio?execucao=${a.id}`}>Ver relatório</Link>}
           {hygiene && !active && canRun && <Link className={hp?.dryRun && hasData ? "btn" : "btn-secondary"} href={`/clientes/${a.clientId}?tab=higienizacao&from=${a.id}&keep=${hp?.keep ?? 100}`}>{hp?.dryRun ? "Executar com estes parâmetros" : "Repetir pelo formulário"}</Link>}
           {a.fullLog && <a className="btn-secondary" href={`/api/execucoes/${a.id}/log`}>Baixar log completo</a>}
           {canRun && active && <ActionButton action={cancelAssessment.bind(null, a.id)} className="btn-danger" confirm="Cancelar esta execução?">Cancelar</ActionButton>}
-          {canRun && !imported && !hygiene && !active && a.status !== "COMPLETED" && <ActionButton action={retryAssessment.bind(null, a.id)} className="btn-secondary">{diagnostic ? "Rodar diagnóstico de novo" : "Executar de novo"}</ActionButton>}
+          {canRun && !imported && !hygiene && !deletion && a.status !== "EXCLUINDO" && !active && a.status !== "COMPLETED" && <ActionButton action={retryAssessment.bind(null, a.id)} className="btn-secondary">{diagnostic ? "Rodar diagnóstico de novo" : "Executar de novo"}</ActionButton>}
         </>}
       />
 
@@ -68,6 +71,12 @@ export default async function Execucao({ params }: { params: Promise<{ id: strin
         <div className="mb-6 rounded-xl border border-lime-200 bg-lime-50 p-4 text-sm text-lime-900">Conexão OK: o worker autenticou no Microsoft 365, leu as permissões, entrou no SharePoint Admin e acessou o banco do cliente.</div>
       )}
 
+      {a.status === "EXCLUINDO" && <div className="mb-6 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">Esta coleta está sendo excluída: os dados dela estão sendo apagados do banco do cliente e ela já não aparece no relatório. Quando terminar, some do portal.</div>}
+      {deletion && <div className={`mb-6 rounded-xl border p-4 text-sm ${a.status === "COMPLETED" ? "border-lime-200 bg-lime-50 text-lime-900" : "border-slate-200 bg-slate-50 text-slate-700"}`}>
+        {a.status === "COMPLETED" ? "Coleta excluída: os dados foram apagados do banco do cliente e ela saiu do portal." : "Apagando os dados da coleta no banco do cliente, tabela por tabela (em lotes). Em bancos grandes pode levar alguns minutos."}
+        {parseJson<{ linhas?: number } | null>(a.result, null)?.linhas != null && <> {Number(parseJson<{ linhas?: number }>(a.result, {}).linhas).toLocaleString("pt-BR")} linhas removidas.</>}
+      </div>}
+      {canDelete && <DeleteCollection id={a.id} />}
       {hygiene && <HygieneResultView runId={a.id} client={a.client} params={hp} result={parseJson<HygieneResult | null>(a.result, null)} />}
 
       {cmd && (
@@ -82,7 +91,7 @@ export default async function Execucao({ params }: { params: Promise<{ id: strin
 
       <LiveAssessment
         id={a.id}
-        diagnostic={diagnostic}
+        diagnostic={diagnostic || deletion}
         initial={{
           status: a.status, attempts: a.attempts, error: a.error, heartbeatAt: a.heartbeatAt?.toISOString() ?? null,
           progress: parseJson<Progress | null>(a.progress, null), log: parseJson<LogLine[]>(a.logTail, []),
@@ -98,7 +107,7 @@ export default async function Execucao({ params }: { params: Promise<{ id: strin
           <div><dt className="label">Disparada por</dt><dd>{a.startedBy?.name ?? a.startedBy?.email ?? (imported ? "fora do portal" : "—")}</dd></div>
           <div><dt className="label">Onde rodou</dt><dd>{RUNNER_LABEL[a.runner as Runner | "importado"] ?? a.runner}{a.runnerRef && <span className="block font-mono text-xs text-slate-500">{a.runnerRef}</span>}</dd></div>
           <div><dt className="label">Identificador</dt><dd className="break-all font-mono text-xs">{a.id}</dd></div>
-          {!diagnostic && !hygiene && (
+          {!diagnostic && !hygiene && !deletion && (
             <div className="sm:col-span-2 lg:col-span-4"><dt className="label">Workloads solicitados</dt><dd className="flex flex-wrap gap-1">{imported ? <span className="muted">Não registrados (execução feita fora do portal).</span> : enabledModules(params_).map((m) => <Badge key={m} tone="purple">{m}</Badge>)}</dd></div>
           )}
           {Array.isArray(params_.sites) && (params_.sites as string[]).length > 0 && (

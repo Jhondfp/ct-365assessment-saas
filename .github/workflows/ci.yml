@@ -38,6 +38,9 @@ jobs:
       - name: Retomada — limpeza de linhas parciais e índices (banco simulado)
         shell: pwsh
         run: ./job/tests/Test-Resume.ps1
+      - name: Exclusão de coleta (banco simulado)
+        shell: pwsh
+        run: ./job/tests/Test-Delete.ps1
       - run: docker build -t ctassessment-job:ci job
 
   infra:

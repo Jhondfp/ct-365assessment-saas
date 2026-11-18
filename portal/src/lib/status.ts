@@ -1,11 +1,11 @@
 export const ACTIVE = ["QUEUED", "STARTING", "RUNNING"] as const;
 export const STATUS_LABEL: Record<string, string> = {
-  QUEUED: "Na fila", STARTING: "Iniciando", RUNNING: "Em execução", COMPLETED: "Concluída", PARTIAL: "Concluída com alertas", FAILED: "Falhou", CANCELED: "Cancelada",
+  QUEUED: "Na fila", STARTING: "Iniciando", RUNNING: "Em execução", COMPLETED: "Concluída", PARTIAL: "Concluída com alertas", FAILED: "Falhou", CANCELED: "Cancelada", EXCLUINDO: "Excluindo…",
 };
 /** Terminou com dados aproveitáveis (dashboard faz sentido). */
 export const HAS_DATA = ["COMPLETED", "PARTIAL"] as const;
 export const STATUS_TONE: Record<string, "gray" | "blue" | "green" | "red" | "orange" | "purple"> = {
-  QUEUED: "gray", STARTING: "blue", RUNNING: "purple", COMPLETED: "green", PARTIAL: "orange", FAILED: "red", CANCELED: "gray",
+  QUEUED: "gray", STARTING: "blue", RUNNING: "purple", COMPLETED: "green", PARTIAL: "orange", FAILED: "red", CANCELED: "gray", EXCLUINDO: "gray",
 };
 export const DB_STATUS_LABEL: Record<string, string> = { PENDENTE: "Não provisionado", PROVISIONADO: "Provisionado", ERRO: "Erro" };
 

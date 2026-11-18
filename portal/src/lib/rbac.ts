@@ -14,13 +14,14 @@ export const ROLE_HINT: Record<Role, string> = {
   VISUALIZADOR: "Só vê execuções e dashboards dos clientes liberados",
 };
 
-export type Perm = "users:manage" | "clients:all" | "clients:manage" | "assessments:run" | "reports:view";
+export type Perm = "users:manage" | "clients:all" | "clients:manage" | "assessments:run" | "assessments:delete" | "reports:view";
 
 const MATRIX: Record<Perm, Role[]> = {
   "users:manage": ["ADMIN"],
   "clients:all": ["ADMIN", "EXECUTOR"],
   "clients:manage": ["ADMIN", "EXECUTOR"],
   "assessments:run": ["ADMIN", "EXECUTOR"],
+  "assessments:delete": ["ADMIN"],
   "reports:view": ["ADMIN", "EXECUTOR", "VISUALIZADOR"],
 };
 
@@ -31,6 +32,7 @@ export const PERM_LABEL: Record<Perm, string> = {
   "clients:all": "Ver todos os clientes",
   "clients:manage": "Cadastrar e editar clientes, conexão Microsoft 365 e banco de dados",
   "assessments:run": "Iniciar, cancelar e repetir coletas",
+  "assessments:delete": "Excluir coletas (apaga os dados do banco do cliente)",
   "reports:view": "Ver execuções e dashboards (Visualizador: só dos clientes liberados)",
 };
 export const isRole = (r: string): r is Role => (ROLES as readonly string[]).includes(r);

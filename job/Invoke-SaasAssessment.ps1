@@ -137,7 +137,7 @@ foreach ($k in $paramsDefaults.Keys) { if (-not $global:params.ContainsKey($k) -
 # Certificado: Get-GraphToken lê auth.cert_path; o PnP usa $global:base64Cert
 $global:base64Cert = $null
 $certTemp = $null
-if ($global:auth.auth_mode -eq 'cert') {
+if ($global:auth.auth_mode -eq 'cert' -and $config.certBase64) {
     $global:base64Cert = [string]$config.certBase64
     $certTemp = Join-Path ([System.IO.Path]::GetTempPath()) "ct-$([guid]::NewGuid()).pfx"
     [System.IO.File]::WriteAllBytes($certTemp, [Convert]::FromBase64String($global:base64Cert))
@@ -218,6 +218,12 @@ if ($TaskId) {
     }
     $fin = if ($taskErr) { @{ status = 'failed'; error = [string]$taskErr } } else { @{ status = 'done' } }
     try { [void](Invoke-PortalApi -Method Post -Path "/tasks/$TaskId" -Body $fin) } catch { Write-Host "[Job] Não foi possível reportar o fim do lote: $($_.Exception.Message)" -ForegroundColor Yellow }
+    exit 0
+}
+
+# Exclusão de uma coleta (kind EXCLUSAO no portal): apaga os dados dela no banco do cliente
+if ($global:params['delete_execution']) {
+    . (Join-Path $projectRoot 'Invoke-SaasDelete.ps1')
     exit 0
 }
 

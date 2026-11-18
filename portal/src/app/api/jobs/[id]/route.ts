@@ -19,7 +19,8 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   const { a, err } = await load(req, id);
   if (err) return err;
   const c = a.client;
-  if (!c.dbName || !c.m365TenantId || !c.appClientId || !c.spoTenant) return Response.json({ error: "cliente sem conexão ou banco configurado" }, { status: 409 });
+  const dbOnly = a.kind === "EXCLUSAO";
+  if (!c.dbName || (!dbOnly && (!c.m365TenantId || !c.appClientId || !c.spoTenant))) return Response.json({ error: "cliente sem conexão ou banco configurado" }, { status: 409 });
 
   const db = await clientConn(c);
   const auth: Record<string, unknown> = {
@@ -35,7 +36,9 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     proxy_url: "",
   };
   let certBase64: string | null = null;
-  if (c.authMode === "cert") {
+  if (dbOnly) {
+    auth.auth_mode = "none";
+  } else if (c.authMode === "cert") {
     certBase64 = await getSecret(secretName(c.id, "cert"));
     auth.cert_password = (await getSecret(secretName(c.id, "certpwd"))) ?? "";
     if (!certBase64) return Response.json({ error: "certificado do cliente não encontrado no cofre" }, { status: 409 });
@@ -98,5 +101,13 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     if (body.error) data.error = String(body.error).slice(0, 8000);
   } else if (a.status !== "RUNNING") data.status = "RUNNING";
   await prisma.assessment.update({ where: { id }, data });
+  // Fim de uma exclusão de coleta: some do portal se deu certo; se falhou, a coleta volta ao status anterior
+  if (a.kind === "EXCLUSAO" && data.status) {
+    const p = JSON.parse(a.params) as { delete_execution?: string; previous_status?: string };
+    if (p.delete_execution) {
+      if (data.status === "COMPLETED") await prisma.assessment.deleteMany({ where: { id: p.delete_execution, status: "EXCLUINDO" } });
+      else await prisma.assessment.updateMany({ where: { id: p.delete_execution, status: "EXCLUINDO" }, data: { status: p.previous_status ?? "COMPLETED", error: `A exclusão falhou: ${String(body.error ?? "veja a execução de exclusão").slice(0, 500)}` } });
+    }
+  }
   return Response.json({ ok: true });
 }

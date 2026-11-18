@@ -58,6 +58,27 @@ async function retryAssessment_(id: string) {
   redirect(`/execucoes/${newId}`);
 }
 
+/**
+ * Exclui uma coleta (Administrador): apaga todos os dados dela no banco do cliente e tira do portal. A exclusão roda
+ * no coletor (execução EXCLUSAO, em lotes, porque files_info pode ter milhões de linhas); enquanto isso a coleta
+ * fica "Excluindo…" e sai do relatório. Se falhar, volta ao status anterior.
+ */
+async function deleteCollection_(id: string, fd: FormData) {
+  const a = await prisma.assessment.findUniqueOrThrow({ where: { id }, include: { client: { select: { name: true } } } });
+  const me = await requireClientPerm(a.clientId, "assessments:delete");
+  if (a.kind !== "COLETA") throw new Error("Só coletas podem ser excluídas.");
+  if ((ACTIVE as readonly string[]).includes(a.status)) throw new Error("A coleta ainda está rodando: cancele antes de excluir.");
+  if (a.status === "EXCLUINDO") throw new Error("A exclusão desta coleta já está em andamento.");
+  if (String(fd.get("confirmText") ?? "").trim().toUpperCase() !== "EXCLUIR") throw new Error("Digite EXCLUIR para confirmar.");
+  const busy = await prisma.assessment.count({ where: { clientId: a.clientId, kind: "EXCLUSAO", status: { in: [...ACTIVE] } } });
+  if (busy) throw new Error("Já existe uma exclusão em andamento para este cliente; aguarde terminar.");
+  const jobId = await launchAssessment(a.clientId, { delete_execution: id, previous_status: a.status }, me.id, "EXCLUSAO");
+  await prisma.assessment.update({ where: { id }, data: { status: "EXCLUINDO", error: null } });
+  await audit(prisma, "Assessment", id, "DELETE_REQUEST", me.id, { cliente: a.client.name, coleta: id, inicio: (a.startedAt ?? a.createdAt).toISOString(), exclusao: jobId });
+  redirect(`/execucoes/${jobId}`);
+}
+
 export const startAssessment = act(startAssessment_);
+export const deleteCollection = act(deleteCollection_);
 export const cancelAssessment = act(cancelAssessment_);
 export const retryAssessment = act(retryAssessment_);

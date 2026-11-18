@@ -9,7 +9,7 @@ import { manualCommand, RUNNER_LABEL, type Runner } from "@/lib/jobs";
 import { ACTIVE, HAS_DATA, parseJson, type LogLine, type Preflight, type Progress, type Workload } from "@/lib/status";
 import { explainError } from "@/lib/errors";
 import { dateTime, duration } from "@/lib/format";
-import { cancelAssessment, repairCollection, retryAssessment } from "@/actions/assessments";
+import { cancelAssessment, repairCollection, resumeCollection, retryAssessment } from "@/actions/assessments";
 import { ActionButton } from "@/components/ActionForm";
 import { Badge, PageHeader } from "@/components/ui";
 import { StatusBadge } from "@/components/assessments";
@@ -54,6 +54,7 @@ export default async function Execucao({ params }: { params: Promise<{ id: strin
           {a.fullLog && <a className="btn-secondary" href={`/api/execucoes/${a.id}/log`}>Baixar log completo</a>}
           {canRun && active && <ActionButton action={cancelAssessment.bind(null, a.id)} className="btn-danger" confirm="Cancelar esta execução?">Cancelar</ActionButton>}
           {hasData && a.kind === "COLETA" && canRun && <ActionButton action={repairCollection.bind(null, a.id)} className="btn-secondary" confirm="Procurar e remover dados gravados em duplicidade nesta coleta e remontar o relatório? Pode levar alguns minutos.">Corrigir duplicatas</ActionButton>}
+          {canRun && !imported && a.kind === "COLETA" && ["PARTIAL", "FAILED", "CANCELED"].includes(a.status) && <ActionButton action={resumeCollection.bind(null, a.id)} className="btn" confirm="Continuar esta coleta de onde parou? Só o que faltou é coletado.">Continuar de onde parou</ActionButton>}
           {canRun && !imported && !hygiene && !deletion && !repair && a.status !== "EXCLUINDO" && !active && a.status !== "COMPLETED" && <ActionButton action={retryAssessment.bind(null, a.id)} className="btn-secondary">{diagnostic ? "Rodar diagnóstico de novo" : "Executar de novo"}</ActionButton>}
         </>}
       />

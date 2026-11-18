@@ -89,7 +89,26 @@ async function repairCollection_(id: string) {
   redirect(`/execucoes/${jobId}`);
 }
 
+/**
+ * Continua uma coleta que terminou incompleta (parcial, com falha ou cancelada) a partir de onde parou: a MESMA
+ * execução volta para a fila; o coletor pula módulos e sites já concluídos e os lotes que faltam são refeitos.
+ */
+async function resumeCollection_(id: string) {
+  const a = await prisma.assessment.findUniqueOrThrow({ where: { id }, include: { client: { select: { name: true } } } });
+  const me = await requireClientPerm(a.clientId, "assessments:run");
+  if (a.kind !== "COLETA" || a.runner === "importado") throw new Error("Só coletas feitas pelo portal podem ser continuadas.");
+  if (!["PARTIAL", "FAILED", "CANCELED"].includes(a.status)) throw new Error("Esta coleta não está incompleta.");
+  const running = await prisma.assessment.count({ where: { clientId: a.clientId, status: { in: [...ACTIVE] } } });
+  if (running) throw new Error("Já existe uma execução ativa para este cliente. Aguarde terminar ou cancele.");
+  await prisma.assessmentTask.updateMany({ where: { assessmentId: id, status: { not: "DONE" } }, data: { status: "QUEUED", attempts: 0, runnerRef: null, heartbeatAt: null, error: null } });
+  await prisma.assessment.update({ where: { id }, data: { status: "QUEUED", runner: "queue", finishedAt: null, error: null, heartbeatAt: null } });
+  await audit(prisma, "Assessment", id, "RESUME", me.id, { cliente: a.client.name, status_anterior: a.status });
+  revalidatePath(`/execucoes/${id}`);
+  return "Coleta de volta na fila: continua de onde parou.";
+}
+
 export const startAssessment = act(startAssessment_);
+export const resumeCollection = act(resumeCollection_);
 export const repairCollection = act(repairCollection_);
 export const deleteCollection = act(deleteCollection_);
 export const cancelAssessment = act(cancelAssessment_);

@@ -91,10 +91,21 @@ function Invoke-FilesFanOut {
         if ($t) {
             Write-Log -Level INFO -Module 'Lotes' -Message "Lote $($t.seq): $(@($t.sites).Count) sites (nesta coleta)." -DbConnection $Connection
             $err = $null
+            # sinal de vida do lote enquanto a coleta trabalha nele (sem isso o portal o daria como parado em 10 min)
+            $hb = Start-ThreadJob -ArgumentList "$CallbackUrl/tasks/$($t.id)", $headers -ScriptBlock {
+                param($u, $h)
+                while ($true) {
+                    try { Invoke-RestMethod -Uri $u -Method Post -Headers $h -ContentType 'application/json' -Body '{}' -TimeoutSec 60 | Out-Null } catch { }
+                    Start-Sleep -Seconds 60
+                }
+            }
             try { Invoke-SiteBatch -Sites @($t.sites | ForEach-Object { ConvertFrom-TaskSite $_ }) -Connection $Connection -IncludeTrash:$IncludeTrash -IncludeFiles:$IncludeFiles }
             catch { $err = $_.Exception.Message; Write-Log -Level ERROR -Module 'Lotes' -Message "Lote $($t.seq) falhou." -Exception $err -DbConnection $Connection }
+            finally { Stop-Job $hb -ErrorAction SilentlyContinue; Remove-Job $hb -Force -ErrorAction SilentlyContinue }
             $fin = if ($err) { @{ status = 'failed'; error = $err } } else { @{ status = 'done' } }
-            try { [void](Invoke-PortalApi -Method Post -Path "/tasks/$($t.id)" -Body $fin) } catch [System.OperationCanceledException] { throw } catch { }
+            # 409 aqui = o lote já não é desta coleta (outro container o pegou): segue para o próximo, não derruba a coleta
+            try { [void](Invoke-PortalApi -Method Post -Path "/tasks/$($t.id)" -Body $fin) }
+            catch { Write-Log -Level WARNING -Module 'Lotes' -Message "Não foi possível registrar o fim do lote $($t.seq): $($_.Exception.Message)" -DbConnection $Connection }
             continue
         }
         $s = Invoke-PortalApi -Method Get -Path '/tasks'

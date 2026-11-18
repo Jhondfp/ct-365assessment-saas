@@ -5,6 +5,7 @@ $global:auth = @{ client_id='c'; tenant_id='t'; spo_tenant='bioma'; client_secre
 $global:base64Cert = 'x'
 $global:executionId = 'e1'
 $config = [pscustomobject]@{ clientName='Bioma'; attempt=1 }
+$CallbackUrl = 'http://127.0.0.1:9/api/jobs/e1'; $headers = @{}
 function Write-Log { param($Level,$Module,$Message,$Exception,$DbConnection,$SiteUrl) Write-Host "[$Level] [$Module] $Message $Exception" }
 function Send-PortalEvent { param([hashtable]$Body) $global:LAST = $Body; return $true }
 function Get-GraphToken { 'tok' }

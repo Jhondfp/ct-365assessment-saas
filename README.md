@@ -62,7 +62,7 @@ infra/deploy.sh         implantação completa (infra + build das imagens no ACR
 
 ### Como o coletor conversa com o portal
 
-O coletor roda como **Container Apps Job disparado pela fila**: a cada 30 s uma regra KEDA `mssql` conta, no banco do portal, o trabalho pendente mais o que já está rodando, e o Azure sobe uma execução (um container, 2 vCPU / 4 GiB) para cada trabalho novo, até `maxCollectors`. Sem trabalho, nada fica ligado. Publicar uma versão nova não interrompe execuções em andamento.
+O coletor roda como **Container Apps Job disparado pela fila**: a cada 30 s uma regra KEDA `mssql` conta, no banco do portal, o trabalho pendente (coletas novas ou paradas e lotes na fila) e o Azure sobe uma execução (um container, 2 vCPU / 4 GiB) para cada trabalho novo, até `maxCollectors`. Sem trabalho, nada fica ligado. Publicar uma versão nova não interrompe execuções em andamento.
 
 Cada container chama `POST /api/jobs/claim` com o `WORKER_TOKEN` e recebe **um** trabalho: `ASSESSMENT_ID`, `CALLBACK_URL`, `CALLBACK_TOKEN` (HMAC do id da execução) e, se for um lote de uma coleta dividida, `TASK_ID`. Com eles, o `Invoke-SaasAssessment.ps1`:
 

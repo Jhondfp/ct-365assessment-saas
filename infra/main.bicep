@@ -62,6 +62,8 @@ param workerToken string
 @minValue(1)
 @maxValue(50)
 param maxCollectors int = 10
+@description('Object IDs (Entra) de quem opera o ambiente: leem e gravam os segredos do deploy (deploy-*) no Key Vault')
+param operatorObjectIds array = []
 @description('Tempo máximo de um container do coletor (s). Passou disso, o trabalho volta para a fila e é retomado')
 param collectorTimeoutSeconds int = 86400
 
@@ -112,14 +114,25 @@ resource kv 'Microsoft.KeyVault/vaults@2023-07-01' = {
     enableSoftDelete: true
     softDeleteRetentionInDays: 30
     enablePurgeProtection: true
-    accessPolicies: [
+    accessPolicies: concat([
       {
         tenantId: subscription().tenantId
         objectId: idPortal.properties.principalId
         permissions: { secrets: ['get', 'list', 'set', 'delete', 'recover'] }
       }
-    ]
+    ], map(operatorObjectIds, id => {
+      tenantId: subscription().tenantId
+      objectId: id
+      permissions: { secrets: ['get', 'list', 'set'] }
+    }))
   }
+}
+
+// Registro de acesso ao cofre (quem leu ou gravou cada segredo)
+resource kvDiag 'Microsoft.Insights/diagnosticSettings@2021-05-01-preview' = {
+  name: 'auditoria'
+  scope: kv
+  properties: { workspaceId: logs.id, logs: [{ category: 'AuditEvent', enabled: true }] }
 }
 
 // ───────────── Azure SQL ─────────────
@@ -132,6 +145,22 @@ resource sql 'Microsoft.Sql/servers@2023-08-01-preview' = {
     minimalTlsVersion: '1.2'
     publicNetworkAccess: 'Enabled'
   }
+}
+// Auditoria do SQL (logins, consultas, alterações) no Log Analytics: quem acessou os bancos dos clientes e quando.
+resource sqlMaster 'Microsoft.Sql/servers/databases@2023-08-01-preview' existing = {
+  parent: sql
+  name: 'master'
+}
+resource sqlAuditDiag 'Microsoft.Insights/diagnosticSettings@2021-05-01-preview' = {
+  name: 'auditoria'
+  scope: sqlMaster
+  properties: { workspaceId: logs.id, logs: [{ category: 'SQLSecurityAuditEvents', enabled: true }] }
+}
+resource sqlAudit 'Microsoft.Sql/servers/auditingSettings@2023-08-01-preview' = {
+  parent: sql
+  name: 'default'
+  dependsOn: [sqlAuditDiag]
+  properties: { state: 'Enabled', isAzureMonitorTargetEnabled: true }
 }
 // Container Apps (consumo) sai por IPs do Azure: libera serviços do Azure.
 resource sqlAzure 'Microsoft.Sql/servers/firewallRules@2023-08-01-preview' = {

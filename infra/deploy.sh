@@ -2,8 +2,9 @@
 # Implanta o CT Assessment 365 SaaS num resource group (idempotente: rode de novo para atualizar).
 #   1) infraestrutura (SQL + pool, Key Vault, ACR, Container Apps)  2) build das imagens no ACR
 #   3) portal e job apontando para as imagens novas
-# Pré-requisitos: az login; variáveis abaixo exportadas (guarde-as num cofre: trocar AUTH_SECRET derruba as sessões,
-# trocar JOB_SIGNING_SECRET invalida execuções em andamento).
+# Pré-requisitos: az login. Os segredos ficam no Key Vault do ambiente (deploy-sql-admin-password, deploy-auth-secret…):
+# basta exportar RG; o que estiver exportado tem precedência. No primeiro deploy (cofre ainda não existe), exporte tudo.
+# Trocar AUTH_SECRET derruba as sessões; trocar JOB_SIGNING_SECRET invalida execuções em andamento.
 #   RG, LOCATION                          ex.: rg-ctassessment, brazilsouth
 #   SQL_ADMIN_PASSWORD                    senha forte do admin do Azure SQL
 #   AUTH_SECRET, JOB_SIGNING_SECRET, WORKER_TOKEN   openssl rand -base64 33
@@ -12,8 +13,19 @@
 #            BOOTSTRAP_ADMIN_EMAIL, BOOTSTRAP_ADMIN_PASSWORD, TAG, REMOVE_OLD_WORKER=1
 set -euo pipefail
 cd "$(dirname "$0")/.."
-: "${RG:?defina RG}" "${LOCATION:?defina LOCATION}" "${SQL_ADMIN_PASSWORD:?}" "${AUTH_SECRET:?}" "${JOB_SIGNING_SECRET:?}" "${WORKER_TOKEN:?}"
+: "${RG:?defina RG}"
 PREFIX="${PREFIX:-ctassess}"
+# Segredos do deploy guardados no Key Vault do ambiente (deploy-<nome>): o que não estiver exportado vem de lá.
+KV=$(az keyvault list -g "$RG" --query "[?starts_with(name, '${PREFIX}-kv')].name | [0]" -o tsv 2>/dev/null || true)
+for v in LOCATION SQL_ADMIN_PASSWORD AUTH_SECRET JOB_SIGNING_SECRET WORKER_TOKEN BOOTSTRAP_ADMIN_EMAIL BOOTSTRAP_ADMIN_PASSWORD ADMIN_EMAILS INTERNAL_EMAIL_DOMAINS; do
+  if [ -z "${!v:-}" ] && [ -n "$KV" ]; then
+    val=$(az keyvault secret show --vault-name "$KV" -n "deploy-$(echo "$v" | tr '_A-Z' '-a-z')" --query value -o tsv 2>/dev/null || true)
+    [ -n "$val" ] && export "$v=$val"
+  fi
+done
+: "${LOCATION:?defina LOCATION}" "${SQL_ADMIN_PASSWORD:?}" "${AUTH_SECRET:?}" "${JOB_SIGNING_SECRET:?}" "${WORKER_TOKEN:?}"
+# Quem roda o deploy continua com acesso aos segredos (a política do Key Vault é recriada a cada deploy)
+OPERATORS="${OPERATOR_OBJECT_IDS:-$(az ad signed-in-user show --query id -o tsv 2>/dev/null || true)}"
 TAG="${TAG:-$(git rev-parse --short HEAD 2>/dev/null || date +%Y%m%d%H%M)}"
 
 common=(
@@ -22,6 +34,7 @@ common=(
   entraClientId="${ENTRA_CLIENT_ID:-}" entraClientSecret="${ENTRA_CLIENT_SECRET:-}"
   adminEmails="${ADMIN_EMAILS:-}" internalEmailDomains="${INTERNAL_EMAIL_DOMAINS:-cloudtarget.com.br}"
   bootstrapAdminEmail="${BOOTSTRAP_ADMIN_EMAIL:-}" bootstrapAdminPassword="${BOOTSTRAP_ADMIN_PASSWORD:-}"
+  operatorObjectIds="$(printf '%s' "$OPERATORS" | tr ', ' '\n\n' | sed '/^$/d' | jq -R . | jq -sc .)"
 )
 
 az group show -n "$RG" -o none 2>/dev/null || az group create -n "$RG" -l "$LOCATION" -o none

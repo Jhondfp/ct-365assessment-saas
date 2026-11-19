@@ -7,6 +7,7 @@ import { duplicateGroups, evolution, usage, versionSites } from "@/lib/reportExt
 import { reportData, reportExecutions, sectionCounts, SECTIONS, SECTION_WORKLOAD, type SectionKey } from "@/lib/report";
 import { Empty, PageHeader } from "@/components/ui";
 import { PrintButton, ReportToolbar } from "@/components/report/ReportToolbar";
+import { ReportBody, ReportShell, ReportTabs } from "@/components/report/ReportShell";
 import { GoogleReport } from "@/components/report/GoogleReport";
 import { googleData } from "@/lib/googleReport";
 import { Adoption, Exchange, Intune, Licensing, Overview, SiteSection } from "@/components/report/sections";
@@ -29,11 +30,11 @@ export default async function Relatorio({ params, searchParams }: { params: Prom
   if (c.platform === "GOOGLE") {
     const g = await googleData(c.id, current);
     return (
-      <>
+      <ReportShell>
         <PageHeader title={`Levantamento Google Workspace · ${c.name}`} subtitle={<>Coleta de {execs.find((e) => e.id === current)?.label} · foco na migração para o Microsoft 365</>} actions={<PrintButton />} />
         <div className="mb-5"><ReportToolbar execs={execs.map(({ id, label }) => ({ id, label }))} current={current} compare={null} /></div>
-        <GoogleReport d={g} exportHref={`/api/relatorio/${c.id}/migracao?${new URLSearchParams({ execution: current }).toString()}`} />
-      </>
+        <ReportBody><GoogleReport d={g} exportHref={`/api/relatorio/${c.id}/migracao?${new URLSearchParams({ execution: current }).toString()}`} /></ReportBody>
+      </ReportShell>
     );
   }
   const secao0 = (SECTIONS.some((s) => s.key === sp.secao) ? sp.secao : "visao") as SectionKey;
@@ -57,7 +58,7 @@ export default async function Relatorio({ params, searchParams }: { params: Prom
   const label = execs.find((e) => e.id === current)?.label;
 
   return (
-    <>
+    <ReportShell>
       <PageHeader
         title={`Relatório · ${c.name}`}
         subtitle={<>Coleta de {label}{compare && <> · comparando com {execs.find((e) => e.id === compare)?.label}</>}</>}
@@ -70,17 +71,11 @@ export default async function Relatorio({ params, searchParams }: { params: Prom
         <ReportToolbar execs={execs.map(({ id, label }) => ({ id, label }))} current={current} compare={compare} />
         <a className="text-xs text-slate-500 hover:text-ct-purple print:hidden" href={`/relatorio/${c.id}?execution=${encodeURIComponent(current)}`} target="_blank" rel="noopener">Abrir dashboard clássico ↗</a>
       </div>
-      <nav className="mb-6 flex flex-wrap gap-1 border-b border-slate-200 print:hidden" aria-label="Seções do relatório">
-        {SECTIONS.map((s) => {
-          const on = s.key === secao, has = counts[s.key] > 0;
-          return (
-            <Link key={s.key} href={`/clientes/${c.id}/relatorio${qs({ secao: s.key })}`} title={has ? undefined : `Sem dados nesta coleta (workload ${SECTION_WORKLOAD[s.key]})`}
-              className={`-mb-px border-b-2 px-3 py-2 text-sm font-medium ${on ? "border-ct-purple text-ct-purple" : has ? "border-transparent text-slate-600 hover:text-slate-900" : "border-transparent text-slate-300"}`}>
-              {s.label}{s.key !== "visao" && has && <span className="ml-1.5 rounded-full bg-slate-100 px-1.5 text-xs text-slate-600">{counts[s.key].toLocaleString("pt-BR")}</span>}
-            </Link>
-          );
-        })}
-      </nav>
+      <ReportTabs tabs={SECTIONS.map((s) => ({
+        key: s.key, label: s.label, href: `/clientes/${c.id}/relatorio${qs({ secao: s.key })}`, on: s.key === secao, has: counts[s.key] > 0,
+        count: s.key !== "visao" ? counts[s.key] : undefined, title: counts[s.key] > 0 ? undefined : `Sem dados nesta coleta (workload ${SECTION_WORKLOAD[s.key]})`,
+      }))} />
+      <ReportBody>
       {secao === "visao" && <Overview d={d} p={p} base={base} evo={evo} />}
       {secao === "sharepoint" && <SiteSection d={d} p={p} type="SharePoint" versions={versions} hygieneHref={hygieneHref} duplicates={dups} dupHref={dupHref} />}
       {secao === "onedrive" && <SiteSection d={d} p={p} type="OneDrive" versions={versions} hygieneHref={hygieneHref} />}
@@ -88,6 +83,7 @@ export default async function Relatorio({ params, searchParams }: { params: Prom
       {secao === "adocao" && <Adoption d={d} />}
       {secao === "exchange" && <Exchange d={d} />}
       {secao === "intune" && <Intune d={d} />}
-    </>
+      </ReportBody>
+    </ReportShell>
   );
 }

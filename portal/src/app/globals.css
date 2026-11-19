@@ -31,3 +31,5 @@ body { @apply bg-slate-50 text-ct-ink antialiased; }
   .card { @apply shadow-none; break-inside: avoid; }
   a { text-decoration: none !important; }
 }
+
+@keyframes ctload { 0% { transform: translateX(-100%); } 100% { transform: translateX(300%); } }

@@ -4,6 +4,7 @@ import { Empty } from "@/components/ui";
 import { PLAN_ORDER, type GoogleData } from "@/lib/googleReport";
 import { bytes, num, pct } from "@/lib/insights";
 
+const DEVICE_STATUS: Record<string, string> = { APPROVED: "Aprovado", ACTIVE: "Ativo", PENDING: "Pendente", BLOCKED: "Bloqueado", DISABLED: "Desativado", DEPROVISIONED: "Desprovisionado", WIPING: "Apagando", WIPED: "Apagado", PROVISIONED: "Provisionado" };
 const GB = 1024 ** 3, MB = 1024 ** 2;
 const gb = (mbv: number) => bytes(mbv * MB);
 
@@ -59,7 +60,13 @@ export function GoogleReport({ d, exportHref }: { d: GoogleData; exportHref: str
       <div className="grid gap-6 lg:grid-cols-2">
         <Card title="Licenciamento Microsoft 365 sugerido" aside={<span className="text-xs text-slate-500">pelo uso real{d.bigTenant ? " · mais de 300 usuários: sem planos Business" : ""}</span>}>
           <BarList rows={plans.map((p) => ({ label: p.plan, value: p.n, display: `${num(p.n)} · ${pct(p.n, u.length)}%`, sub: u.find((x) => x.plan === p.plan)?.reason }))} />
-          <p className="mt-2 text-xs text-slate-500">Sugestão para dimensionar a proposta: valide requisitos de segurança, compliance e aplicativos desktop antes de fechar o licenciamento.</p>
+          {d.licenses.length > 0 && (
+            <div className="mt-5 border-t border-slate-100 pt-4">
+              <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Hoje no Google</h3>
+              <BarList color={SERIES[2]} rows={d.licenses.map((l) => ({ label: l.sku, value: l.n, display: num(l.n) }))} />
+            </div>
+          )}
+          <p className="mt-3 text-xs text-slate-500">Sugestão para dimensionar a proposta: valide requisitos de segurança, compliance e aplicativos desktop antes de fechar o licenciamento.</p>
         </Card>
         <Card title="Pontos de atenção para a migração" aside={<span className="text-xs text-slate-500">{findings.length} ponto(s)</span>}>
           {findings.length ? (
@@ -97,41 +104,37 @@ export function GoogleReport({ d, exportHref }: { d: GoogleData; exportHref: str
       </Card>
 
       <Card title="Usuários" aside={<a className="link text-xs print:hidden" href={exportHref}>Exportar resumo (JSON para o Archie)</a>}>
-        <DataTable file="usuarios-google" initialSort={{ key: "gmailMB", dir: "desc" }} cols={[
-          { key: "email", label: "Usuário" }, { key: "ou", label: "Unidade" }, { key: "plan", label: "Licença sugerida" }, { key: "reason", label: "Motivo" },
+        <DataTable file="usuarios-google" initialSort={{ key: "gmailBytes", dir: "desc" }} cols={[
+          { key: "email", label: "Usuário" }, { key: "ou", label: "Unidade" }, { key: "planShort", label: "Licença sugerida" },
           { key: "gmailBytes", label: "E-mail", kind: "bytes" }, { key: "driveBytes", label: "Drive", kind: "bytes" }, { key: "lastLogin", label: "Último login", kind: "date" },
-          { key: "external", label: "Itens externos", kind: "num" }, { key: "license", label: "Licença Google" }, { key: "status", label: "Situação" },
-        ]} rows={u.map((x) => ({ ...x, gmailBytes: x.gmailMB * MB, driveBytes: x.driveMB * MB, lastLogin: x.lastLogin?.toISOString() ?? null, status: x.archived ? "Arquivado" : x.suspended ? "Suspenso" : x.admin ? "Admin" : "" }))} />
+          { key: "external", label: "Itens externos", kind: "num" }, { key: "status", label: "Situação" },
+        ]} rows={u.map((x) => ({ ...x, planShort: x.plan.replace(/^Microsoft 365 |^Office 365 /, ""), gmailBytes: x.gmailMB * MB, driveBytes: x.driveMB * MB, lastLogin: x.lastLogin?.toISOString() ?? null, status: x.archived ? "Arquivado" : x.suspended ? "Suspenso" : x.admin ? "Admin" : "" }))} />
+        <p className="mt-2 text-xs text-slate-500">O motivo de cada sugestão e a licença Google atual vão no CSV e no JSON exportados.</p>
       </Card>
 
       <div className="grid gap-6 lg:grid-cols-2">
-        <Card title="Domínios">
-          <DataTable file="dominios-google" pageSize={10} cols={[{ key: "name", label: "Domínio" }, { key: "tipo", label: "Tipo" }, { key: "verificado", label: "Verificado" }]}
-            rows={d.domains.map((x) => ({ ...x, tipo: x.primary ? "Principal" : x.alias ? `Alias de ${x.parent}` : "Secundário", verificado: x.verified ? "Sim" : "Não" }))} />
-        </Card>
-        <Card title="Grupos">
-          <DataTable file="grupos-google" pageSize={10} initialSort={{ key: "members", dir: "desc" }} cols={[{ key: "email", label: "Grupo" }, { key: "name", label: "Nome" }, { key: "members", label: "Membros diretos", kind: "num" }]} rows={d.groups} />
-        </Card>
-      </div>
-
-      {(d.resources.length > 0 || d.devices.length > 0 || d.licenses.length > 0) && (
-        <div className="grid gap-6 lg:grid-cols-3">
-          {d.licenses.length > 0 && (
-            <Card title="Licenças Google atribuídas">
-              <BarList color={SERIES[2]} rows={d.licenses.map((l) => ({ label: l.sku, value: l.n, display: num(l.n) }))} />
-            </Card>
-          )}
+        <div className="space-y-6">
+          <Card title="Domínios">
+            <DataTable file="dominios-google" pageSize={10} cols={[{ key: "name", label: "Domínio" }, { key: "tipo", label: "Tipo" }, { key: "verificado", label: "Verificado" }]}
+              rows={d.domains.map((x) => ({ ...x, tipo: x.primary ? "Principal" : x.alias ? `Alias de ${x.parent}` : "Secundário", verificado: x.verified ? "Sim" : "Não" }))} />
+          </Card>
           {d.resources.length > 0 && (
             <Card title="Salas e recursos">
-              <DataTable file="recursos-google" pageSize={8} cols={[{ key: "name", label: "Recurso" }, { key: "category", label: "Tipo" }, { key: "capacity", label: "Capacidade", kind: "num" }]} rows={d.resources} />
-            </Card>
-          )}
-          {d.devices.length > 0 && (
-            <Card title="Dispositivos">
-              <DataTable file="dispositivos-google" pageSize={8} cols={[{ key: "model", label: "Modelo" }, { key: "os", label: "Sistema" }, { key: "owner", label: "Usuário" }, { key: "status", label: "Status" }]} rows={d.devices} />
+              <DataTable file="recursos-google" pageSize={8} cols={[{ key: "name", label: "Recurso" }, { key: "tipo", label: "Tipo" }, { key: "capacity", label: "Capacidade", kind: "num" }]}
+                rows={d.resources.map((x) => ({ ...x, tipo: x.category === "CONFERENCE_ROOM" ? "Sala de reunião" : "Equipamento / outro" }))} />
             </Card>
           )}
         </div>
+        <Card title="Grupos">
+          <DataTable file="grupos-google" pageSize={8} initialSort={{ key: "members", dir: "desc" }} cols={[{ key: "email", label: "Grupo" }, { key: "name", label: "Nome" }, { key: "members", label: "Membros diretos", kind: "num" }]} rows={d.groups} />
+        </Card>
+      </div>
+
+      {d.devices.length > 0 && (
+        <Card title="Dispositivos" aside={<span className="text-xs text-slate-500">celulares e Chromebooks gerenciados · base para o plano de Intune</span>}>
+          <DataTable file="dispositivos-google" pageSize={10} cols={[{ key: "tipo", label: "Tipo" }, { key: "model", label: "Modelo" }, { key: "os", label: "Sistema" }, { key: "owner", label: "Usuário" }, { key: "status", label: "Status" }, { key: "lastSync", label: "Última sincronização", kind: "date" }]}
+            rows={d.devices.map((x) => ({ ...x, tipo: x.kind === "chromeos" ? "Chromebook" : "Celular", status: DEVICE_STATUS[x.status.toUpperCase()] ?? x.status, lastSync: x.lastSync?.toISOString() ?? null }))} />
+        </Card>
       )}
       <p className="text-xs text-slate-500">Relatório de uso do Google de {d.reportDate.toLocaleDateString("pt-BR", { timeZone: "UTC" })} (o Google publica com 2 a 3 dias de atraso). Não lemos conteúdo de e-mails nem de arquivos.</p>
     </div>

@@ -1,18 +1,19 @@
 "use client";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
+import { useReportNav } from "./ReportShell";
 
 type Opt = { id: string; label: string };
 
 /** Seletor de execução e de comparação: troca a URL (dá para compartilhar o link de uma execução/aba). */
 export function ReportToolbar({ execs, current, compare }: { execs: Opt[]; current: string | null; compare: string | null }) {
-  const router = useRouter();
+  const { go: nav } = useReportNav();
   const path = usePathname();
   const sp = useSearchParams();
   const go = (k: string, v: string) => {
     const q = new URLSearchParams(sp.toString());
     if (v) q.set(k, v); else q.delete(k);
     if (k === "execucao" && q.get("comparar") === v) q.delete("comparar");
-    router.push(`${path}?${q.toString()}`);
+    nav(`${path}?${q.toString()}`);
   };
   return (
     <div className="flex flex-wrap items-end gap-3 print:hidden">

@@ -624,14 +624,21 @@ function Clear-PartialSiteData {
     $failed = [System.Collections.Generic.List[string]]::new()
     $want = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
     foreach ($s in $Sites) { if ($s.Url) { [void]$want.Add([string]$s.Url) } }
-    $withRows = @()
-    try {
-        $withRows = Invoke-DbReader -Query "SELECT DISTINCT site_url FROM $TableName WHERE execution_id = @exec" -Connection $Connection -TimeoutSeconds 600 `
-            -Parameters @{ '@exec' = $global:executionId }
-    } catch {
-        Write-Host "[DB] Falha ao listar dados parciais de ${TableName}: $($_.Exception.Message)" -ForegroundColor Yellow
-        foreach ($u in $want) { $failed.Add($u) }   # sem saber quem tem linha: deduplica todos no fim
-        return ,$failed
+    # Pergunta só pelos sites que vão ser processados (em blocos, pelo índice execution_id + site_url): listar
+    # todos os sites com linhas da coleta varria a tabela inteira e, em bancos grandes, estourava o tempo.
+    $withRows = [System.Collections.Generic.List[object]]::new()
+    $urls = @($want)
+    for ($i = 0; $i -lt $urls.Count; $i += 50) {
+        $chunk = $urls[$i..([math]::Min($i + 49, $urls.Count - 1))]
+        $p = @{ '@exec' = $global:executionId }
+        $names = for ($j = 0; $j -lt $chunk.Count; $j++) { $p["@u$j"] = $chunk[$j]; "@u$j" }
+        try {
+            $rows = Invoke-DbReader -Query "SELECT DISTINCT site_url FROM $TableName WITH (NOLOCK) WHERE execution_id = @exec AND site_url IN ($($names -join ','))" -Connection $Connection -TimeoutSeconds 120 -Parameters $p
+            foreach ($r in $rows) { $withRows.Add($r) }
+        } catch {
+            Write-Host "[DB] Falha ao listar dados parciais de ${TableName}: $($_.Exception.Message)" -ForegroundColor Yellow
+            foreach ($u in $chunk) { $failed.Add($u) }   # sem saber quem tem linha: deduplica esses no fim
+        }
     }
     foreach ($r in $withRows) {
         $u = [string]$r.site_url

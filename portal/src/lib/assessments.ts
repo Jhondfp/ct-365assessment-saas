@@ -6,9 +6,14 @@ import { ACTIVE } from "./status";
 import type { CollectorParams } from "./collector";
 
 /** O que falta para o cliente poder executar (vazio = pronto). */
-export function readiness(c: { active: boolean; m365TenantId: string | null; appClientId: string | null; spoTenant: string | null; credentialSetAt: Date | null }) {
+export function readiness(c: { active: boolean; platform?: string; googleAdminEmail?: string | null; googleDomain?: string | null; m365TenantId: string | null; appClientId: string | null; spoTenant: string | null; credentialSetAt: Date | null }) {
   const missing: string[] = [];
   if (!c.active) missing.push("cliente inativo");
+  if (c.platform === "GOOGLE") {
+    if (!c.googleAdminEmail || !c.googleDomain) missing.push("conexão com o Google Workspace");
+    if (!c.credentialSetAt) missing.push("chave JSON da conta de serviço");
+    return missing;
+  }
   if (!c.m365TenantId || !c.appClientId || !c.spoTenant) missing.push("conexão com o Microsoft 365");
   if (!c.credentialSetAt) missing.push("credencial (client secret ou certificado)");
   return missing;

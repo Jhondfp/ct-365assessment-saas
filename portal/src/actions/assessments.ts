@@ -6,7 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { audit } from "@/lib/audit";
 import { int, s } from "@/lib/form";
 import { requireClientPerm } from "@/lib/session";
-import { buildParams, MODULES, type ModuleKey } from "@/lib/collector";
+import { buildGoogleParams, buildParams, GOOGLE_MODULES, MODULES, type GoogleModuleKey, type ModuleKey } from "@/lib/collector";
 import { launchAssessment } from "@/lib/assessments";
 import { stopJob } from "@/lib/jobs";
 import { ACTIVE } from "@/lib/status";
@@ -16,6 +16,13 @@ const lines = (v: string | null) => (v ?? "").split(/[\r\n,;]+/).map((x) => x.tr
 async function startAssessment_(clientId: string, fd: FormData) {
   const me = await requireClientPerm(clientId, "assessments:run");
   const c = await prisma.client.findUniqueOrThrow({ where: { id: clientId } });
+  if (c.platform === "GOOGLE") {
+    const gm = Object.fromEntries(GOOGLE_MODULES.map((m) => [m.key, fd.get(m.key) === "on"])) as Record<GoogleModuleKey, boolean>;
+    if (!Object.values(gm).some(Boolean)) throw new Error("Escolha ao menos um módulo.");
+    const gid = await launchAssessment(clientId, buildGoogleParams(gm, c.name), me.id);
+    await audit(prisma, "Assessment", gid, "CREATE", me.id, { cliente: c.name, plataforma: "Google Workspace", modulos: Object.entries(gm).filter(([, v]) => v).map(([k]) => k).join(",") });
+    redirect(`/execucoes/${gid}`);
+  }
   const modules = Object.fromEntries(MODULES.map((m) => [m.key, fd.get(m.key) === "on"])) as Record<ModuleKey, boolean>;
   if (!Object.values(modules).some(Boolean)) throw new Error("Escolha ao menos um módulo.");
   if (modules.process_owner_status && !modules.process_sites_info) throw new Error("Donos ativos depende do módulo Sites e subsites.");

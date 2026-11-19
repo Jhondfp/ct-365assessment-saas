@@ -1,5 +1,4 @@
 import { requirePagePerm } from "@/lib/session";
-import { PERMISSIONS_HELP } from "@/lib/collector";
 import { tenantSqlConfigured } from "@/lib/tenantDb";
 import { createClient } from "@/actions/clients";
 import { ActionForm } from "@/components/ActionForm";
@@ -13,7 +12,7 @@ export default async function NovoCliente() {
   const prefix = process.env.TENANT_DB_PREFIX ?? "ctassess_";
   return (
     <>
-      <PageHeader title="Novo cliente" subtitle="Dados do cliente, conexão com o Microsoft 365 e banco de dados — tudo num cadastro só." />
+      <PageHeader title="Novo cliente" subtitle="Dados do cliente, plataforma (Microsoft 365 ou Google Workspace), conexão e banco de dados — tudo num cadastro só." />
       <ActionForm action={createClient} className="grid gap-6 lg:grid-cols-3" submit="Cadastrar cliente">
         <div className="space-y-6 lg:col-span-2">
           <section className="card">
@@ -26,7 +25,7 @@ export default async function NovoCliente() {
             </div>
           </section>
           <section className="card">
-            <h2 className="card-title">2. Conexão Microsoft 365 (App Registration do cliente)</h2>
+            <h2 className="card-title">2. Plataforma e conexão</h2>
             <div className="grid gap-4 sm:grid-cols-2"><ConnectionFields /></div>
           </section>
           <section className="card">
@@ -35,10 +34,13 @@ export default async function NovoCliente() {
           </section>
         </div>
         <aside className="card h-fit">
-          <h2 className="card-title">Permissões do App Registration</h2>
-          <p className="muted mb-2">No Entra ID do cliente, conceda (tipo Application, com consentimento do administrador):</p>
-          <ul className="list-disc space-y-1.5 break-words pl-5 text-sm text-slate-700 [overflow-wrap:anywhere]">{PERMISSIONS_HELP.map((p) => <li key={p}>{p}</li>)}</ul>
-          <p className="mt-3 text-xs text-slate-500">A credencial vai direto para o cofre (Key Vault) e nunca é exibida de volta.</p>
+          <h2 className="card-title">Antes de cadastrar</h2>
+          <ul className="list-disc space-y-2 pl-5 text-sm text-slate-700">
+            <li>Envie ao cliente o <b>guia de acesso</b> (no fim da seção 2): ele explica, passo a passo, o que criar no Microsoft 365 ou no Google Workspace e o que nos devolver.</li>
+            <li><b>Microsoft 365:</b> dá para cadastrar agora e gerar o certificado no portal; depois baixe o .cer na aba Conexão e mande para o cliente.</li>
+            <li><b>Google Workspace:</b> o cadastro precisa da chave JSON da conta de serviço que o cliente cria.</li>
+          </ul>
+          <p className="mt-3 text-xs text-slate-500">Credenciais vão direto para o cofre (Key Vault) e nunca são exibidas de volta.</p>
         </aside>
       </ActionForm>
     </>

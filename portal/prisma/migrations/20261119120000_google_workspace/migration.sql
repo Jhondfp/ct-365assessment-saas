@@ -1,0 +1,23 @@
+BEGIN TRY
+
+BEGIN TRAN;
+
+-- AlterTable
+ALTER TABLE [dbo].[Client] ADD [googleAdminEmail] NVARCHAR(1000),
+[googleCustomerId] NVARCHAR(1000),
+[googleDomain] NVARCHAR(1000),
+[platform] NVARCHAR(1000) NOT NULL CONSTRAINT [Client_platform_df] DEFAULT 'M365';
+
+COMMIT TRAN;
+
+END TRY
+BEGIN CATCH
+
+IF @@TRANCOUNT > 0
+BEGIN
+    ROLLBACK TRAN;
+END;
+THROW
+
+END CATCH
+

@@ -123,6 +123,14 @@ Recursos criados: Azure SQL (banco do portal S0 + elastic pool Standard 50 eDTU 
 
 O coletor (`job/src`) veio do ct-assessmentspo on-premises e agora é mantido **só aqui**: corrija e evolua neste repositório. Mudanças no banco dos clientes entram como migração incremental idempotente em `portal/sql/tenant` (`NNN_nome.sql`), aplicada pelo portal antes de cada coleta.
 
+## Google Workspace (levantamento para migração)
+
+Cliente com plataforma **Google Workspace** (cadastro do cliente). Foco: dimensionar a migração para o Microsoft 365.
+
+- **Acesso**: conta de serviço do cliente com delegação em todo o domínio (só escopos de leitura, lista em `src/lib/setupGuides.ts`) + e-mail de um administrador (de preferência com função personalizada só leitura). A chave JSON vai para o Key Vault (`gsa`). O guia copiável para enviar ao cliente aparece no cadastro e na aba Conexão (o de Microsoft 365 também).
+- **Coletor**: `job/google/` (`Google.ps1` = JWT RS256 + paginação; `Invoke-GoogleAssessment.ps1` = módulos). O entrypoint desvia para ele quando `auth.platform = google`. Módulos: identidades (usuários, grupos, OUs, domínios), uso de e-mail/Drive (Reports API, 2 a 3 dias de atraso), licenças Google, salas/recursos e dispositivos. Tabelas `g_*` (migração tenant `003`). Não lê conteúdo de e-mails nem arquivos.
+- **Relatório** (`components/report/GoogleReport.tsx`, regras em `src/lib/googleReport.ts`): licença Microsoft 365 sugerida por usuário pelo uso real, ondas por unidade organizacional, pontos de atenção (caixas > 50/100 GB, sem 2 etapas, compartilhamento externo, contas inativas, domínios) e exportação JSON para o Archie (`/api/relatorio/<cliente>/migracao`).
+
 ## Higienização
 
 Ações que **alteram** o tenant do cliente, a partir do que o assessment encontrou. Sempre começam em simulação.

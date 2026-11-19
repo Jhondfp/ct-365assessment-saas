@@ -9,6 +9,7 @@ import { can } from "@/lib/rbac";
 import { readiness } from "@/lib/assessments";
 import { ACTIVE, DB_STATUS_LABEL } from "@/lib/status";
 import { PERMISSIONS_HELP } from "@/lib/collector";
+import { GOOGLE_SCOPES } from "@/lib/setupGuides";
 import { SECRET_STORE } from "@/lib/secrets";
 import { dateTime } from "@/lib/format";
 import { importDbExecutions, provisionDb, removeCredential, runDiagnostic, saveConnection, saveDatabase, testConnection, updateClient } from "@/actions/clients";
@@ -40,11 +41,12 @@ export default async function Cliente({ params, searchParams }: { params: Promis
   const canConn = canManage;
   const cert = t === "conexao" && canConn && c.authMode === "cert" && c.credentialSetAt ? await certificateInfo(c.id) : null;
   const canRun = can(u.roles, "assessments:run");
+  const google = c.platform === "GOOGLE";
   const tabs = [
     { key: "visao", label: "Visão geral" },
-    ...(canConn ? [{ key: "conexao", label: "Conexão Microsoft 365" }] : []),
+    ...(canConn ? [{ key: "conexao", label: google ? "Conexão Google Workspace" : "Conexão Microsoft 365" }] : []),
     { key: "execucoes", label: "Execuções", count: c.assessments.length },
-    ...(canRun ? [{ key: "higienizacao", label: "Higienização" }] : []),
+    ...(canRun && !google ? [{ key: "higienizacao", label: "Higienização" }] : []),
     ...(canManage ? [{ key: "cadastro", label: "Cadastro e banco" }] : []),
   ];
   const tab = tabs.some((x) => x.key === t) ? t! : "visao";
@@ -59,7 +61,7 @@ export default async function Cliente({ params, searchParams }: { params: Promis
     <>
       <PageHeader
         title={c.name}
-        subtitle={<>{c.spoTenant ? `${c.spoTenant}.sharepoint.com` : "Microsoft 365 não configurado"}{!c.active && <span className="ml-2"><Badge>inativo</Badge></span>}</>}
+        subtitle={<>{google ? (c.googleDomain ? `Google Workspace · ${c.googleDomain} · levantamento para migração` : "Google Workspace não configurado") : c.spoTenant ? `${c.spoTenant}.sharepoint.com` : "Microsoft 365 não configurado"}{!c.active && <span className="ml-2"><Badge>inativo</Badge></span>}</>}
         actions={<>
           {c.dbStatus === "PROVISIONADO" && <Link href={`/clientes/${c.id}/relatorio`} className="btn-secondary">Relatório</Link>}
           {canRun && !active && !missing.length && <Link href={`/clientes/${c.id}/executar`} className="btn">Nova execução</Link>}
@@ -73,7 +75,8 @@ export default async function Cliente({ params, searchParams }: { params: Promis
           <section className="card">
             <h2 className="card-title">Prontidão</h2>
             <ul className="space-y-2 text-sm">
-              <Check ok={!!(c.m365TenantId && c.appClientId && c.spoTenant)} label="Conexão com o Microsoft 365" />
+              {google ? <Check ok={!!(c.googleAdminEmail && c.googleDomain)} label="Conexão com o Google Workspace" />
+                : <Check ok={!!(c.m365TenantId && c.appClientId && c.spoTenant)} label="Conexão com o Microsoft 365" />}
               <Check ok={!!c.credentialSetAt} label={`Credencial ${c.credentialHint ? `(${c.credentialHint})` : ""}`} />
               <Check ok={!!c.connectionOkAt} label={c.connectionOkAt ? `Conexão testada em ${dateTime(c.connectionOkAt)}` : "Conexão testada"} optional />
               <Check ok={c.dbStatus === "PROVISIONADO"} label={`Banco ${c.dbName ?? ""} (${DB_STATUS_LABEL[c.dbStatus] ?? c.dbStatus})`} optional={!canManage} />
@@ -126,7 +129,7 @@ export default async function Cliente({ params, searchParams }: { params: Promis
               {c.connectionOkAt && <Badge tone="green">testada em {dateTime(c.connectionOkAt)}</Badge>}
             </div>
             {c.connectionError && <p className="mt-3 rounded-lg bg-red-50 p-3 text-sm text-red-800">{c.connectionError}</p>}
-            <p className="mt-3 text-xs text-slate-500">O diagnóstico roda no worker (leva cerca de 1 minuto): testa a credencial, o Graph, as permissões concedidas ao app, o SharePoint Admin e o banco do cliente.</p>
+            <p className="mt-3 text-xs text-slate-500">{google ? "O diagnóstico roda no coletor (cerca de 1 minuto): testa a chave da conta de serviço, a delegação de cada escopo e o banco do cliente." : "O diagnóstico roda no worker (leva cerca de 1 minuto): testa a credencial, o Graph, as permissões concedidas ao app, o SharePoint Admin e o banco do cliente."}</p>
           </section>
           <div className="space-y-6">
           {lastDiag && (
@@ -140,9 +143,15 @@ export default async function Cliente({ params, searchParams }: { params: Promis
             </section>
           )}
           <section className="card">
+            {google ? (<>
+              <h2 className="card-title">Escopos da delegação (só leitura)</h2>
+              <p className="muted mb-2">Admin Console → Segurança → Controles de API → Delegação em todo o domínio, para o ID da conta de serviço:</p>
+              <ul className="list-disc space-y-1 break-all pl-5 font-mono text-[11px] text-slate-700">{GOOGLE_SCOPES.map((p) => <li key={p}>{p.replace("https://www.googleapis.com/auth/", "")}</li>)}</ul>
+            </>) : (<>
             <h2 className="card-title">Permissões do App Registration</h2>
             <p className="muted mb-2">No Entra ID do cliente, conceda (tipo Application, com consentimento do administrador):</p>
             <ul className="list-disc space-y-1.5 break-words pl-5 text-sm text-slate-700 [overflow-wrap:anywhere]">{PERMISSIONS_HELP.map((p) => <li key={p}>{p}</li>)}</ul>
+            </>)}
           </section>
           </div>
         </div>
@@ -163,7 +172,7 @@ export default async function Cliente({ params, searchParams }: { params: Promis
         </section>
       )}
 
-      {tab === "higienizacao" && canRun && (
+      {tab === "higienizacao" && canRun && !google && (
         <Suspense key={`${keep}-${from ?? ""}-${presetSites.length}`} fallback={<div className="card flex items-center gap-3 text-sm text-slate-600"><span className="h-4 w-4 animate-spin rounded-full border-2 border-ct-purple border-t-transparent" />Calculando os arquivos com excesso de versões na última coleta…</div>}>
           <HygieneTab client={c} keep={keep} from={from} sites={presetSites} />
         </Suspense>

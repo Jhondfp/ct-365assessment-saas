@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { LogLine, Preflight, Progress, Workload } from "@/lib/status";
+import { GOOGLE_SCOPES } from "@/lib/setupGuides";
 
 type Data = {
   status: string; attempts: number; error: string | null; heartbeatAt: string | null;
@@ -15,6 +16,7 @@ const LEVEL: Record<string, string> = { ERROR: "text-red-400", CRITICAL: "text-f
 const STEP: Record<string, string> = {
   licensing: "Coleta de Licenciamento", adoption: "Coleta de Adocao", mailbox: "Coleta de Caixas de Email", intune: "Intune - Coleta",
   sites: "Coleta de Sites", owner_status: "Verificacao de Donos Ativos", files: "Coleta de Arquivos", trash: "Coleta de Lixeiras",
+  g_identity: "Google · Identidades", g_usage: "Google · E-mail e Drive",
 };
 const W_STYLE: Record<Workload["status"], { dot: string; text: string; label: string }> = {
   pending: { dot: "bg-slate-300", text: "text-slate-500", label: "Aguardando" },
@@ -143,6 +145,25 @@ export function PreflightCard({ p }: { p: Preflight | null; active?: boolean }) 
     </li>
   );
   const granted = p.permissions?.granted ?? [];
+  const google = granted.some((g) => g.startsWith("Google:")) || p.graph?.detail?.startsWith("Google Workspace");
+  if (google) {
+    return (
+      <section className="card">
+        <h2 className="card-title">Checagem prévia</h2>
+        <ul>{row("Google Workspace", p.graph)}{row("Banco do cliente", p.database)}</ul>
+        <div className="mt-3 border-t border-slate-100 pt-3">
+          <p className="label">Escopos da delegação</p>
+          <ul className="space-y-1">
+            {GOOGLE_SCOPES.map((s) => {
+              const short = s.replace("https://www.googleapis.com/auth/", "");
+              const ok = granted.includes(`Google:${short}`);
+              return <li key={s} className={`flex items-center gap-2 font-mono text-[11px] ${ok ? "text-slate-700" : "text-amber-800"}`}><span>{ok ? "✓" : "—"}</span>{short}{!ok && <span className="font-sans"> (sem delegação)</span>}</li>;
+            })}
+          </ul>
+        </div>
+      </section>
+    );
+  }
   return (
     <section className="card">
       <h2 className="card-title">Checagem prévia</h2>

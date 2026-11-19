@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { requireUser, canSeeClient } from "@/lib/session";
 import { can } from "@/lib/rbac";
 import { reconcile } from "@/lib/assessments";
-import { enabledModules } from "@/lib/collector";
+import { enabledGoogleModules, enabledModules } from "@/lib/collector";
 import { manualCommand, RUNNER_LABEL, type Runner } from "@/lib/jobs";
 import { ACTIVE, HAS_DATA, parseJson, type LogLine, type Preflight, type Progress, type Workload } from "@/lib/status";
 import { explainError } from "@/lib/errors";
@@ -114,7 +114,7 @@ export default async function Execucao({ params }: { params: Promise<{ id: strin
           <div><dt className="label">Onde rodou</dt><dd>{RUNNER_LABEL[a.runner as Runner | "importado"] ?? a.runner}{a.runnerRef && <span className="block font-mono text-xs text-slate-500">{a.runnerRef}</span>}</dd></div>
           <div><dt className="label">Identificador</dt><dd className="break-all font-mono text-xs">{a.id}</dd></div>
           {!diagnostic && !hygiene && !deletion && !repair && (
-            <div className="sm:col-span-2 lg:col-span-4"><dt className="label">Workloads solicitados</dt><dd className="flex flex-wrap gap-1">{imported ? <span className="muted">Não registrados (execução feita fora do portal).</span> : enabledModules(params_).map((m) => <Badge key={m} tone="purple">{m}</Badge>)}</dd></div>
+            <div className="sm:col-span-2 lg:col-span-4"><dt className="label">Workloads solicitados</dt><dd className="flex flex-wrap gap-1">{imported ? <span className="muted">Não registrados (execução feita fora do portal).</span> : (a.client.platform === "GOOGLE" ? enabledGoogleModules(params_) : enabledModules(params_)).map((m) => <Badge key={m} tone="purple">{m}</Badge>)}</dd></div>
           )}
           {Array.isArray(params_.sites) && (params_.sites as string[]).length > 0 && (
             <div className="sm:col-span-2 lg:col-span-4"><dt className="label">Sites específicos</dt><dd className="font-mono text-xs">{(params_.sites as string[]).join(", ")}</dd></div>

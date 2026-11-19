@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireClientPage } from "@/lib/session";
 import { reportData, reportExecutions } from "@/lib/report";
@@ -14,8 +14,9 @@ export default async function Executivo({ params, searchParams }: { params: Prom
   const { id } = await params;
   const sp = await searchParams;
   await requireClientPage(id);
-  const c = await prisma.client.findUnique({ where: { id }, select: { id: true, name: true, dbStatus: true, spoTenant: true } });
+  const c = await prisma.client.findUnique({ where: { id }, select: { id: true, name: true, dbStatus: true, spoTenant: true, platform: true } });
   if (!c) notFound();
+  if (c.platform === "GOOGLE") redirect(`/clientes/${c.id}/relatorio`);
   const execs = await reportExecutions(c.id, c.name);
   const current = sp.execucao && execs.some((e) => e.id === sp.execucao) ? sp.execucao : execs[0]?.id ?? null;
   const d = current ? await reportData(c.id, current) : null;

@@ -15,6 +15,7 @@ COPY src ./src
 COPY Invoke-SaasAssessment.ps1 Invoke-SaasHygiene.ps1 Invoke-SaasBatches.ps1 Invoke-SaasDelete.ps1 Invoke-SaasRepair.ps1 Start-Worker.ps1 ./
 # higienização (limpeza de versões etc.) — scripts que ALTERAM o tenant; ver job/hygiene
 COPY hygiene ./hygiene
+COPY google ./google
 
 # o coletor grava logs/ e src/progress/ relativos à raiz do projeto
 RUN mkdir -p logs src/progress && useradd -r -u 10001 -m collector && chown -R collector /app

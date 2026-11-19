@@ -63,3 +63,20 @@ export function buildParams(input: {
 }
 
 export const enabledModules = (params: CollectorParams) => MODULES.filter((m) => params[m.key]).map((m) => m.label);
+
+// ───────────── Google Workspace (levantamento para migração ao Microsoft 365) ─────────────
+export const GOOGLE_MODULES = [
+  { key: "g_identity", label: "Identidades", hint: "Usuários, aliases, 2 etapas, último login, grupos, unidades organizacionais e domínios", default: true },
+  { key: "g_usage", label: "E-mail e Drive", hint: "Tamanho do Gmail e do Drive por usuário, atividade e compartilhamento externo (relatórios de uso)", default: true },
+  { key: "g_licensing", label: "Licenças", hint: "Licenças do Google Workspace atribuídas por usuário", default: true },
+  { key: "g_resources", label: "Salas e recursos", hint: "Recursos de agenda (viram caixas de sala/equipamento no Exchange)", default: true },
+  { key: "g_devices", label: "Dispositivos", hint: "Celulares e Chromebooks gerenciados", default: false },
+] as const;
+export type GoogleModuleKey = (typeof GOOGLE_MODULES)[number]["key"];
+
+export function buildGoogleParams(modules: Partial<Record<GoogleModuleKey, boolean>>, clientName: string): CollectorParams {
+  const p: CollectorParams = { platform: "google", client_name: clientName, store_in_sql: true };
+  for (const m of GOOGLE_MODULES) p[m.key] = !!modules[m.key];
+  return p;
+}
+export const enabledGoogleModules = (params: CollectorParams) => GOOGLE_MODULES.filter((m) => params[m.key]).map((m) => m.label);

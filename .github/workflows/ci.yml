@@ -41,6 +41,9 @@ jobs:
       - name: Exclusão de coleta (banco simulado)
         shell: pwsh
         run: ./job/tests/Test-Delete.ps1
+      - name: Google Workspace (APIs e banco simulados)
+        shell: pwsh
+        run: ./job/tests/Test-Google.ps1
       - run: docker build -t ctassessment-job:ci job
 
   infra:

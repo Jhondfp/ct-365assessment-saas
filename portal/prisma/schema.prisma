@@ -71,12 +71,19 @@ model Client {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  /// M365 (assessment de governança) | GOOGLE (Google Workspace: levantamento para migração ao Microsoft 365)
+  platform        String    @default("M365")
+  /// GOOGLE: administrador que a conta de serviço representa (delegação em todo o domínio), domínio principal e customer id
+  googleAdminEmail String?
+  googleDomain     String?
+  googleCustomerId String?
+
   // Conexão com o Microsoft 365 do cliente (App Registration do próprio cliente)
   m365TenantId    String?
   /// nome curto do SharePoint (contoso de contoso.sharepoint.com)
   spoTenant       String?
   appClientId     String?
-  /// secret | cert
+  /// secret | cert (M365) · gsa = chave JSON da conta de serviço (Google)
   authMode        String    @default("secret")
   /// segredo (client secret ou PFX) gravado no cofre: Key Vault ou tabela StoredSecret
   credentialSetAt DateTime?

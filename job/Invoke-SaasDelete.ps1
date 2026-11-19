@@ -12,7 +12,9 @@ $deleteTables = @(
     'agg_growth_monthly', 'agg_top_heaviest_files', 'agg_top_versioned_files', 'agg_file_types_by_sitetype', 'agg_version_by_site',
     'agg_stale_by_site_year', 'agg_file_types', 'agg_files_by_owner', 'agg_duplicate_candidates', 'agg_files_by_site',
     'intune_compliance_states', 'intune_devices', 'meetings', 'licensing_info', 'mailbox_info', 'user_activity',
-    'trash_items', 'files_info', 'site_owner_status', 'execution_progress', 'sites_info', 'execution_logs', 'execution_history'
+    'trash_items', 'files_info', 'site_owner_status', 'execution_progress', 'sites_info',
+    'g_users', 'g_groups', 'g_orgunits', 'g_domains', 'g_licenses', 'g_resources', 'g_devices',
+    'execution_logs', 'execution_history'
 )
 
 $status = 'failed'; $err = $null; $totalRows = 0L; $perTable = [ordered]@{}

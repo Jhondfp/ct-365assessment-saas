@@ -7,13 +7,15 @@ import { duplicateGroups, evolution, usage, versionSites } from "@/lib/reportExt
 import { reportData, reportExecutions, sectionCounts, SECTIONS, SECTION_WORKLOAD, type SectionKey } from "@/lib/report";
 import { Empty, PageHeader } from "@/components/ui";
 import { PrintButton, ReportToolbar } from "@/components/report/ReportToolbar";
+import { GoogleReport } from "@/components/report/GoogleReport";
+import { googleData } from "@/lib/googleReport";
 import { Adoption, Exchange, Intune, Licensing, Overview, SiteSection } from "@/components/report/sections";
 
 export default async function Relatorio({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ execucao?: string; comparar?: string; secao?: string }> }) {
   const { id } = await params;
   const sp = await searchParams;
   const u = await requireClientPage(id);
-  const c = await prisma.client.findUnique({ where: { id }, select: { id: true, name: true, dbStatus: true } });
+  const c = await prisma.client.findUnique({ where: { id }, select: { id: true, name: true, dbStatus: true, platform: true } });
   if (!c) notFound();
   if (c.dbStatus !== "PROVISIONADO") {
     return (<><PageHeader title="Relatório" subtitle={<Link className="link" href={`/clientes/${c.id}`}>{c.name}</Link>} /><Empty>O banco deste cliente ainda não foi preparado. Rode a primeira coleta (ou conecte um banco existente) para gerar o relatório.</Empty></>);
@@ -23,6 +25,16 @@ export default async function Relatorio({ params, searchParams }: { params: Prom
   const compare = sp.comparar && sp.comparar !== current && execs.some((e) => e.id === sp.comparar) ? sp.comparar : null;
   if (!current) {
     return (<><PageHeader title="Relatório" subtitle={<Link className="link" href={`/clientes/${c.id}`}>{c.name}</Link>} /><Empty>Nenhuma coleta com dados ainda. Rode uma coleta ou importe as execuções do banco (aba Execuções do cliente).</Empty></>);
+  }
+  if (c.platform === "GOOGLE") {
+    const g = await googleData(c.id, current);
+    return (
+      <>
+        <PageHeader title={`Levantamento Google Workspace · ${c.name}`} subtitle={<>Coleta de {execs.find((e) => e.id === current)?.label} · foco na migração para o Microsoft 365</>} actions={<PrintButton />} />
+        <div className="mb-5"><ReportToolbar execs={execs.map(({ id, label }) => ({ id, label }))} current={current} compare={null} /></div>
+        <GoogleReport d={g} exportHref={`/api/relatorio/${c.id}/migracao?${new URLSearchParams({ execution: current }).toString()}`} />
+      </>
+    );
   }
   const secao0 = (SECTIONS.some((s) => s.key === sp.secao) ? sp.secao : "visao") as SectionKey;
   const [d, p, evo, versions, use, dups] = await Promise.all([

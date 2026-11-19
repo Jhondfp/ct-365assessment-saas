@@ -20,7 +20,8 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   if (err) return err;
   const c = a.client;
   const dbOnly = a.kind === "EXCLUSAO" || a.kind === "MANUTENCAO";
-  if (!c.dbName || (!dbOnly && (!c.m365TenantId || !c.appClientId || !c.spoTenant))) return Response.json({ error: "cliente sem conexão ou banco configurado" }, { status: 409 });
+  const google = c.platform === "GOOGLE";
+  if (!c.dbName || (!dbOnly && (google ? !c.googleAdminEmail || !c.googleDomain : !c.m365TenantId || !c.appClientId || !c.spoTenant))) return Response.json({ error: "cliente sem conexão ou banco configurado" }, { status: 409 });
 
   const db = await clientConn(c);
   const auth: Record<string, unknown> = {
@@ -38,6 +39,11 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   let certBase64: string | null = null;
   if (dbOnly) {
     auth.auth_mode = "none";
+  } else if (google) {
+    // Google Workspace: chave da conta de serviço (delegação em todo o domínio) + administrador que ela representa
+    const gsa = await getSecret(secretName(c.id, "gsa"));
+    if (!gsa) return Response.json({ error: "chave da conta de serviço do Google não encontrada no cofre" }, { status: 409 });
+    Object.assign(auth, { platform: "google", auth_mode: "gsa", google_admin: c.googleAdminEmail, google_domain: c.googleDomain, google_customer: c.googleCustomerId ?? "my_customer", google_sa: JSON.parse(gsa) });
   } else if (c.authMode === "cert") {
     certBase64 = await getSecret(secretName(c.id, "cert"));
     auth.cert_password = (await getSecret(secretName(c.id, "certpwd"))) ?? "";

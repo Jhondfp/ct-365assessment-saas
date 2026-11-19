@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireClientPage } from "@/lib/session";
-import { MODULES } from "@/lib/collector";
+import { GOOGLE_MODULES, MODULES } from "@/lib/collector";
 import { readiness } from "@/lib/assessments";
 import { RUNNER, RUNNER_LABEL } from "@/lib/jobs";
 import { startAssessment } from "@/actions/assessments";
@@ -27,6 +27,27 @@ export default async function Executar({ params }: { params: Promise<{ id: strin
       {missing.length > 0 ? (
         <div className="card max-w-2xl text-sm text-amber-900">Antes de executar, configure: {missing.join(", ")}. <Link className="link" href={`/clientes/${c.id}?tab=conexao`}>Ir para a conexão</Link></div>
       ) : (
+        c.platform === "GOOGLE" ? (
+          <ActionForm action={startAssessment.bind(null, c.id)} className="grid gap-6 lg:grid-cols-3" submit="Iniciar levantamento">
+            <section className="card lg:col-span-2">
+              <h2 className="card-title">Google Workspace · o que levantar</h2>
+              <div className="grid gap-3 sm:grid-cols-2">
+                {GOOGLE_MODULES.map((m) => (
+                  <label key={m.key} className="flex gap-3 rounded-lg border border-slate-200 p-3 hover:bg-slate-50">
+                    <input type="checkbox" name={m.key} defaultChecked={checked(m.key, m.default)} className="mt-1" />
+                    <span><span className="block text-sm font-medium">{m.label}</span><span className="block text-xs text-slate-500">{m.hint}</span></span>
+                  </label>
+                ))}
+              </div>
+            </section>
+            <section className="card space-y-2 text-sm text-slate-600">
+              <h2 className="card-title">Como funciona</h2>
+              <p>Os dados vêm dos relatórios do Google já agregados por usuário: não lemos conteúdo de e-mails nem de arquivos.</p>
+              <p>Os relatórios de uso do Google têm 2 a 3 dias de atraso: os números são “até anteontem”.</p>
+              <p>Mesmo em domínios grandes a coleta costuma levar de minutos a menos de uma hora.</p>
+            </section>
+          </ActionForm>
+        ) : (
         <ActionForm action={startAssessment.bind(null, c.id)} className="grid gap-6 lg:grid-cols-3" submit="Iniciar execução">
           <section className="card lg:col-span-2">
             <h2 className="card-title">Workloads a coletar</h2>
@@ -54,6 +75,7 @@ export default async function Executar({ params }: { params: Promise<{ id: strin
             <p className="text-xs text-slate-500">Se um container cair no meio, a execução é retomada do ponto em que parou (sites já concluídos não são varridos de novo).</p>
           </section>
         </ActionForm>
+        )
       )}
     </>
   );

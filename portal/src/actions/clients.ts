@@ -11,7 +11,7 @@ import { deleteSecret, getSecret, secretName, setSecret } from "@/lib/secrets";
 import { dbNameFor, externalConn, inspectDb, normalizeServer, tenantSqlConfigured } from "@/lib/tenantDb";
 import { importExecutions, provisionClientDb } from "@/lib/clientDb";
 import { launchAssessment } from "@/lib/assessments";
-import { buildParams } from "@/lib/collector";
+import { buildParams , buildGoogleParams } from "@/lib/collector";
 import { ACTIVE } from "@/lib/status";
 
 const GUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -19,20 +19,48 @@ const slugify = (v: string) => v.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowe
 
 // ───────────── Conexão com o Microsoft 365 (usada no cadastro e na edição) ─────────────
 
-type Conn = { m365TenantId: string; appClientId: string; spoTenant: string; authMode: "secret" | "cert" };
+type Conn = {
+  platform: "M365" | "GOOGLE"; authMode: "secret" | "cert" | "gsa";
+  m365TenantId: string | null; appClientId: string | null; spoTenant: string | null;
+  googleAdminEmail: string | null; googleDomain: string | null; googleCustomerId: string | null;
+};
 
 function readConnection(fd: FormData): Conn {
+  if (fd.get("platform") === "GOOGLE") {
+    const googleAdminEmail = req(fd, "googleAdminEmail", "E-mail do administrador Google").toLowerCase().trim();
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(googleAdminEmail)) throw new Error("E-mail do administrador Google inválido.");
+    const googleDomain = req(fd, "googleDomain", "Domínio principal").toLowerCase().trim().replace(/^https?:\/\//, "").replace(/\/.*$/, "");
+    if (!/^[a-z0-9.-]+\.[a-z]{2,}$/.test(googleDomain)) throw new Error("Domínio principal inválido (ex.: contoso.com.br).");
+    const cid = s(fd, "googleCustomerId")?.trim() || null;
+    if (cid && !/^C[0-9a-z]{6,12}$/i.test(cid)) throw new Error("Customer ID do Google inválido (formato C0xxxxxxx). Deixe em branco se não souber.");
+    return { platform: "GOOGLE", authMode: "gsa", m365TenantId: null, appClientId: null, spoTenant: null, googleAdminEmail, googleDomain, googleCustomerId: cid };
+  }
+  return { ...readM365(fd), platform: "M365", googleAdminEmail: null, googleDomain: null, googleCustomerId: null };
+}
+
+function readM365(fd: FormData) {
   const m365TenantId = req(fd, "m365TenantId", "Tenant ID").toLowerCase();
   const appClientId = req(fd, "appClientId", "Client ID (Application ID)").toLowerCase();
   if (!GUID.test(m365TenantId)) throw new Error("Tenant ID precisa ser um GUID (Entra ID → Visão geral → ID do locatário).");
   if (!GUID.test(appClientId)) throw new Error("Client ID precisa ser um GUID (App Registration → ID do aplicativo).");
   const spoTenant = req(fd, "spoTenant", "Nome do SharePoint").toLowerCase().replace(/^https?:\/\//, "").replace(/(-admin)?\.sharepoint\.com.*$/, "").replace(/\.onmicrosoft\.com$/, "");
   if (!/^[a-z0-9-]+$/.test(spoTenant)) throw new Error("Nome do SharePoint inválido: use só o prefixo (contoso de contoso.sharepoint.com).");
-  return { m365TenantId, appClientId, spoTenant, authMode: fd.get("authMode") === "cert" ? "cert" : "secret" };
+  return { m365TenantId, appClientId, spoTenant, authMode: (fd.get("authMode") === "cert" ? "cert" : "secret") as "cert" | "secret" };
 }
 
 /** Lê a credencial do formulário (secret ou .pfx). Nulo = nada novo enviado. */
 async function readCredential(fd: FormData, mode: Conn["authMode"], clientName: string) {
+  if (mode === "gsa") {
+    const file = fd.get("gsaFile");
+    if (!(file instanceof File) || file.size === 0) return null;
+    if (file.size > 20_000) throw new Error("Arquivo grande demais: esperado o JSON da chave da conta de serviço (poucos KB).");
+    let j: Record<string, unknown>;
+    try { j = JSON.parse(await file.text()); } catch { throw new Error("O arquivo não é um JSON válido. Envie a chave JSON da conta de serviço."); }
+    if (j.type !== "service_account" || typeof j.client_email !== "string" || typeof j.private_key !== "string" || typeof j.client_id !== "string")
+      throw new Error("Esse JSON não é uma chave de conta de serviço do Google (faltam type, client_email, private_key ou client_id).");
+    const minimal = JSON.stringify({ type: j.type, project_id: j.project_id, private_key_id: j.private_key_id, private_key: j.private_key, client_email: j.client_email, client_id: j.client_id, token_uri: j.token_uri ?? "https://oauth2.googleapis.com/token" });
+    return { kind: "gsa" as const, json: minimal, hint: `conta de serviço ${j.client_email} · ID ${j.client_id}` };
+  }
   if (mode === "cert" && fd.get("certSource") === "generate") {
     const g = generateClientCertificate(clientName);
     return { kind: "cert" as const, pfx: g.pfx, password: g.password, hint: `certificado gerado no portal · vence em ${g.expiresAt.toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" })}` };
@@ -48,7 +76,9 @@ async function readCredential(fd: FormData, mode: Conn["authMode"], clientName: 
 }
 
 async function storeCredential(clientId: string, cred: NonNullable<Awaited<ReturnType<typeof readCredential>>>) {
-  if (cred.kind === "secret") {
+  if (cred.kind === "gsa") {
+    await setSecret(secretName(clientId, "gsa"), cred.json);
+  } else if (cred.kind === "secret") {
     await setSecret(secretName(clientId, "secret"), cred.secret);
   } else {
     await setSecret(secretName(clientId, "cert"), cred.pfx);
@@ -113,7 +143,7 @@ async function createClient_(fd: FormData) {
   if (await prisma.client.findUnique({ where: { slug } })) throw new Error(`Já existe um cliente com o identificador "${slug}".`);
   const conn = readConnection(fd);
   const cred = await readCredential(fd, conn.authMode, name);
-  if (!cred) throw new Error(conn.authMode === "cert" ? "Gere o certificado no portal ou envie o .pfx do App Registration." : "Informe o client secret do App Registration.");
+  if (!cred) throw new Error(conn.authMode === "gsa" ? "Envie a chave JSON da conta de serviço do Google." : conn.authMode === "cert" ? "Gere o certificado no portal ou envie o .pfx do App Registration." : "Informe o client secret do App Registration.");
   const db = readDb(fd, slug);
   await assertDbFree(db);
   if (db.mode === "MANAGED" && db.createNow && !tenantSqlConfigured()) throw new Error("O servidor dos bancos de clientes não está configurado no portal: desmarque a criação do banco ou configure TENANT_SQL_*.");
@@ -211,7 +241,7 @@ async function testConnection_(id: string) {
 
 async function removeCredential_(id: string) {
   const me = await requireClientPerm(id, "clients:manage");
-  await Promise.all((["secret", "cert", "certpwd"] as const).map((k) => deleteSecret(secretName(id, k))));
+  await Promise.all((["secret", "cert", "certpwd", "gsa"] as const).map((k) => deleteSecret(secretName(id, k))));
   await prisma.client.update({ where: { id }, data: { credentialSetAt: null, credentialHint: null, connectionOkAt: null } });
   await audit(prisma, "Client", id, "CONNECTION", me.id, { credencial: "removida" });
   revalidatePath(`/clientes/${id}`);
@@ -282,7 +312,9 @@ async function importDbExecutions_(id: string) {
 async function runDiagnostic_(id: string) {
   const me = await requireClientPerm(id, "clients:manage");
   const c = await prisma.client.findUniqueOrThrow({ where: { id } });
-  const params = { ...buildParams({ modules: {}, sites: [], parallel: 8, sitesBatch: 100, clientName: c.name }), diagnostic_only: true };
+  const params = c.platform === "GOOGLE"
+    ? { ...buildGoogleParams({}, c.name), diagnostic_only: true }
+    : { ...buildParams({ modules: {}, sites: [], parallel: 8, sitesBatch: 100, clientName: c.name }), diagnostic_only: true };
   const aid = await launchAssessment(id, params, me.id, "DIAGNOSTICO");
   await audit(prisma, "Client", id, "DIAGNOSTIC", me.id, { execucao: aid });
   redirect(`/execucoes/${aid}`);

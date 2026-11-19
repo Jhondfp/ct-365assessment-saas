@@ -33,7 +33,7 @@ Run 'exec-123456' { param($Query, $Connection, $Parameters, $TimeoutSeconds, $Ma
 Check 'apaga files_info em lotes de 20 mil (3 comandos para 45 mil)' (@($global:ORDER | Where-Object { $_ -eq 'files_info' }).Count -eq 3) "$(@($global:ORDER | Where-Object { $_ -eq 'files_info' }).Count)"
 Check 'pula tabela que não existe (meetings)' ($global:ORDER -notcontains 'meetings') ($global:ORDER -join ',')
 Check 'execution_history por último' ($global:ORDER[$global:ORDER.Count - 1] -eq 'execution_history') $global:ORDER[$global:ORDER.Count - 1]
-Check 'reporta concluído com o total de linhas' ($global:SENT.status -eq 'completed' -and $global:SENT.result.linhas -eq (45000 + 3 * 21)) "status=$($global:SENT.status) linhas=$($global:SENT.result.linhas)"
+Check 'reporta concluído com o total de linhas' ($global:SENT.status -eq 'completed' -and $global:SENT.result.linhas -eq (45000 + 3 * 28)) "status=$($global:SENT.status) linhas=$($global:SENT.result.linhas)"
 
 Run 'exec-123456' { param($Query, $Connection, $Parameters, $TimeoutSeconds, $MaxRetries) if ($Query -like '*files_info*') { throw 'Timeout expired' }; 0 }
 Check 'falha no meio vira status failed com o erro' ($global:SENT.status -eq 'failed' -and $global:SENT.error -like '*Timeout*') "status=$($global:SENT.status)"

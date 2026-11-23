@@ -38,8 +38,10 @@ param authSecret string
 @description('Segredo para assinar os tokens dos jobs (openssl rand -base64 33)')
 param jobSigningSecret string
 
-@description('Entra ID multi-tenant (login Microsoft 365). Vazio = só login local.')
+@description('Entra ID (login Microsoft 365). Vazio = só login local.')
 param entraClientId string = ''
+@description('Tenant do login Microsoft: ID do tenant Cloud Target (single-tenant: equipe + convidados B2B) ou organizations (qualquer tenant)')
+param entraTenantId string = 'organizations'
 @secure()
 param entraClientSecret string = ''
 @description('Domínios da equipe Cloud Target (entram e aguardam papel)')
@@ -302,7 +304,7 @@ var baseEnv = [
 var entraEnv = entraEnabled ? [
   { name: 'AUTH_MICROSOFT_ENTRA_ID_ID', value: entraClientId }
   { name: 'AUTH_MICROSOFT_ENTRA_ID_SECRET', secretRef: 'entra-secret' }
-  { name: 'AUTH_MICROSOFT_ENTRA_ID_ISSUER', value: '${environment().authentication.loginEndpoint}organizations/v2.0' }
+  { name: 'AUTH_MICROSOFT_ENTRA_ID_ISSUER', value: '${environment().authentication.loginEndpoint}${entraTenantId}/v2.0' }
 ] : []
 var bootstrapEnv = empty(bootstrapAdminPassword) ? [] : [
   { name: 'BOOTSTRAP_ADMIN_EMAIL', value: bootstrapAdminEmail }

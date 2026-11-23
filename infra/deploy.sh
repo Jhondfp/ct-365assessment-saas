@@ -9,7 +9,7 @@
 #   SQL_ADMIN_PASSWORD                    senha forte do admin do Azure SQL
 #   AUTH_SECRET, JOB_SIGNING_SECRET, WORKER_TOKEN   openssl rand -base64 33
 # Não cria atribuições de papel (RBAC): Contributor no resource group basta.
-# Opcionais: PREFIX, ENTRA_CLIENT_ID, ENTRA_CLIENT_SECRET, ADMIN_EMAILS, INTERNAL_EMAIL_DOMAINS,
+# Opcionais: PREFIX, ENTRA_CLIENT_ID, ENTRA_CLIENT_SECRET, ENTRA_TENANT_ID (tenant Cloud Target = login single-tenant + B2B), ADMIN_EMAILS, INTERNAL_EMAIL_DOMAINS,
 #            BOOTSTRAP_ADMIN_EMAIL, BOOTSTRAP_ADMIN_PASSWORD, TAG, REMOVE_OLD_WORKER=1
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -17,7 +17,7 @@ cd "$(dirname "$0")/.."
 PREFIX="${PREFIX:-ctassess}"
 # Segredos do deploy guardados no Key Vault do ambiente (deploy-<nome>): o que não estiver exportado vem de lá.
 KV=$(az keyvault list -g "$RG" --query "[?starts_with(name, '${PREFIX}-kv')].name | [0]" -o tsv 2>/dev/null || true)
-for v in LOCATION SQL_ADMIN_PASSWORD AUTH_SECRET JOB_SIGNING_SECRET WORKER_TOKEN QUEUE_SQL_PASSWORD BOOTSTRAP_ADMIN_EMAIL BOOTSTRAP_ADMIN_PASSWORD ADMIN_EMAILS INTERNAL_EMAIL_DOMAINS; do
+for v in LOCATION SQL_ADMIN_PASSWORD AUTH_SECRET JOB_SIGNING_SECRET WORKER_TOKEN QUEUE_SQL_PASSWORD BOOTSTRAP_ADMIN_EMAIL BOOTSTRAP_ADMIN_PASSWORD ADMIN_EMAILS INTERNAL_EMAIL_DOMAINS ENTRA_CLIENT_ID ENTRA_CLIENT_SECRET ENTRA_TENANT_ID; do
   if [ -z "${!v:-}" ] && [ -n "$KV" ]; then
     val=$(az keyvault secret show --vault-name "$KV" -n "deploy-$(echo "$v" | tr '_A-Z' '-a-z')" --query value -o tsv 2>/dev/null || true)
     [ -n "$val" ] && export "$v=$val"
@@ -36,7 +36,7 @@ TAG="${TAG:-$(git rev-parse --short HEAD 2>/dev/null || date +%Y%m%d%H%M)}"
 common=(
   prefix="$PREFIX"
   sqlAdminPassword="$SQL_ADMIN_PASSWORD" authSecret="$AUTH_SECRET" jobSigningSecret="$JOB_SIGNING_SECRET" workerToken="$WORKER_TOKEN" queueSqlPassword="$QUEUE_SQL_PASSWORD"
-  entraClientId="${ENTRA_CLIENT_ID:-}" entraClientSecret="${ENTRA_CLIENT_SECRET:-}"
+  entraClientId="${ENTRA_CLIENT_ID:-}" entraClientSecret="${ENTRA_CLIENT_SECRET:-}" entraTenantId="${ENTRA_TENANT_ID:-organizations}"
   adminEmails="${ADMIN_EMAILS:-}" internalEmailDomains="${INTERNAL_EMAIL_DOMAINS:-cloudtarget.com.br}"
   bootstrapAdminEmail="${BOOTSTRAP_ADMIN_EMAIL:-}" bootstrapAdminPassword="${BOOTSTRAP_ADMIN_PASSWORD:-}"
   operatorObjectIds="$(printf '%s' "$OPERATORS" | tr ', ' '\n\n' | sed '/^$/d' | jq -R . | jq -sc .)"

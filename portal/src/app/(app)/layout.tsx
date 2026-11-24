@@ -21,7 +21,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       ...(can(u.roles, "assessments:run") ? [{ href: "/higienizacao", label: "Higienização", icon: "higienizacao" as const, badge: higAtivas }] : []),
     ] },
     ...(can(u.roles, "users:manage")
-      ? [{ title: "Administração", items: [{ href: "/admin/usuarios", label: "Usuários e perfis", icon: "usuarios" as const }, { href: "/admin/auditoria", label: "Auditoria", icon: "auditoria" as const }] }]
+      ? [{ title: "Administração", items: [{ href: "/admin/usuarios", label: "Usuários e perfis", icon: "usuarios" as const }, { href: "/admin/auditoria", label: "Auditoria", icon: "auditoria" as const }, { href: "/admin/documentacao", label: "Documentação técnica", icon: "docs" as const }] }]
       : []),
   ];
   const collapsed = (await cookies()).get("ct_sidebar")?.value === "1";

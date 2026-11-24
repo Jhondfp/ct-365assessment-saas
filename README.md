@@ -2,7 +2,7 @@
 
 Versão SaaS do [ct-assessmentspo](https://github.com/Jhondfp/ct-assessmentspo): o mesmo coletor PowerShell de governança de Microsoft 365 (SharePoint, OneDrive, licenças, adoção, Exchange, Intune), agora operado por um portal web. Cada cliente tem um **banco isolado** e as coletas rodam em **workers** no Azure Container Apps, que pegam o trabalho numa fila do portal.
 
-O portal usa o mesmo layout e a mesma autenticação mista do **Target360** (Next.js 15 + Auth.js v5 + Prisma + Azure SQL): login com **Microsoft 365** (Entra ID multi-tenant) e login **local** (e-mail + senha).
+O portal usa o mesmo layout e a mesma autenticação mista do **Target360** (Next.js 15 + Auth.js v5 + Prisma + Azure SQL): login com **Microsoft 365** (Entra ID, App Registration de locatário único no tenant Cloud Target, convidados B2B) e login **local** (e-mail + senha). Documentação técnica completa no próprio portal: Administração › Documentação técnica (exporta PDF).
 
 ```
                  ┌──────────────── Azure Container Apps ────────────────┐
@@ -115,7 +115,7 @@ export BOOTSTRAP_ADMIN_EMAIL=voce@cloudtarget.com.br BOOTSTRAP_ADMIN_PASSWORD='.
 infra/deploy.sh
 ```
 
-Guarde `AUTH_SECRET` e `JOB_SIGNING_SECRET`: trocá-los derruba as sessões e invalida execuções em andamento. O script imprime a URL do portal e a **Redirect URI** do login Microsoft. Para habilitar o login Microsoft 365, crie no Entra ID da Cloud Target um App Registration multi-tenant ("contas em qualquer diretório organizacional"), com essa Redirect URI, e rode de novo com `ENTRA_CLIENT_ID` e `ENTRA_CLIENT_SECRET`.
+Guarde `AUTH_SECRET` e `JOB_SIGNING_SECRET`: trocá-los derruba as sessões e invalida execuções em andamento. O script imprime a URL do portal e a **Redirect URI** do login Microsoft. Para habilitar o login Microsoft 365, siga `docs/login-entra-b2b.md` (App Registration de locatário único, Redirect URI do domínio do portal) e grave `deploy-entra-client-id`, `deploy-entra-tenant-id` e `deploy-entra-client-secret` no Key Vault.
 
 Recursos criados: Azure SQL (banco do portal S0 + elastic pool Standard 50 eDTU para os clientes), Key Vault (access policy só para a identidade do portal), ACR (usuário admin), Container Apps Environment, Container App do portal e o **job do coletor** disparado pela fila (`<prefix>-coletor`; `maxCollectors` = máximo de containers ao mesmo tempo, padrão 10; `collectorTimeoutSeconds` = tempo máximo de um container, padrão 24 h). Ambientes criados antes desta versão têm um worker sempre ligado (`<prefix>-worker`): rode o deploy com `REMOVE_OLD_WORKER=1` depois que as coletas dele terminarem. **Nenhuma atribuição de papel (RBAC) é criada**: basta Contributor no resource group.
 

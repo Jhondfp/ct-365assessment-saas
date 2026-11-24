@@ -54,8 +54,10 @@ param bootstrapAdminEmail string = ''
 param bootstrapAdminPassword string = ''
 @description('Habilita o login local (e-mail + senha)')
 param localLogin bool = true
-@description('Domínio próprio do portal (opcional). Vazio = FQDN do Container Apps.')
-param customUrl string = ''
+@description('Domínio próprio do portal (ex.: assessment.cloudtarget.com.br). Vazio = FQDN do Container Apps.')
+param customDomain string = ''
+@description('Nome do certificado gerenciado do domínio próprio no ambiente do Container Apps (criado pelo portal do Azure ao vincular o domínio)')
+param customDomainCert string = ''
 
 @secure()
 @description('Token compartilhado entre portal e workers para pegar coletas da fila (openssl rand -base64 33)')
@@ -199,7 +201,12 @@ resource env 'Microsoft.App/managedEnvironments@2024-03-01' = {
   }
 }
 
-var portalUrl = empty(customUrl) ? 'https://${names.portal}.${env.properties.defaultDomain}' : customUrl
+// endereço público (login e links) e endereço interno do Container Apps (coletor e callbacks: não dependem de DNS externo)
+var defaultUrl = 'https://${names.portal}.${env.properties.defaultDomain}'
+var portalUrl = empty(customDomain) ? defaultUrl : 'https://${customDomain}'
+var customDomains = empty(customDomain) || empty(customDomainCert) ? [] : [
+  { name: customDomain, bindingType: 'SniEnabled', certificateId: '${env.id}/managedCertificates/${customDomainCert}' }
+]
 var sqlFqdn = sql.properties.fullyQualifiedDomainName
 // Senha com ; = { } precisa ir entre chaves na connection string do Prisma
 // Conexão ADO.NET ao banco do portal só para a regra de escala do coletor (KEDA mssql) contar a fila: usuário
@@ -256,7 +263,7 @@ resource collector 'Microsoft.App/jobs@2024-03-01' = {
           command: useAcrJob ? ['pwsh', '-NoLogo', '-NoProfile', '-NonInteractive', '-File', '/app/Start-Worker.ps1'] : []
           resources: { cpu: json('2.0'), memory: '4Gi' }
           env: [
-            { name: 'PORTAL_URL', value: portalUrl }
+            { name: 'PORTAL_URL', value: defaultUrl }
             { name: 'WORKER_ONCE', value: '1' }
             { name: 'WORKER_TOKEN', secretRef: 'worker-token' }
             { name: 'POWERSHELL_TELEMETRY_OPTOUT', value: '1' }
@@ -298,7 +305,7 @@ var baseEnv = [
   { name: 'JOB_SIGNING_SECRET', secretRef: 'job-signing-secret' }
   { name: 'WORKER_TOKEN', secretRef: 'worker-token' }
   { name: 'QUEUE_SQL_PASSWORD', secretRef: 'queue-sql-password' }
-  { name: 'PORTAL_CALLBACK_URL', value: portalUrl }
+  { name: 'PORTAL_CALLBACK_URL', value: defaultUrl }
   { name: 'JOB_IMAGE', value: jobImage }
 ]
 var entraEnv = entraEnabled ? [
@@ -319,7 +326,7 @@ resource portal 'Microsoft.App/containerApps@2024-03-01' = {
   properties: {
     environmentId: env.id
     configuration: {
-      ingress: { external: true, targetPort: useAcrPortal ? 3000 : 80, transport: 'auto', allowInsecure: false }
+      ingress: { external: true, targetPort: useAcrPortal ? 3000 : 80, transport: 'auto', allowInsecure: false, customDomains: customDomains }
       registries: useAcrPortal ? acrRegistry : []
       secrets: concat(baseSecrets, entraSecrets, bootstrapSecrets, useAcrPortal ? acrSecret : [])
     }

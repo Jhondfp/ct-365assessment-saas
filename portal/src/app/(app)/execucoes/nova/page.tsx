@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { clientWhere, requirePagePerm } from "@/lib/session";
@@ -16,7 +17,7 @@ export default async function NovaExecucao({ searchParams }: { searchParams: Pro
     <>
       <PageHeader title="Nova execução" subtitle="Escolha o cliente; em seguida você seleciona os workloads da coleta." />
       <div className="card max-w-xl">
-        {ready.length === 0 ? <Empty>Nenhum cliente pronto para coletar (falta conexão Microsoft 365 ou credencial).</Empty> : (
+        {ready.length === 0 ? <Empty>Nenhum cliente pronto para coletar (falta conexão ou credencial). <Link className="link" href="/clientes">Ver clientes</Link></Empty> : (
           <form className="flex flex-wrap items-end gap-3">
             <Field label="Cliente" className="min-w-64 flex-1">
               <select name="cliente" required className="input">{ready.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select>

@@ -56,6 +56,7 @@ export default async function Cliente({ params, searchParams }: { params: Promis
   const activeOther = await prisma.assessment.findFirst({ where: { clientId: c.id, kind: { not: "COLETA" }, status: { in: [...ACTIVE] } } });
   const active = c.assessments.find((a) => isActive(a.status)) ?? activeOther ?? undefined;
   const lastOk = c.assessments.find((a) => (HAS_DATA as readonly string[]).includes(a.status));
+  const connDone = !missing.length;
 
   return (
     <>
@@ -74,16 +75,18 @@ export default async function Cliente({ params, searchParams }: { params: Promis
       {tab === "visao" && (
         <div className="grid gap-6 lg:grid-cols-3">
           <section className="card">
-            <h2 className="card-title">Prontidão</h2>
-            <ul className="space-y-2 text-sm">
-              {google ? <Check ok={!!(c.googleAdminEmail && c.googleDomain)} label="Conexão com o Google Workspace" />
-                : <Check ok={!!(c.m365TenantId && c.appClientId && c.spoTenant)} label="Conexão com o Microsoft 365" />}
-              <Check ok={!!c.credentialSetAt} label={`Credencial ${c.credentialHint ? `(${c.credentialHint})` : ""}`} />
-              <Check ok={!!c.connectionOkAt} label={c.connectionOkAt ? `Conexão testada em ${dateTime(c.connectionOkAt)}` : "Conexão testada"} optional />
-              <Check ok={c.dbStatus === "PROVISIONADO"} label={`Banco ${c.dbName ?? ""} (${DB_STATUS_LABEL[c.dbStatus] ?? c.dbStatus})`} optional={!canManage} />
-            </ul>
-            {missing.length > 0 && <p className="mt-3 text-sm text-amber-800">Falta configurar: {missing.join(", ")}.</p>}
-            {c.dbStatus !== "PROVISIONADO" && !missing.length && <p className="mt-3 text-xs text-slate-500">O banco é provisionado automaticamente na primeira execução.</p>}
+            <h2 className="card-title">Primeiros passos</h2>
+            <Steps steps={[
+              { done: connDone, title: "Enviar o guia de acesso ao cliente", detail: `Ele cria ${google ? "a conta de serviço no Google Workspace" : "o App Registration no Microsoft 365"} e nos devolve os dados.`,
+                action: canConn ? { href: `/clientes/${c.id}?tab=conexao`, label: "Abrir o guia" } : undefined },
+              { done: connDone, title: "Configurar a conexão", detail: connDone ? (c.credentialHint ?? "Conexão e credencial salvas.") : `Falta: ${missing.join(", ")}.`,
+                action: canConn ? { href: `/clientes/${c.id}?tab=conexao`, label: "Configurar conexão" } : undefined },
+              { done: !!c.connectionOkAt, optional: true, title: "Testar a conexão", detail: c.connectionOkAt ? `Testada em ${dateTime(c.connectionOkAt)}.` : "Diagnóstico de cerca de 1 minuto: credencial, permissões e banco.",
+                action: canConn ? { href: `/clientes/${c.id}?tab=conexao`, label: "Testar conexão" } : undefined },
+              { done: !!lastOk, title: "Rodar a primeira coleta", detail: lastOk ? `Última concluída em ${dateTime(lastOk.finishedAt)}.` : c.dbStatus === "PROVISIONADO" ? "O banco do cliente já está pronto." : "O banco do cliente é criado na primeira coleta.",
+                action: canRun && !missing.length && !active ? { href: `/clientes/${c.id}/executar`, label: "Nova coleta", primary: true } : undefined },
+            ]} />
+            <p className="mt-4 border-t border-slate-100 pt-3 text-xs text-slate-500">Banco {c.dbName ?? ""}: {DB_STATUS_LABEL[c.dbStatus] ?? c.dbStatus}</p>
           </section>
           <section className="card lg:col-span-2">
             <h2 className="card-title">Execuções</h2>
@@ -222,14 +225,29 @@ export default async function Cliente({ params, searchParams }: { params: Promis
   );
 }
 
-function Check({ ok, label, optional }: { ok: boolean; label: string; optional?: boolean }) {
+type Step = { done: boolean; title: string; detail: string; optional?: boolean; action?: { href: string; label: string; primary?: boolean } };
+/** Etapas numeradas: a primeira pendente fica em destaque e mostra o botão da ação. */
+function Steps({ steps }: { steps: Step[] }) {
+  const current = steps.findIndex((s) => !s.done && !s.optional) === -1 ? -1 : steps.findIndex((s) => !s.done);
   return (
-    <li className="flex items-start gap-2">
-      <span className={`mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-xs font-bold ${ok ? "bg-lime-100 text-lime-800" : optional ? "bg-slate-100 text-slate-500" : "bg-amber-100 text-amber-800"}`}>{ok ? "✓" : optional ? "–" : "!"}</span>
-      <span>{label}</span>
-    </li>
+    <ol className="space-y-4">
+      {steps.map((s, i) => {
+        const on = i === current;
+        return (
+          <li key={i} className="flex gap-3">
+            <span className={`mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold ${s.done ? "bg-lime-100 text-lime-800" : on ? "bg-ct-purple text-white" : "bg-slate-100 text-slate-500"}`} aria-hidden="true">{s.done ? "✓" : i + 1}</span>
+            <div className="min-w-0">
+              <p className={`text-sm font-medium ${s.done ? "text-slate-500" : ""}`}>{s.title}{s.optional && !s.done && <span className="ml-1 text-xs font-normal text-slate-500">(recomendado)</span>}<span className="sr-only">{s.done ? " — concluído" : on ? " — próximo passo" : ""}</span></p>
+              <p className="text-xs text-slate-500">{s.detail}</p>
+              {on && s.action && <Link href={s.action.href} className={`${s.action.primary || !s.optional ? "btn" : "btn-secondary"} mt-2 !py-1.5 text-xs`}>{s.action.label}</Link>}
+            </div>
+          </li>
+        );
+      })}
+    </ol>
   );
 }
+
 
 async function certificateInfo(clientId: string) {
   try {

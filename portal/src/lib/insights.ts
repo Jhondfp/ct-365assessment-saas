@@ -145,6 +145,22 @@ export function findings(d: Dash): Finding[] {
   return F.sort((a, b) => SEV_ORDER[a.sev] - SEV_ORDER[b.sev]);
 }
 
+/** Resumo por área para o topo do relatório: pior severidade, quantos achados e o principal. */
+export const AREAS = [
+  { key: "seguranca", label: "Segurança", from: ["Segurança", "Dispositivos"], section: "sharepoint" },
+  { key: "governanca", label: "Governança", from: ["Governança"], section: "sharepoint" },
+  { key: "armazenamento", label: "Armazenamento", from: ["Armazenamento", "Exchange"], section: "sharepoint" },
+  { key: "licencas", label: "Licenças e adoção", from: ["Licenciamento", "Adoção"], section: "licencas" },
+] as const;
+export type AreaSummary = { key: string; label: string; sev: Severity | "ok"; count: number; top: Finding | null; section: string };
+export function areaSummary(F: Finding[]): AreaSummary[] {
+  return AREAS.map((a) => {
+    const items = F.filter((f) => (a.from as readonly string[]).includes(f.area));
+    const top = items[0] ?? null; // F já vem ordenado por severidade
+    return { key: a.key, label: a.label, sev: top?.sev ?? "ok", count: items.length, top, section: top?.section && top.section !== "visao" ? top.section : a.section };
+  });
+}
+
 /** Variação entre duas execuções (para o "comparar com"). */
 export function delta(cur: number | null | undefined, prev: number | null | undefined) {
   if (prev == null || cur == null) return null;

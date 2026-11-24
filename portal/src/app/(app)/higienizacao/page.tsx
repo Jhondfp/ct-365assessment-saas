@@ -32,7 +32,7 @@ export default async function Higienizacao({ searchParams }: { searchParams: Pro
       <div className="mb-6 grid gap-6 lg:grid-cols-3">
         <section className="card lg:col-span-1">
           <h2 className="card-title">Nova higienização</h2>
-          {ready.length === 0 ? <Empty>Nenhum cliente pronto (precisa da conexão Microsoft 365 e de uma coleta no banco).</Empty> : (
+          {ready.length === 0 ? <Empty>Nenhum cliente pronto: precisa da conexão Microsoft 365 e de uma coleta concluída. <Link className="link" href="/clientes">Ver clientes</Link></Empty> : (
             <form className="space-y-3">
               <Field label="Cliente">
                 <select name="cliente" required className="input">{ready.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select>
@@ -51,7 +51,7 @@ export default async function Higienizacao({ searchParams }: { searchParams: Pro
 
       <section className="card">
         <h2 className="card-title">Histórico</h2>
-        {!runs.length ? <Empty>Nenhuma higienização ainda.</Empty> : (
+        {!runs.length ? <Empty>Nenhuma higienização ainda. Comece por uma simulação: ela mostra o espaço que seria liberado sem apagar nada.</Empty> : (
           <div className="overflow-x-auto">
             <table className="tbl">
               <thead><tr><th>Início</th><th>Cliente</th><th>Ação</th><th>Escopo</th><th>Status</th><th className="text-right">Versões</th><th className="text-right">Espaço</th><th>Duração</th><th>Por</th></tr></thead>

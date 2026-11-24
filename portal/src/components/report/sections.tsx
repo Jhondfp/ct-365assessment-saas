@@ -5,8 +5,8 @@ import type { DuplicateGroup, EvolutionPoint, UsageSummary, VersionSite } from "
 import { DataTable } from "@/components/DataTable";
 import { Empty } from "@/components/ui";
 import {
-  COMPLIANCE_LABEL, GB, SEV_LABEL, ageBuckets, concentration, growthProjection, otherExtensions, SHARING_LABEL, bytes, delta, findings, groupFileTypes, growth, idleLicenses, mb, num, pct, savings, sensitiveKeyword, tr, usd,
-  type Dash, type Finding,
+  COMPLIANCE_LABEL, GB, areaSummary, SEV_LABEL, ageBuckets, concentration, growthProjection, otherExtensions, SHARING_LABEL, bytes, delta, findings, groupFileTypes, growth, idleLicenses, mb, num, pct, savings, sensitiveKeyword, tr, usd,
+  type AreaSummary, type Dash, type Finding,
 } from "@/lib/insights";
 
 const SEV_STYLE: Record<Finding["sev"], string> = {
@@ -48,6 +48,38 @@ export function FindingList({ items, base, limit }: { items: Finding[]; base?: s
   );
 }
 
+// ───────────── Resumo por área ─────────────
+const AREA_STYLE: Record<AreaSummary["sev"], { bar: string; dot: string; label: string }> = {
+  critical: { bar: "border-l-red-500", dot: "bg-red-500", label: "Crítico" },
+  high: { bar: "border-l-orange-500", dot: "bg-orange-500", label: "Alto" },
+  medium: { bar: "border-l-amber-400", dot: "bg-amber-400", label: "Médio" },
+  low: { bar: "border-l-slate-400", dot: "bg-slate-400", label: "Baixo" },
+  ok: { bar: "border-l-lime-600", dot: "bg-lime-600", label: "OK" },
+};
+export function AreaStrip({ areas, base }: { areas: AreaSummary[]; base: string }) {
+  return (
+    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      {areas.map((a) => {
+        const st = AREA_STYLE[a.sev];
+        const body = (
+          <>
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-sm font-semibold">{a.label}</p>
+              <span className="flex shrink-0 items-center gap-1.5 text-xs font-medium text-slate-600"><span className={`h-2 w-2 rounded-full ${st.dot}`} aria-hidden="true" />{st.label}</span>
+            </div>
+            <p className="mt-2 text-sm text-slate-700">{a.top ? a.top.title : "Nada relevante nesta coleta."}</p>
+            <p className="mt-1 text-xs text-slate-500">{a.count > 1 ? `${a.count} pontos nesta área` : a.count === 1 ? "1 ponto nesta área" : ""}{a.count > 0 && <span className="text-ct-purple print:hidden"> · ver detalhes →</span>}</p>
+          </>
+        );
+        const cls = `card block border-l-4 ${st.bar} !py-4`;
+        return a.count > 0
+          ? <Link key={a.key} href={`${base}&secao=${a.section}`} className={`${cls} transition hover:shadow-md`}>{body}</Link>
+          : <div key={a.key} className={cls}>{body}</div>;
+      })}
+    </div>
+  );
+}
+
 // ───────────── Visão geral ─────────────
 export function Overview({ d, p, base, evo = [] }: { d: Dash; p: Dash | null; base: string; evo?: EvolutionPoint[] }) {
   const s = d.sites ?? {}, f = d.files ?? {};
@@ -55,10 +87,12 @@ export function Overview({ d, p, base, evo = [] }: { d: Dash; p: Dash | null; ba
   const lic = idleLicenses(d.licensing_by_sku ?? []);
   const g = growth(s, d.sharepoint?.growth_monthly ?? []);
   const F = findings(d);
+  const areas = areaSummary(F);
   const gm = (d.sharepoint?.growth_monthly ?? []).slice(-24);
   const versionsOver = Math.max(0, (f.versioned_bytes || 0) - (f.size_bytes || 0));
   return (
     <div className="space-y-6">
+      <AreaStrip areas={areas} base={base} />
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
         <Stat label="Sites" value={num(s.total)} hint={`${num(s.subsites)} subsites · ${num(s.teams_connected)} com Teams`} delta={dNum(s.total, p?.sites?.total)} deltaGood="none" />
         <Stat label="Armazenamento" value={mb(s.storage_mb)} hint={s.quota_mb ? `${pct(s.storage_mb, s.quota_mb)}% de ${mb(s.quota_mb)}` : undefined} tone={g.usage != null && g.usage >= 0.85 ? "risk" : undefined} delta={dNum(s.storage_mb, p?.sites?.storage_mb, (v) => mb(v))} />
@@ -221,7 +255,7 @@ export function Evolution({ evo }: { evo: EvolutionPoint[] }) {
                 <span className="text-sm font-semibold tabular-nums">{m.fmt(last)}</span>
               </div>
               <p className={`text-xs ${tone}`}>{change == null ? "—" : change === 0 ? "sem variação" : `${change > 0 ? "▲" : "▼"} ${Math.abs(Math.round(change * 100))}% desde ${shortDate(m.pts[0].date, m.pts[0].label)}`}</p>
-              <Trend data={m.pts.map((e) => ({ label: shortDate(e.date, e.label), value: m.get(e), display: m.fmt(m.get(e)) }))} />
+              <Trend height={76} data={m.pts.map((e) => ({ label: shortDate(e.date, e.label), value: m.get(e), display: m.fmt(m.get(e)) }))} />
             </div>
           );
         })}
@@ -357,11 +391,11 @@ export function SiteSection({ d, p, type, versions = [], hygieneHref, duplicates
             <DataTable file="duplicados" pageSize={10} initialSort={{ key: "wasted", dir: "desc" }} cols={[
               { key: "name", label: "Arquivo" }, { key: "type", label: "Tipo" }, { key: "copies", label: "Cópias", kind: "num" }, { key: "sites", label: "Sites", kind: "num" },
               { key: "size", label: "Tamanho", kind: "bytes" }, { key: "wasted", label: "Espaço repetido", kind: "bytes" }, { key: "csv", label: "Onde estão", kind: "link", hrefKey: "csvHref" },
-            ]} rows={duplicates.map((x) => ({ ...x, csv: "Baixar CSV", csvHref: dupHref ? dupHref(x.hash) : "" }))} />
+            ]} rows={duplicates.map((x) => ({ ...x, csv: "↓ CSV", csvHref: dupHref ? dupHref(x.hash) : "" }))} />
           ) : (
             <DataTable file="duplicados" pageSize={10} cols={[{ key: "sample_file_name", label: "Arquivo" }, { key: "file_type", label: "Tipo" }, { key: "copy_count", label: "Cópias", kind: "num" }, { key: "distinct_sites", label: "Sites", kind: "num" }, { key: "wasted_bytes", label: "Espaço repetido", kind: "bytes" }]} rows={d.duplicates} />
           )}
-          <p className="mt-2 text-xs text-slate-500">“Baixar CSV” traz todas as cópias do arquivo: site, endereço, tamanho, quem criou e datas.</p>
+          <p className="mt-2 text-xs text-slate-500">“↓ CSV” baixa todas as cópias do arquivo: site, endereço, tamanho, quem criou e datas.</p>
         </Card>
       )}
       {type === "SharePoint" && sec.trash && (

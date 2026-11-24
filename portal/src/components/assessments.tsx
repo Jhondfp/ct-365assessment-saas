@@ -15,7 +15,7 @@ type Row = {
 };
 
 export function AssessmentTable({ rows, showClient = true }: { rows: Row[]; showClient?: boolean }) {
-  if (!rows.length) return <Empty>Nenhuma execução ainda.</Empty>;
+  if (!rows.length) return <Empty>Nenhuma execução ainda. <Link className="link" href="/execucoes/nova">Iniciar uma coleta</Link></Empty>;
   return (
     <div className="overflow-x-auto">
       <table className="tbl">

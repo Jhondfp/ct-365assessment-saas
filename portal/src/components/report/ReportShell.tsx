@@ -46,13 +46,13 @@ type Tab = { key: string; label: string; href: string; count?: number; on: boole
 export function ReportTabs({ tabs }: { tabs: Tab[] }) {
   const { go, target } = useReportNav();
   return (
-    <nav className="mb-6 flex flex-wrap gap-1 border-b border-slate-200 print:hidden" aria-label="Seções do relatório">
+    <nav className="sticky top-0 z-20 -mx-1 mb-6 flex gap-1 overflow-x-auto border-b border-slate-200 bg-slate-50/95 px-1 backdrop-blur print:hidden" aria-label="Seções do relatório">
       {tabs.map((t) => {
         const loading = target === t.key, on = t.on && !target;
         return (
           <a key={t.key} href={t.href} title={t.title} aria-current={t.on ? "page" : undefined}
             onClick={(e) => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return; e.preventDefault(); if (!t.on) go(t.href, t.key); }}
-            className={`-mb-px flex items-center border-b-2 px-3 py-2 text-sm font-medium ${on || loading ? "border-ct-purple text-ct-purple" : t.has ? "border-transparent text-slate-600 hover:text-slate-900" : "border-transparent text-slate-300"}`}>
+            className={`-mb-px flex shrink-0 items-center whitespace-nowrap border-b-2 px-3 py-2.5 text-sm font-medium ${on || loading ? "border-ct-purple text-ct-purple" : t.has ? "border-transparent text-slate-600 hover:text-slate-900" : "border-transparent text-slate-300"}`}>
             {t.label}
             {loading ? <Spinner className="ml-1.5 h-3.5 w-3.5" /> : t.count ? <span className="ml-1.5 rounded-full bg-slate-100 px-1.5 text-xs text-slate-600">{t.count.toLocaleString("pt-BR")}</span> : null}
           </a>

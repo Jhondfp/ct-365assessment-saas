@@ -16,16 +16,16 @@ export function ReportToolbar({ execs, current, compare }: { execs: Opt[]; curre
     nav(`${path}?${q.toString()}`);
   };
   return (
-    <div className="flex flex-wrap items-end gap-3 print:hidden">
-      <label className="block">
-        <span className="label">Execução</span>
-        <select className="input !w-auto" value={current ?? ""} onChange={(e) => go("execucao", e.target.value)}>
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-2 print:hidden">
+      <label className="flex items-center gap-2">
+        <span className="text-sm text-slate-500">Coleta</span>
+        <select className="input !w-auto !py-1.5" value={current ?? ""} onChange={(e) => go("execucao", e.target.value)}>
           {execs.map((e) => <option key={e.id} value={e.id}>{e.label}</option>)}
         </select>
       </label>
-      <label className="block">
-        <span className="label">Comparar com</span>
-        <select className="input !w-auto" value={compare ?? ""} onChange={(e) => go("comparar", e.target.value)}>
+      <label className="flex items-center gap-2">
+        <span className="text-sm text-slate-500">Comparar com</span>
+        <select className="input !w-auto !py-1.5" value={compare ?? ""} onChange={(e) => go("comparar", e.target.value)}>
           <option value="">Sem comparação</option>
           {execs.filter((e) => e.id !== current).map((e) => <option key={e.id} value={e.id}>{e.label}</option>)}
         </select>

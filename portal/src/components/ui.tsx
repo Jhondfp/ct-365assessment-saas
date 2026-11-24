@@ -35,7 +35,7 @@ export function Badge({ children, tone = "gray", color }: { children: ReactNode;
 }
 
 export function Kpi({ label, value, hint, tone }: { label: string; value: ReactNode; hint?: ReactNode; tone?: "ok" | "warn" | "risk" }) {
-  const bar = tone === "ok" ? "bg-ct-green" : tone === "warn" ? "bg-ct-orange" : tone === "risk" ? "bg-red-500" : "bg-ct-purple";
+  const bar = tone === "ok" ? "bg-ct-green" : tone === "warn" ? "bg-ct-orange" : tone === "risk" ? "bg-red-500" : "bg-slate-200";
   return (
     <div className="card relative overflow-hidden">
       <span className={`absolute inset-x-0 top-0 h-1 ${bar}`} />
@@ -72,12 +72,12 @@ export function Empty({ children }: { children: ReactNode }) {
 
 export function Tabs({ base, current, items }: { base: string; current: string; items: { key: string; label: string; count?: number }[] }) {
   return (
-    <div className="mb-5 flex flex-wrap gap-1 border-b border-slate-200">
+    <div className="mb-5 flex gap-1 overflow-x-auto border-b border-slate-200">
       {items.map((t) => (
         <Link
           key={t.key}
           href={`${base}${base.includes("?") ? "&" : "?"}tab=${t.key}`}
-          className={`-mb-px border-b-2 px-3 py-2 text-sm font-medium ${
+          className={`-mb-px shrink-0 whitespace-nowrap border-b-2 px-3 py-2 text-sm font-medium ${
             current === t.key ? "border-ct-purple text-ct-purple" : "border-transparent text-slate-500 hover:text-slate-800"
           }`}
         >

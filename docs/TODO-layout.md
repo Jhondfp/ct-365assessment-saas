@@ -1,6 +1,6 @@
-# Melhorias de layout (pendentes)
+# Melhorias de layout
 
-Levantadas na revisão de UX (Pixel). Ordem = prioridade.
+Levantadas na revisão de UX (Pixel). Itens 1 a 10 implementados em 24/11/2026; só a decisão do logo segue pendente.
 
 ## Maior impacto
 1. **Resumo no topo do relatório**: faixa com 4 áreas (Segurança, Governança, Armazenamento, Licenças), semáforo, nota e achado principal, cada uma levando à aba certa. Os 6 KPIs e a lista de achados viram detalhe.

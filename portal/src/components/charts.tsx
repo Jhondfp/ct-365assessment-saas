@@ -109,7 +109,7 @@ const fmtTick = (v: number) => (v >= 1000 ? `${(v / 1000).toLocaleString("pt-BR"
 export function Stat({ label, value, hint, delta, deltaGood = "down", tone }: {
   label: string; value: ReactNode; hint?: ReactNode; delta?: { value: number; display: string } | null; deltaGood?: "up" | "down" | "none"; tone?: "ok" | "warn" | "risk";
 }) {
-  const bar = tone === "ok" ? "bg-ct-green" : tone === "warn" ? "bg-ct-orange" : tone === "risk" ? "bg-red-500" : "bg-ct-purple";
+  const bar = tone === "ok" ? "bg-ct-green" : tone === "warn" ? "bg-ct-orange" : tone === "risk" ? "bg-red-500" : "bg-slate-200";
   const good = delta && delta.value !== 0 && deltaGood !== "none" ? (delta.value > 0) === (deltaGood === "up") : null;
   return (
     <div className="card relative overflow-hidden">

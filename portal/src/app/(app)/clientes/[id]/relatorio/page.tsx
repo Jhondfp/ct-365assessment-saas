@@ -73,7 +73,7 @@ export default async function Relatorio({ params, searchParams }: { params: Prom
       </div>
       <ReportTabs tabs={SECTIONS.map((s) => ({
         key: s.key, label: s.label, href: `/clientes/${c.id}/relatorio${qs({ secao: s.key })}`, on: s.key === secao, has: counts[s.key] > 0,
-        count: s.key !== "visao" ? counts[s.key] : undefined, title: counts[s.key] > 0 ? undefined : `Sem dados nesta coleta (workload ${SECTION_WORKLOAD[s.key]})`,
+        title: counts[s.key] > 0 ? undefined : `Sem dados nesta coleta (workload ${SECTION_WORKLOAD[s.key]})`,
       }))} />
       <ReportBody>
       {secao === "visao" && <Overview d={d} p={p} base={base} evo={evo} />}

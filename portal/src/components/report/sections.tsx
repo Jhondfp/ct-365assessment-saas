@@ -65,7 +65,7 @@ export function Overview({ d, p, base, evo = [] }: { d: Dash; p: Dash | null; ba
         <Stat label="Arquivos" value={num(f.total)} hint={bytes(f.size_bytes)} delta={dNum(f.total, p?.files?.total)} deltaGood="none" />
         <Stat label="Parado há +2 anos" value={bytes(f.stale_2y_bytes)} hint={`${num(f.stale_2y)} arquivos (${pct(f.stale_2y, f.total)}%)`} tone={pct(f.stale_2y, f.total) >= 40 ? "warn" : undefined} delta={dNum(f.stale_2y_bytes, p?.files?.stale_2y_bytes, (v) => bytes(v))} />
         <Stat label="Acesso externo" value={`${num(s.external_sharing)} sites`} hint={`${pct(s.external_sharing, s.total)}% dos sites`} tone={pct(s.external_sharing, s.total) >= 50 ? "risk" : undefined} delta={dNum(s.external_sharing, p?.sites?.external_sharing)} />
-        <Stat label="Economia potencial" value={`${usd(sv.totalM + lic.monthly)}/mês`} hint="armazenamento + licenças ociosas (preço de referência)" tone="ok" />
+        <Stat label="Economia potencial" value={usd(sv.totalM + lic.monthly)} hint="por mês · armazenamento + licenças ociosas (preço de referência)" tone="ok" />
       </div>
 
       <div className="grid gap-6 lg:grid-cols-5">
@@ -84,25 +84,25 @@ export function Overview({ d, p, base, evo = [] }: { d: Dash; p: Dash | null; ba
           <Card title="Economia estimada por mês">
             <table className="tbl">
               <tbody>
-                <tr><td>Arquivar conteúdo parado (+2 anos)</td><td className="text-right tabular-nums">{bytes(sv.archiveGB * GB)}</td><td className="text-right tabular-nums">{usd(sv.archiveM)}</td></tr>
-                <tr><td>Limitar versões (≈60% do excedente)</td><td className="text-right tabular-nums">{bytes(sv.versionGB * 0.6 * GB)}</td><td className="text-right tabular-nums">{usd(sv.versionsM)}</td></tr>
-                <tr><td>Esvaziar lixeiras</td><td className="text-right tabular-nums">{bytes(sv.trashGB * GB)}</td><td className="text-right tabular-nums">{usd(sv.trashM)}</td></tr>
-                <tr><td>Licenças não atribuídas</td><td className="text-right tabular-nums">{num(lic.idle)} lic.</td><td className="text-right tabular-nums">{usd(lic.monthly)}</td></tr>
-                <tr className="font-semibold"><td>Total</td><td /><td className="text-right tabular-nums">{usd(sv.totalM + lic.monthly)}</td></tr>
+                <tr><td>Arquivar conteúdo parado (+2 anos)</td><td className="whitespace-nowrap text-right tabular-nums">{bytes(sv.archiveGB * GB)}</td><td className="whitespace-nowrap text-right tabular-nums">{usd(sv.archiveM)}</td></tr>
+                <tr><td>Limitar versões (≈60% do excedente)</td><td className="whitespace-nowrap text-right tabular-nums">{bytes(sv.versionGB * 0.6 * GB)}</td><td className="whitespace-nowrap text-right tabular-nums">{usd(sv.versionsM)}</td></tr>
+                <tr><td>Esvaziar lixeiras</td><td className="whitespace-nowrap text-right tabular-nums">{bytes(sv.trashGB * GB)}</td><td className="whitespace-nowrap text-right tabular-nums">{usd(sv.trashM)}</td></tr>
+                <tr><td>Licenças não atribuídas</td><td className="whitespace-nowrap text-right tabular-nums">{num(lic.idle)} lic.</td><td className="whitespace-nowrap text-right tabular-nums">{usd(lic.monthly)}</td></tr>
+                <tr className="font-semibold"><td>Total</td><td /><td className="whitespace-nowrap text-right tabular-nums">{usd(sv.totalM + lic.monthly)}</td></tr>
               </tbody>
             </table>
             <p className="mt-2 text-xs text-slate-500">Armazenamento a US$ {num(0.2, 2)}/GB/mês (extra do SharePoint) e licenças pelo preço público de referência — ordem de grandeza, não o contrato do cliente.</p>
           </Card>
+          <Card title="Tipos de arquivo (por volume)">
+            <FileTypes ft={d.file_types ?? []} />
+          </Card>
         </div>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-5">
-        <Card title="Conteúdo criado por mês (GB)" className="lg:col-span-3" aside={g.monthlyGB != null && <span className="text-xs text-slate-500">média {bytes(g.monthlyGB * GB)}/mês{g.monthsToFull != null ? ` · cota cheia em ~${g.monthsToFull} meses` : ""}</span>}>
-          <Columns unit="" data={gm.map((r: any) => ({ label: `${MONTHS[(r.month || 1) - 1]}/${String(r.year).slice(2)}`, value: Number(r.bytes_created_gb || 0), display: `${num(r.bytes_created_gb, 1)} GB · ${num(r.files_created)} arquivos` }))} />
+      <div>
+        <Card title="Conteúdo criado por mês (GB)" aside={g.monthlyGB != null && <span className="text-xs text-slate-500">média {bytes(g.monthlyGB * GB)}/mês{g.monthsToFull != null ? ` · cota cheia em ~${g.monthsToFull} meses` : ""}</span>}>
+          <Columns unit="" width={1100} data={gm.map((r: any) => ({ label: `${MONTHS[(r.month || 1) - 1]}/${String(r.year).slice(2)}`, value: Number(r.bytes_created_gb || 0), display: `${num(r.bytes_created_gb, 1)} GB · ${num(r.files_created)} arquivos` }))} />
           <p className="mt-1 text-xs text-slate-500">SharePoint, pela data de criação dos arquivos.</p>
-        </Card>
-        <Card title="Tipos de arquivo (por volume)" className="lg:col-span-2">
-          <FileTypes ft={d.file_types ?? []} />
         </Card>
       </div>
 

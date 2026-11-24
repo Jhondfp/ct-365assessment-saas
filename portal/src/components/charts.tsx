@@ -61,9 +61,9 @@ export function StackBar({ parts, height = 14 }: { parts: { label: string; value
 }
 
 /** Colunas no tempo (ex.: GB criados por mês). Uma série, um eixo; rótulos do eixo x espaçados. */
-export function Columns({ data, color = SERIES[0], height = 180, unit = "" }: { data: { label: string; value: number; display: string }[]; color?: string; height?: number; unit?: string }) {
+export function Columns({ data, color = SERIES[0], height = 180, unit = "", width = 640 }: { data: { label: string; value: number; display: string }[]; color?: string; height?: number; unit?: string; width?: number }) {
   if (!data.length) return <p className="muted">Sem dados.</p>;
-  const W = 640, H = height, padL = 44, padB = 22, padT = 8;
+  const W = width, H = height, padL = 44, padB = 22, padT = 8;
   const max = Math.max(...data.map((d) => d.value), 0) || 1;
   const nice = niceMax(max);
   const slot = (W - padL) / data.length;
@@ -115,7 +115,7 @@ export function Stat({ label, value, hint, delta, deltaGood = "down", tone }: {
     <div className="card relative overflow-hidden">
       <span className={`absolute inset-x-0 top-0 h-1 ${bar}`} />
       <p className="text-xs font-medium uppercase tracking-wide text-slate-500">{label}</p>
-      <p className="mt-1 text-2xl font-semibold tabular-nums">{value}</p>
+      <p className="mt-1 text-2xl font-semibold leading-tight tabular-nums">{value}</p>
       {delta && delta.value !== 0 && (
         <p className={`mt-0.5 text-xs font-medium ${good == null ? "text-slate-500" : good ? "text-lime-700" : "text-red-700"}`}>
           {delta.value > 0 ? "▲" : "▼"} {delta.display} vs. comparação
@@ -167,7 +167,7 @@ export function GrowthChart({ history, projection, quotaGB, showQuota = true, he
 }) {
   const pts = [...history.map((p) => ({ ...p, proj: false })), ...projection.map((p) => ({ ...p, proj: true }))];
   if (pts.length < 2) return <p className="muted">Sem histórico suficiente.</p>;
-  const W = 680, H = height, padL = 54, padR = 12, padT = 14, padB = 24;
+  const W = 1000, H = height, padL = 54, padR = 12, padT = 14, padB = 24;
   const top = niceMax(Math.max(showQuota ? quotaGB || 0 : 0, ...pts.map((p) => p.gb)) * 1.1);
   const x = (i: number) => padL + ((W - padL - padR) * i) / (pts.length - 1);
   const y = (v: number) => padT + (H - padT - padB) * (1 - v / top);
@@ -179,7 +179,7 @@ export function GrowthChart({ history, projection, quotaGB, showQuota = true, he
   const ticks = [0, top / 2, top];
   const label = (p: { y: number; m: number }) => `${MES[p.m - 1]}/${String(p.y).slice(2)}`;
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="w-full" role="img" aria-label="Uso do armazenamento e projeção">
+    <div className="overflow-x-auto"><svg viewBox={`0 0 ${W} ${H}`} className="w-full min-w-[600px]" role="img" aria-label="Uso do armazenamento e projeção">
       {ticks.map((t) => (
         <g key={t}>
           <line x1={padL} x2={W - padR} y1={y(t)} y2={y(t)} stroke="#e2e8f0" strokeWidth={1} />
@@ -204,6 +204,6 @@ export function GrowthChart({ history, projection, quotaGB, showQuota = true, he
           {i % every === 0 && <text x={x(i)} y={H - 6} textAnchor="middle" fontSize={10} fill="#64748b">{label(p)}</text>}
         </g>
       ))}
-    </svg>
+    </svg></div>
   );
 }

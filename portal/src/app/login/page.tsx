@@ -23,7 +23,7 @@ export default async function Login({ searchParams }: { searchParams: Promise<{ 
       <div className="relative w-full max-w-sm rounded-2xl border border-white/15 bg-white/10 p-8 text-white backdrop-blur-xl">
         <LogoCT width={168} className="text-white" />
         <h1 className="mt-6 text-2xl font-semibold">Assessment<span className="text-ct-orange">365</span></h1>
-        <p className="text-xs uppercase tracking-widest text-white/50">Governança Microsoft 365 · Cloud Target</p>
+        <p className="text-xs uppercase tracking-wider text-white/60">Governança e migração · Microsoft 365</p>
         <p className="mt-1 text-sm text-white/70">{ENTRA_ENABLED ? "Entre com a conta Microsoft 365 da sua empresa." : "Entre com seu e-mail e senha."}</p>
         {error && <p className="mt-4 rounded-lg bg-red-500/20 p-3 text-sm text-red-100">{ERR[error] ?? "Não foi possível entrar."}</p>}
         {ENTRA_ENABLED && (
@@ -57,8 +57,10 @@ export default async function Login({ searchParams }: { searchParams: Promise<{ 
             }}
           >
             {ENTRA_ENABLED && <p className="text-xs text-white/50">ou com e-mail e senha</p>}
-            <input name="email" type="email" required autoComplete="username" placeholder="seu.email@empresa.com.br" className="input text-slate-900" />
-            <input name="password" type="password" required autoComplete="current-password" placeholder="Senha" className="input text-slate-900" />
+            <label className="block"><span className="mb-1 block text-xs font-medium text-white/80">E-mail</span>
+              <input name="email" type="email" required autoComplete="username" placeholder="seu.email@empresa.com.br" className="input text-slate-900" /></label>
+            <label className="block"><span className="mb-1 block text-xs font-medium text-white/80">Senha</span>
+              <input name="password" type="password" required autoComplete="current-password" className="input text-slate-900" /></label>
             <button className="btn w-full">Entrar</button>
           </form>
         )}

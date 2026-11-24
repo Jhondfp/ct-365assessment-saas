@@ -14,7 +14,7 @@ export default async function Execucoes() {
   });
   return (
     <>
-      <PageHeader title="Execuções" subtitle="Cada execução roda o coletor do ct-assessmentspo e grava no banco do cliente." actions={can(u.roles, "assessments:run") && <Link href="/execucoes/nova" className="btn">Nova execução</Link>} />
+      <PageHeader title="Execuções" subtitle="Coletas, diagnósticos e higienizações de todos os clientes. Os dados ficam no banco de cada cliente." actions={can(u.roles, "assessments:run") && <Link href="/execucoes/nova" className="btn">Nova execução</Link>} />
       <section className="card"><AssessmentTable rows={rows} showClient /></section>
     </>
   );

@@ -32,7 +32,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       </aside>
       <div className="min-w-0 flex-1">
         <details className="border-b bg-ct-bg text-white md:hidden">
-          <summary className="cursor-pointer px-4 py-3 text-sm font-semibold">☰ Assessment365</summary>
+          <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 px-4 py-3 text-sm font-semibold [&::-webkit-details-marker]:hidden"><span aria-hidden="true">☰</span> Assessment365</summary>
           <div className="h-[70vh]"><Sidebar groups={groups} user={{ name: u.name ?? u.email, roles: "" }} logout={logout} account={LOCAL_LOGIN} /></div>
         </details>
         <main className="mx-auto max-w-7xl p-4 md:p-8">{children}</main>

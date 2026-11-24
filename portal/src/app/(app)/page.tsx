@@ -59,7 +59,7 @@ export default async function Painel() {
     <>
       <PageHeader
         title="Painel"
-        subtitle={<>Coletas rodam em <b>{RUNNER_LABEL[RUNNER]}</b> · credenciais em <b>{SECRET_STORE === "keyvault" ? "Azure Key Vault" : "cofre local cifrado"}</b></>}
+        subtitle="Coletas em andamento, últimos resultados e clientes que pedem atenção."
         actions={<><Link href="/execucoes/nova" className="btn">Nova execução</Link><Link href="/clientes/novo" className="btn-secondary">Novo cliente</Link></>}
       />
       <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

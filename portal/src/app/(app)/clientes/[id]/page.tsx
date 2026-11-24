@@ -65,6 +65,7 @@ export default async function Cliente({ params, searchParams }: { params: Promis
         actions={<>
           {c.dbStatus === "PROVISIONADO" && <Link href={`/clientes/${c.id}/relatorio`} className="btn-secondary">Relatório</Link>}
           {canRun && !active && !missing.length && <Link href={`/clientes/${c.id}/executar`} className="btn">Nova execução</Link>}
+          {canManage && missing.length > 0 && <Link href={`/clientes/${c.id}?tab=conexao`} className="btn">Configurar conexão</Link>}
           {active && <Link href={`/execucoes/${active.id}`} className="btn">Acompanhar execução</Link>}
         </>}
       />

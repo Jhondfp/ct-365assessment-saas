@@ -91,3 +91,53 @@ Segurança
    - A chave fica no nosso cofre (Azure Key Vault) e não é exibida a ninguém.
    - Ao fim do projeto: exclua a chave da conta de serviço e remova a delegação no Admin Console.`;
 }
+
+/** Ações da política IAM do levantamento AWS: só inventário e métricas (nada lê conteúdo de buckets, bancos ou discos). */
+export const AWS_ACTIONS = [
+  "ec2:DescribeRegions", "ec2:DescribeInstances", "ec2:DescribeInstanceTypes", "ec2:DescribeVolumes", "ec2:DescribeVpcs",
+  "ec2:DescribeVpnConnections", "ec2:DescribeNatGateways", "ec2:DescribeTransitGateways", "autoscaling:DescribeAutoScalingGroups",
+  "lambda:ListFunctions", "ecs:ListClusters", "eks:ListClusters", "elasticfilesystem:DescribeFileSystems",
+  "s3:ListAllMyBuckets", "s3:GetBucketLocation", "cloudwatch:GetMetricData", "cloudwatch:ListMetrics",
+  "rds:DescribeDBInstances", "dynamodb:ListTables", "dynamodb:DescribeTable", "elasticache:DescribeCacheClusters",
+  "elasticloadbalancing:DescribeLoadBalancers", "directconnect:DescribeConnections", "route53:ListHostedZones", "cloudfront:ListDistributions",
+  "iam:GetAccountSummary", "iam:GetAccountPasswordPolicy", "iam:ListAccountAliases", "organizations:ListAccounts", "ce:GetCostAndUsage",
+] as const;
+
+export const AWS_POLICY_JSON = JSON.stringify({
+  Version: "2012-10-17",
+  Statement: [{ Sid: "CTAssessmentReadOnlyInventory", Effect: "Allow", Action: [...AWS_ACTIONS], Resource: "*" }],
+}, null, 2);
+
+export function awsGuide(clientName?: string) {
+  return `Levantamento AWS (migração para o Azure) — acesso necessário${clientName ? ` (${clientName})` : ""}
+
+Para o levantamento, precisamos de um usuário IAM com uma política SOMENTE de leitura de inventário e métricas. Ele não lê o conteúdo de buckets S3, bancos de dados nem discos, e não altera nada. Tempo estimado: 10 minutos. É preciso um administrador da conta AWS.
+
+1. Política (IAM → Políticas → Criar política → JSON)
+   Nome sugerido: CTAssessmentReadOnly. Cole o JSON abaixo:
+
+${AWS_POLICY_JSON.split("\n").map((l) => "   " + l).join("\n")}
+
+2. Usuário (IAM → Usuários → Criar usuário)
+   Nome: ct-assessment-readonly · SEM acesso ao console.
+   Permissões: anexar diretamente a política CTAssessmentReadOnly (nenhuma outra).
+
+3. Chave de acesso (usuário → Credenciais de segurança → Criar chave de acesso)
+   Caso de uso: "Aplicação executada fora da AWS". Copie a Access Key ID e a Secret Access Key (a secreta aparece uma única vez).
+
+4. Custos (opcional, recomendado)
+   O Cost Explorer precisa estar ativado em Faturamento → Cost Explorer (na primeira vez a AWS leva até 24 h para liberar os dados).
+   A AWS cobra US$ 0,01 por consulta ao Cost Explorer; o levantamento faz uma consulta.
+   Com AWS Organizations, crie o usuário na conta de gerenciamento para enxergar o custo consolidado e a lista de contas.
+
+5. O que precisamos receber
+   - ID da conta AWS (12 dígitos, canto superior direito do console)
+   - Regiões em uso (ou "todas")
+   - A Access Key ID e a Secret Access Key — pelo canal seguro que combinarmos, nunca por e-mail aberto
+
+O que levantamos: instâncias EC2 (tipo, vCPU, memória, sistema operacional, licenças, tags e uso de CPU dos últimos 30 dias), discos, buckets S3 (tamanho por classe), RDS/Aurora, DynamoDB, ElastiCache, Lambda, ECS/EKS, rede (VPCs, VPN, Direct Connect, load balancers, DNS), resumo de segurança do IAM e custos por serviço — tudo para mapear cada recurso para o equivalente no Azure, estimar o custo e planejar as ondas de migração.
+
+Segurança
+   - Só ações de leitura (Describe/List/Get de metadados); a chave fica no nosso cofre (Azure Key Vault) e não é exibida a ninguém.
+   - Ao fim do projeto: desative e exclua a chave de acesso (ou o usuário ct-assessment-readonly).`;
+}

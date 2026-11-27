@@ -71,12 +71,15 @@ model Client {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  /// M365 (assessment de governança) | GOOGLE (Google Workspace: levantamento para migração ao Microsoft 365)
+  /// M365 (assessment de governança) | GOOGLE (Google Workspace → Microsoft 365) | AWS (levantamento para migração ao Azure)
   platform        String    @default("M365")
   /// GOOGLE: administrador que a conta de serviço representa (delegação em todo o domínio), domínio principal e customer id
   googleAdminEmail String?
   googleDomain     String?
   googleCustomerId String?
+  /// AWS (levantamento para migração ao Azure): conta (12 dígitos) e regiões (vírgula; vazio = todas as habilitadas). A chave fica no cofre (aws).
+  awsAccountId    String?
+  awsRegions      String?
 
   // Conexão com o Microsoft 365 do cliente (App Registration do próprio cliente)
   m365TenantId    String?

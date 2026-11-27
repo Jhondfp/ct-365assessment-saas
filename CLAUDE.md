@@ -11,6 +11,7 @@ Coletor de governança Microsoft 365 em SaaS (PowerShell + PnP + SQL Server). Na
 - Escolhido para **não depender de papéis RBAC no Azure** (o usuário só tem Contributor): nada no Bicep cria role assignment, o ACR usa usuário admin e o Key Vault usa access policies. `aca`, `docker` e `manual` continuam disponíveis em `src/lib/jobs.ts`.
 - **Só a equipe Cloud Target acessa** nesta fase. Perfis: ADMIN (tudo), EXECUTOR (cadastra clientes e executa coletas), VISUALIZADOR (só os clientes liberados em `UserClient`). Ver `src/lib/rbac.ts` e `src/lib/session.ts` (`canSeeClient`, `clientWhere`, `assessmentWhere`).
 - **Google Workspace** (`Client.platform = GOOGLE`): levantamento para migração ao M365, só leitura, conta de serviço do cliente com delegação em todo o domínio (chave JSON no cofre, `gsa`). Coletor em `job/google/` (tabelas `g_*`, migração tenant 003), relatório em `components/report/GoogleReport.tsx` + `src/lib/googleReport.ts` (licença sugerida, ondas, exportação para o Archie). Guias de acesso copiáveis para o cliente (M365 e Google) em `src/lib/setupGuides.ts`.
+- **AWS** (`Client.platform = AWS`): levantamento para migração ao Azure, só leitura, chave de um usuário IAM do cliente com a política `CTAssessmentReadOnly` (chave no cofre, `aws`; vai só para as variáveis de ambiente do processo do coletor). Coletor em `job/aws/` com a AWS CLI v2 da imagem (tabelas `aws_*`, migração tenant 004; Cost Explorer custa US$ 0,01 por consulta, só no módulo de custos). Relatório em `components/report/AwsReport.tsx` + `src/lib/awsReport.ts` (VM sugerida pelo uso, preço pela API pública Retail Prices do Azure, 6R, ondas, exportação para o Archie).
 - **Workload de agendas/reuniões removido** da interface: `process_calendar` vai sempre `false`.
 
 ## Regras de código
@@ -61,6 +62,10 @@ pwsh -File job/tests/Test-Resume.ps1   # retomada: limpeza só de sites com linh
 
 ```bash
 pwsh -File job/tests/Test-Google.ps1   # coletor Google Workspace: token, paginação, módulos, APIs simuladas
+```
+
+```bash
+pwsh -File job/tests/Test-Aws.ps1   # coletor AWS: conta da chave, regiões, módulos, CloudWatch, CLI simulada
 ```
 
 Teste de ponta a ponta local: `docker compose up -d db`, portal com `JOB_RUNNER=docker` e a imagem `ctassessment-job:dev`. Cadastre um cliente com "criar o banco agora" e rode uma coleta. Sem um tenant M365 real, a coleta falha no token do Graph, mas valida o disparo, o callback, o log e o status.

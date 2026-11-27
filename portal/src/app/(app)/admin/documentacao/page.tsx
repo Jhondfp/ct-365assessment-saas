@@ -8,7 +8,7 @@ import { PrintButton } from "@/components/report/ReportToolbar";
  * quando a arquitetura mudar. "Exportar PDF" usa a impressão do navegador (estilos @media print em globals.css).
  */
 export const metadata = { title: "Documentação técnica · Assessment365" };
-const UPDATED = "24/11/2026";
+const UPDATED = "27/11/2026";
 
 const TOC = [
   ["visao", "1. Visão geral"],
@@ -68,14 +68,14 @@ export default async function Documentacao() {
 
       <div className="space-y-6">
         <Sec id="visao" title="1. Visão geral">
-          <p><b>CT Assessment 365</b> é o SaaS da Cloud Target para levantamento de governança de <b>Microsoft 365</b> (SharePoint, OneDrive, licenças, adoção, Exchange, Intune) e para levantamento de <b>Google Workspace</b> com foco em migração para o Microsoft 365. Substitui o coletor on-premises <C>ct-assessmentspo</C>, que será descontinuado: o coletor PowerShell agora vive e evolui só neste repositório.</p>
+          <p><b>CT Assessment 365</b> é o SaaS da Cloud Target para levantamento de governança de <b>Microsoft 365</b> (SharePoint, OneDrive, licenças, adoção, Exchange, Intune) e para levantamentos de migração: <b>Google Workspace</b> → Microsoft 365 e <b>AWS</b> → Azure. Substitui o coletor on-premises <C>ct-assessmentspo</C>, que será descontinuado: o coletor PowerShell agora vive e evolui só neste repositório.</p>
           <T head={["Item", "Valor"]} rows={[
             ["Endereço", <C key="u">https://assessment.cloudtarget.com.br</C>],
             ["Repositório", <C key="r">Jhondfp/ct-365assessment-saas</C>],
             ["Ambiente", <>Azure · assinatura “Produtos Cloud Target” · resource group <C>rg-365gov-prod</C> · região Brazil South</>],
             ["Quem usa", "Somente a equipe Cloud Target nesta fase (perfis Administrador, Executor, Visualizador)"],
             ["Stack do portal", "Next.js 15 (App Router, Server Actions) · Auth.js v5 · Prisma 6 · Tailwind · layout do Target360"],
-            ["Stack do coletor", "PowerShell 7.4 · PnP.PowerShell · Microsoft Graph · APIs do Google Workspace (Admin SDK)"],
+            ["Stack do coletor", "PowerShell 7.4 · PnP.PowerShell · Microsoft Graph · APIs do Google Workspace (Admin SDK) · AWS CLI v2"],
             ["Bancos", "Azure SQL: 1 banco do portal + 1 banco por cliente (elastic pool)"],
           ]} />
         </Sec>
@@ -120,6 +120,7 @@ export default async function Documentacao() {
           <H>Tipos de execução</H>
           <T head={["Tipo", "Script", "O que faz"]} rows={[
             [<C key="1">COLETA</C>, "Invoke-SaasAssessment.ps1", "Levantamento M365 ou Google Workspace"],
+            [<C key="1b">COLETA (AWS)</C>, "aws/Invoke-AwsAssessment.ps1", "Levantamento AWS para migração ao Azure (desviado pelo entrypoint quando auth.platform = aws)"],
             [<C key="2">DIAGNOSTICO</C>, "Invoke-SaasAssessment.ps1", "Só a checagem prévia (credencial, Graph, permissões, SharePoint Admin, banco); fora das listagens"],
             [<C key="3">HIGIENIZACAO</C>, "Invoke-SaasHygiene.ps1 + hygiene/", "Limpeza de versões antigas (altera o tenant; simulação por padrão)"],
             [<C key="4">EXCLUSAO</C>, "Invoke-SaasDelete.ps1", "Apaga em lotes todas as tabelas de uma coleta no banco do cliente"],
@@ -135,6 +136,8 @@ export default async function Documentacao() {
             ["Coletas", "Execuções / Nova execução", "Escolha de workloads, sites específicos, containers em paralelo; acompanhamento ao vivo; continuar de onde parou"],
             ["Relatório M365", "Cliente › Relatório", "Resumo por área, KPIs, achados com recomendação, economia estimada, crescimento e prazo da cota, idade do conteúdo, duplicados (CSV), comparação entre coletas, relatório executivo, dashboard clássico"],
             ["Relatório Google", "Cliente › Relatório", "Licença M365 sugerida por usuário, ondas por unidade organizacional, pontos de atenção e exportação JSON para o Archie"],
+            ["Conexão AWS", "Aba Conexão", "ID da conta, regiões e a chave de um usuário IAM com a política CTAssessmentReadOnly (só metadados e métricas)"],
+            ["Relatório AWS", "Cliente › Relatório", "VM sugerida pelo uso, preço no Azure (Retail Prices API), equivalentes, 6R, ondas, pontos de atenção e exportação JSON para o Archie"],
             ["Higienização", "Menu Higienização / aba do cliente", "Limpeza de versões: simular (padrão) ou executar; tenant inteiro ou sites; por arquivo (lixeira) ou job do SharePoint (permanente). Nunca toca Preservation Hold Library nem a versão atual; tudo registrado em dbo.hygiene_version_items"],
             ["Excluir coleta", "Execução (só Administrador)", "Coleta fica EXCLUINDO, some do relatório e uma execução EXCLUSAO apaga os dados; falha devolve o status anterior"],
             ["Usuários e perfis", "Administração", "Cadastro, perfis, clientes liberados para Visualizador"],
@@ -165,6 +168,7 @@ export default async function Documentacao() {
             [<C key="1">m365-&lt;cliente&gt;-cert / -certpwd</C>, "Certificado .pfx do App Registration do cliente e a senha dele"],
             [<C key="2">m365-&lt;cliente&gt;-secret</C>, "Client secret do cliente (quando não usa certificado)"],
             [<C key="3">m365-&lt;cliente&gt;-gsa</C>, "Chave JSON da conta de serviço Google (mínima)"],
+            [<C key="3b">m365-&lt;cliente&gt;-aws</C>, "Access Key ID e Secret Access Key do usuário IAM do cliente (só leitura)"],
             [<C key="4">m365-&lt;cliente&gt;-dbpwd / -dbapp</C>, "Senha do banco externo / do usuário contido app_<slug> do banco gerenciado"],
             [<C key="5">deploy-*</C>, "Valores de implantação lidos pelo infra/deploy.sh: senha do SQL, AUTH_SECRET, JOB_SIGNING_SECRET, WORKER_TOKEN, QUEUE_SQL_PASSWORD, Entra (client id, tenant id, segredo), domínio e certificado, e-mails"],
           ]} />
@@ -182,7 +186,7 @@ export default async function Documentacao() {
           <H>Banco do portal (Prisma)</H>
           <T head={["Tabela", "Conteúdo"]} rows={[
             ["User / UserRole / UserClient", "Usuários, perfis e clientes liberados para Visualizador"],
-            ["Client", "Cadastro, plataforma (M365/GOOGLE), conexão (sem segredos), modo e status do banco"],
+            ["Client", "Cadastro, plataforma (M365/GOOGLE/AWS), conexão (sem segredos), modo e status do banco"],
             ["Assessment", "Cada execução: tipo, status, parâmetros, progresso, log resumido, workloads, checagem prévia, resultado"],
             ["AssessmentTask", "Lotes de uma coleta dividida (sites, status, tentativas, progresso)"],
             ["AssessmentLog", "Log completo (gzip) de cada execução"],
@@ -194,6 +198,7 @@ export default async function Documentacao() {
             [<C key="1">001_schema.sql</C>, "Schema do coletor (DROP + CREATE: só em banco vazio; banco com o schema é adotado). Tabelas sites_info, files_info, trash_items, licenças, adoção, caixas, Intune, execution_history, execution_progress, agregados e procedures sp_dash_*"],
             [<C key="2">002_higienizacao.sql</C>, "dbo.hygiene_version_items e apoio à higienização"],
             [<C key="3">003_google_workspace.sql</C>, "Tabelas g_domains, g_orgunits, g_users, g_groups, g_licenses, g_resources, g_devices"],
+            [<C key="4">004_aws.sql</C>, "Tabelas aws_accounts, aws_summary, aws_instances, aws_services, aws_volumes, aws_buckets, aws_databases, aws_network, aws_costs"],
           ]} />
           <p>Toda coleta usa o mesmo <C>execution_id</C> do portal. Mudanças novas entram como migração incremental <C>NNN_nome.sql</C> idempotente, aplicada pelo portal antes de cada coleta.</p>
         </Sec>
@@ -205,7 +210,7 @@ export default async function Documentacao() {
             [<C key="3">/api/jobs/[id]/log</C>, "Coletor: log completo", "Token HMAC"],
             [<C key="4">/api/jobs/[id]/tasks, /tasks/claim, /tasks/[taskId]</C>, "Coletor: lotes da coleta dividida", "Token HMAC"],
             [<C key="5">/api/execucoes/[id], /log</C>, "Portal: execução ao vivo e download do log", "Sessão + permissão no cliente"],
-            [<C key="6">/api/relatorio/[clientId]/…</C>, "Portal: dashboard, execuções, duplicados (CSV), migração (JSON Google)", "Sessão + reports:view no cliente"],
+            [<C key="6">/api/relatorio/[clientId]/…</C>, "Portal: dashboard, execuções, duplicados (CSV), migração (JSON Google e AWS)", "Sessão + reports:view no cliente"],
             [<C key="7">/api/clientes/[id]/certificado</C>, "Portal: download do .cer público", "Sessão + clients:manage"],
             [<C key="8">/api/health</C>, "Sonda do Container Apps", "Pública (sem dados)"],
             [<C key="9">/api/auth/*</C>, "Auth.js (login, callback, sessão)", "—"],
@@ -255,6 +260,7 @@ export default async function Documentacao() {
             [<C key="5">Test-Resume.ps1</C>, "Retomada, limpeza de linhas parciais, deduplicação, índices"],
             [<C key="6">Test-Delete.ps1</C>, "Exclusão de coleta em lotes"],
             [<C key="7">Test-Google.ps1</C>, "Coletor Google (token, paginação, módulos)"],
+            [<C key="8">Test-Aws.ps1</C>, "Coletor AWS (conta da chave, regiões, módulos, CloudWatch)"],
           ]} />
           <p>Os mesmos passos rodam na CI do GitHub (<C>.github/workflows/ci.yml</C>).</p>
         </Sec>

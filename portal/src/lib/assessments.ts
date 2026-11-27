@@ -6,9 +6,14 @@ import { ACTIVE } from "./status";
 import type { CollectorParams } from "./collector";
 
 /** O que falta para o cliente poder executar (vazio = pronto). */
-export function readiness(c: { active: boolean; platform?: string; googleAdminEmail?: string | null; googleDomain?: string | null; m365TenantId: string | null; appClientId: string | null; spoTenant: string | null; credentialSetAt: Date | null }) {
+export function readiness(c: { active: boolean; platform?: string; googleAdminEmail?: string | null; googleDomain?: string | null; awsAccountId?: string | null; m365TenantId: string | null; appClientId: string | null; spoTenant: string | null; credentialSetAt: Date | null }) {
   const missing: string[] = [];
   if (!c.active) missing.push("cliente inativo");
+  if (c.platform === "AWS") {
+    if (!c.awsAccountId) missing.push("conta AWS");
+    if (!c.credentialSetAt) missing.push("chave do usuário IAM");
+    return missing;
+  }
   if (c.platform === "GOOGLE") {
     if (!c.googleAdminEmail || !c.googleDomain) missing.push("conexão com o Google Workspace");
     if (!c.credentialSetAt) missing.push("chave JSON da conta de serviço");

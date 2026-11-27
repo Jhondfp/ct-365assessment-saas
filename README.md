@@ -131,6 +131,14 @@ Cliente com plataforma **Google Workspace** (cadastro do cliente). Foco: dimensi
 - **Coletor**: `job/google/` (`Google.ps1` = JWT RS256 + paginação; `Invoke-GoogleAssessment.ps1` = módulos). O entrypoint desvia para ele quando `auth.platform = google`. Módulos: identidades (usuários, grupos, OUs, domínios), uso de e-mail/Drive (Reports API, 2 a 3 dias de atraso), licenças Google, salas/recursos e dispositivos. Tabelas `g_*` (migração tenant `003`). Não lê conteúdo de e-mails nem arquivos.
 - **Relatório** (`components/report/GoogleReport.tsx`, regras em `src/lib/googleReport.ts`): licença Microsoft 365 sugerida por usuário pelo uso real, ondas por unidade organizacional, pontos de atenção (caixas > 50/100 GB, sem 2 etapas, compartilhamento externo, contas inativas, domínios) e exportação JSON para o Archie (`/api/relatorio/<cliente>/migracao`).
 
+## AWS (levantamento para migração ao Azure)
+
+Cliente com plataforma **AWS**. Foco: dimensionar a migração para o Azure.
+
+- **Acesso**: usuário IAM do cliente, sem console, com a política só de leitura `CTAssessmentReadOnly` (ações em `src/lib/setupGuides.ts`, `AWS_ACTIONS`; nada lê conteúdo de buckets, discos ou bancos). A chave (Access Key ID + Secret) vai para o Key Vault (`aws`). O guia copiável com o JSON da política aparece no cadastro e na aba Conexão.
+- **Coletor**: `job/aws/` com a AWS CLI v2 da imagem. Módulos: conta e segurança (IAM, organização), computação (EC2 com vCPU/memória, Auto Scaling, Lambda, ECS, EKS), uso de CPU de 30 dias (CloudWatch), armazenamento (EBS, EFS, S3 pelo tamanho das métricas), bancos (RDS/Aurora, DynamoDB, ElastiCache), rede (VPC, VPN, Direct Connect, Transit Gateway, NAT, load balancers, Route 53, CloudFront) e custos (Cost Explorer, 6 meses; a AWS cobra US$ 0,01 por consulta). Tabelas `aws_*` (migração tenant `004`).
+- **Relatório** (`components/report/AwsReport.tsx`, regras em `src/lib/awsReport.ts`): VM do Azure sugerida pelo uso real, preço pela API pública de preços do Azure (pay-as-you-go, com e sem Hybrid Benefit), equivalente de cada serviço, estratégia (6R), ondas por aplicação e ambiente, pontos de atenção e exportação JSON para o Archie (`/api/relatorio/<cliente>/migracao`).
+
 ## Higienização
 
 Ações que **alteram** o tenant do cliente, a partir do que o assessment encontrou. Sempre começam em simulação.

@@ -227,6 +227,12 @@ if ($global:auth['platform'] -eq 'google' -and -not $global:params['delete_execu
     exit 0
 }
 
+# AWS (levantamento para migração ao Azure): coletor próprio com a AWS CLI, mesmas tabelas de controle
+if ($global:auth['platform'] -eq 'aws' -and -not $global:params['delete_execution'] -and -not $global:params['repair_execution']) {
+    . (Join-Path $projectRoot 'aws\Invoke-AwsAssessment.ps1')
+    exit 0
+}
+
 # Correção de duplicatas de uma coleta (kind MANUTENCAO no portal)
 if ($global:params['repair_execution']) {
     . (Join-Path $projectRoot 'Invoke-SaasRepair.ps1')

@@ -36,9 +36,10 @@ export default async function NovoCliente() {
         <aside className="card h-fit">
           <h2 className="card-title">Antes de cadastrar</h2>
           <ul className="list-disc space-y-2 pl-5 text-sm text-slate-700">
-            <li>Envie ao cliente o <b>guia de acesso</b> (no fim da seção 2): ele explica, passo a passo, o que criar no Microsoft 365 ou no Google Workspace e o que nos devolver.</li>
+            <li>Envie ao cliente o <b>guia de acesso</b> (no fim da seção 2): ele explica, passo a passo, o que criar no Microsoft 365, no Google Workspace ou na AWS e o que nos devolver.</li>
             <li><b>Microsoft 365:</b> dá para cadastrar agora e gerar o certificado no portal; depois baixe o .cer na aba Conexão e mande para o cliente.</li>
             <li><b>Google Workspace:</b> o cadastro precisa da chave JSON da conta de serviço que o cliente cria.</li>
+            <li><b>AWS:</b> o cadastro precisa do ID da conta e da chave de acesso de um usuário IAM só de leitura.</li>
           </ul>
           <p className="mt-3 text-xs text-slate-500">Credenciais vão direto para o cofre (Key Vault) e nunca são exibidas de volta.</p>
         </aside>

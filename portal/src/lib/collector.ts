@@ -80,3 +80,22 @@ export function buildGoogleParams(modules: Partial<Record<GoogleModuleKey, boole
   return p;
 }
 export const enabledGoogleModules = (params: CollectorParams) => GOOGLE_MODULES.filter((m) => params[m.key]).map((m) => m.label);
+
+// ───────────── AWS (levantamento para migração ao Azure) ─────────────
+export const AWS_MODULES = [
+  { key: "aws_account", label: "Conta e segurança", hint: "Contas da organização, resumo do IAM (usuários, MFA da conta raiz, política de senha)", default: true },
+  { key: "aws_compute", label: "Computação", hint: "Instâncias EC2 (tipo, vCPU, memória, SO, licenças, tags), Auto Scaling, Lambda, ECS e EKS", default: true },
+  { key: "aws_usage", label: "Uso de CPU (30 dias)", hint: "Média e pico de CPU das instâncias ligadas (CloudWatch), para dimensionar no Azure pelo uso real", default: true },
+  { key: "aws_storage", label: "Armazenamento", hint: "Volumes EBS, EFS e buckets S3 com tamanho por classe (pelas métricas, sem ler objetos)", default: true },
+  { key: "aws_database", label: "Bancos de dados", hint: "RDS/Aurora (motor, classe, armazenamento, licença), DynamoDB e ElastiCache", default: true },
+  { key: "aws_network", label: "Rede", hint: "VPCs, VPN, Direct Connect, Transit Gateway, NAT, load balancers, Route 53 e CloudFront", default: true },
+  { key: "aws_cost", label: "Custos (6 meses)", hint: "Gasto por serviço pelo Cost Explorer (a AWS cobra US$ 0,01 por consulta; precisa da permissão ce:GetCostAndUsage)", default: true },
+] as const;
+export type AwsModuleKey = (typeof AWS_MODULES)[number]["key"];
+
+export function buildAwsParams(modules: Partial<Record<AwsModuleKey, boolean>>, clientName: string): CollectorParams {
+  const p: CollectorParams = { platform: "aws", client_name: clientName, store_in_sql: true };
+  for (const m of AWS_MODULES) p[m.key] = !!modules[m.key];
+  return p;
+}
+export const enabledAwsModules = (params: CollectorParams) => AWS_MODULES.filter((m) => params[m.key]).map((m) => m.label);

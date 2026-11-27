@@ -14,6 +14,7 @@ $deleteTables = @(
     'intune_compliance_states', 'intune_devices', 'meetings', 'licensing_info', 'mailbox_info', 'user_activity',
     'trash_items', 'files_info', 'site_owner_status', 'execution_progress', 'sites_info',
     'g_users', 'g_groups', 'g_orgunits', 'g_domains', 'g_licenses', 'g_resources', 'g_devices',
+    'aws_accounts', 'aws_summary', 'aws_instances', 'aws_services', 'aws_volumes', 'aws_buckets', 'aws_databases', 'aws_network', 'aws_costs',
     'execution_logs', 'execution_history'
 )
 

@@ -20,8 +20,8 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   if (err) return err;
   const c = a.client;
   const dbOnly = a.kind === "EXCLUSAO" || a.kind === "MANUTENCAO";
-  const google = c.platform === "GOOGLE";
-  if (!c.dbName || (!dbOnly && (google ? !c.googleAdminEmail || !c.googleDomain : !c.m365TenantId || !c.appClientId || !c.spoTenant))) return Response.json({ error: "cliente sem conexão ou banco configurado" }, { status: 409 });
+  const google = c.platform === "GOOGLE", aws = c.platform === "AWS";
+  if (!c.dbName || (!dbOnly && (aws ? !c.awsAccountId : google ? !c.googleAdminEmail || !c.googleDomain : !c.m365TenantId || !c.appClientId || !c.spoTenant))) return Response.json({ error: "cliente sem conexão ou banco configurado" }, { status: 409 });
 
   const db = await clientConn(c);
   const auth: Record<string, unknown> = {
@@ -39,6 +39,12 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   let certBase64: string | null = null;
   if (dbOnly) {
     auth.auth_mode = "none";
+  } else if (aws) {
+    // AWS: chave de um usuário IAM só de leitura do cliente (vai só para as variáveis de ambiente do processo do coletor)
+    const key = await getSecret(secretName(c.id, "aws"));
+    if (!key) return Response.json({ error: "chave do usuário IAM da AWS não encontrada no cofre" }, { status: 409 });
+    const k = JSON.parse(key) as { accessKeyId: string; secretAccessKey: string };
+    Object.assign(auth, { platform: "aws", auth_mode: "awskey", aws_account_id: c.awsAccountId, aws_regions: c.awsRegions ?? "", aws_access_key_id: k.accessKeyId, aws_secret_access_key: k.secretAccessKey });
   } else if (google) {
     // Google Workspace: chave da conta de serviço (delegação em todo o domínio) + administrador que ela representa
     const gsa = await getSecret(secretName(c.id, "gsa"));

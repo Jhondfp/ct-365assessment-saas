@@ -9,6 +9,8 @@ import { Empty, PageHeader } from "@/components/ui";
 import { PrintButton, ReportToolbar } from "@/components/report/ReportToolbar";
 import { ReportBody, ReportShell, ReportTabs } from "@/components/report/ReportShell";
 import { GoogleReport } from "@/components/report/GoogleReport";
+import { AwsReport } from "@/components/report/AwsReport";
+import { awsData } from "@/lib/awsReport";
 import { googleData } from "@/lib/googleReport";
 import { Adoption, Exchange, Intune, Licensing, Overview, SiteSection } from "@/components/report/sections";
 
@@ -27,7 +29,16 @@ export default async function Relatorio({ params, searchParams }: { params: Prom
   if (!current) {
     return (<><PageHeader title="Relatório" subtitle={<Link className="link" href={`/clientes/${c.id}`}>{c.name}</Link>} /><Empty>Nenhuma coleta com dados ainda. Rode uma coleta ou importe as execuções do banco (aba Execuções do cliente).</Empty></>);
   }
-  if (c.platform === "GOOGLE") {
+  if (c.platform === "AWS") {
+    const g = await awsData(c.id, current);
+    return (
+      <ReportShell>
+        <PageHeader title={`Levantamento AWS · ${c.name}`} subtitle={<>Coleta de {execs.find((e) => e.id === current)?.label} · foco na migração para o Azure</>} actions={<PrintButton />} />
+        <div className="mb-5"><ReportToolbar execs={execs.map(({ id, label }) => ({ id, label }))} current={current} compare={null} /></div>
+        <ReportBody><AwsReport d={g} exportHref={`/api/relatorio/${c.id}/migracao?${new URLSearchParams({ execution: current }).toString()}`} /></ReportBody>
+      </ReportShell>
+    );
+  }  if (c.platform === "GOOGLE") {
     const g = await googleData(c.id, current);
     return (
       <ReportShell>

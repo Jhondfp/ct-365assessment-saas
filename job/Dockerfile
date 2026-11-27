@@ -10,12 +10,19 @@ RUN pwsh -NoLogo -NoProfile -Command " \
       Import-Module PnP.PowerShell; if (-not (Get-Module PnP.PowerShell)) { throw 'PnP.PowerShell nao instalou' }; \
       Write-Host ('PnP ' + (Get-Module PnP.PowerShell).Version)"
 
+# AWS CLI v2 (levantamento AWS → Azure; só leitura com a chave do cliente, ver job/aws)
+RUN apt-get update && apt-get install -y --no-install-recommends curl unzip ca-certificates && \
+    curl -fsSL "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o /tmp/awscli.zip && \
+    unzip -q /tmp/awscli.zip -d /tmp && /tmp/aws/install && rm -rf /tmp/aws /tmp/awscli.zip && \
+    apt-get purge -y unzip && apt-get autoremove -y && rm -rf /var/lib/apt/lists/* && aws --version
+
 WORKDIR /app
 COPY src ./src
 COPY Invoke-SaasAssessment.ps1 Invoke-SaasHygiene.ps1 Invoke-SaasBatches.ps1 Invoke-SaasDelete.ps1 Invoke-SaasRepair.ps1 Start-Worker.ps1 ./
 # higienização (limpeza de versões etc.) — scripts que ALTERAM o tenant; ver job/hygiene
 COPY hygiene ./hygiene
 COPY google ./google
+COPY aws ./aws
 
 # o coletor grava logs/ e src/progress/ relativos à raiz do projeto
 RUN mkdir -p logs src/progress && useradd -r -u 10001 -m collector && chown -R collector /app

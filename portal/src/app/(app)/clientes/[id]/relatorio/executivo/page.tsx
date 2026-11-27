@@ -16,7 +16,7 @@ export default async function Executivo({ params, searchParams }: { params: Prom
   await requireClientPage(id);
   const c = await prisma.client.findUnique({ where: { id }, select: { id: true, name: true, dbStatus: true, spoTenant: true, platform: true } });
   if (!c) notFound();
-  if (c.platform === "GOOGLE") redirect(`/clientes/${c.id}/relatorio`);
+  if (c.platform === "GOOGLE" || c.platform === "AWS") redirect(`/clientes/${c.id}/relatorio`);
   const execs = await reportExecutions(c.id, c.name);
   const current = sp.execucao && execs.some((e) => e.id === sp.execucao) ? sp.execucao : execs[0]?.id ?? null;
   const d = current ? await reportData(c.id, current) : null;

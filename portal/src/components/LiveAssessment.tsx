@@ -17,6 +17,8 @@ const STEP: Record<string, string> = {
   licensing: "Coleta de Licenciamento", adoption: "Coleta de Adocao", mailbox: "Coleta de Caixas de Email", intune: "Intune - Coleta",
   sites: "Coleta de Sites", owner_status: "Verificacao de Donos Ativos", files: "Coleta de Arquivos", trash: "Coleta de Lixeiras",
   g_identity: "Google · Identidades", g_usage: "Google · E-mail e Drive",
+  aws_account: "AWS · Conta e segurança", aws_compute: "AWS · Computação", aws_usage: "AWS · Uso de CPU", aws_storage: "AWS · Armazenamento",
+  aws_database: "AWS · Bancos de dados", aws_network: "AWS · Rede", aws_cost: "AWS · Custos",
 };
 const W_STYLE: Record<Workload["status"], { dot: string; text: string; label: string }> = {
   pending: { dot: "bg-slate-300", text: "text-slate-500", label: "Aguardando" },
@@ -146,6 +148,23 @@ export function PreflightCard({ p }: { p: Preflight | null; active?: boolean }) 
   );
   const granted = p.permissions?.granted ?? [];
   const google = granted.some((g) => g.startsWith("Google:")) || p.graph?.detail?.startsWith("Google Workspace");
+  const aws = granted.some((g) => g.startsWith("AWS:")) || p.graph?.detail?.startsWith("AWS");
+  if (aws) {
+    return (
+      <section className="card">
+        <h2 className="card-title">Checagem prévia</h2>
+        <ul>{row("Conta AWS e chave", p.graph)}{row("Banco do cliente", p.database)}</ul>
+        {p.permissions && (
+          <div className="mt-3 border-t border-slate-100 pt-3">
+            <p className="label">Permissões testadas</p>
+            <ul className="space-y-1">{granted.map((g) => <li key={g} className="flex items-center gap-2 font-mono text-[11px] text-slate-700"><span>✓</span>{g.replace("AWS:", "")}</li>)}</ul>
+            {p.permissions.detail && <p className="mt-2 text-xs text-amber-800">{p.permissions.detail}</p>}
+            <p className="mt-2 text-xs text-slate-500">O Cost Explorer (ce:GetCostAndUsage) só é testado no módulo de custos: cada consulta é cobrada pela AWS.</p>
+          </div>
+        )}
+      </section>
+    );
+  }
   if (google) {
     return (
       <section className="card">

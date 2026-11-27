@@ -6,7 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { audit } from "@/lib/audit";
 import { int, s } from "@/lib/form";
 import { requireClientPerm } from "@/lib/session";
-import { buildGoogleParams, buildParams, GOOGLE_MODULES, MODULES, type GoogleModuleKey, type ModuleKey } from "@/lib/collector";
+import { AWS_MODULES, buildAwsParams, buildGoogleParams, buildParams, GOOGLE_MODULES, MODULES, type AwsModuleKey, type GoogleModuleKey, type ModuleKey } from "@/lib/collector";
 import { launchAssessment } from "@/lib/assessments";
 import { stopJob } from "@/lib/jobs";
 import { ACTIVE } from "@/lib/status";
@@ -16,6 +16,14 @@ const lines = (v: string | null) => (v ?? "").split(/[\r\n,;]+/).map((x) => x.tr
 async function startAssessment_(clientId: string, fd: FormData) {
   const me = await requireClientPerm(clientId, "assessments:run");
   const c = await prisma.client.findUniqueOrThrow({ where: { id: clientId } });
+  if (c.platform === "AWS") {
+    const am = Object.fromEntries(AWS_MODULES.map((m) => [m.key, fd.get(m.key) === "on"])) as Record<AwsModuleKey, boolean>;
+    if (!Object.values(am).some(Boolean)) throw new Error("Escolha ao menos um módulo.");
+    if (am.aws_usage && !am.aws_compute) throw new Error("Uso de CPU depende do módulo Computação.");
+    const aid = await launchAssessment(clientId, buildAwsParams(am, c.name), me.id);
+    await audit(prisma, "Assessment", aid, "CREATE", me.id, { cliente: c.name, plataforma: "AWS", modulos: Object.entries(am).filter(([, v]) => v).map(([k]) => k).join(",") });
+    redirect(`/execucoes/${aid}`);
+  }
   if (c.platform === "GOOGLE") {
     const gm = Object.fromEntries(GOOGLE_MODULES.map((m) => [m.key, fd.get(m.key) === "on"])) as Record<GoogleModuleKey, boolean>;
     if (!Object.values(gm).some(Boolean)) throw new Error("Escolha ao menos um módulo.");

@@ -11,7 +11,7 @@ import { deleteSecret, getSecret, secretName, setSecret } from "@/lib/secrets";
 import { dbNameFor, externalConn, inspectDb, normalizeServer, tenantSqlConfigured } from "@/lib/tenantDb";
 import { importExecutions, provisionClientDb } from "@/lib/clientDb";
 import { launchAssessment } from "@/lib/assessments";
-import { buildParams , buildGoogleParams } from "@/lib/collector";
+import { buildAwsParams, buildGoogleParams, buildParams } from "@/lib/collector";
 import { ACTIVE } from "@/lib/status";
 
 const GUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -20,10 +20,14 @@ const slugify = (v: string) => v.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowe
 // ───────────── Conexão com o Microsoft 365 (usada no cadastro e na edição) ─────────────
 
 type Conn = {
-  platform: "M365" | "GOOGLE"; authMode: "secret" | "cert" | "gsa";
+  platform: "M365" | "GOOGLE" | "AWS"; authMode: "secret" | "cert" | "gsa" | "awskey";
   m365TenantId: string | null; appClientId: string | null; spoTenant: string | null;
   googleAdminEmail: string | null; googleDomain: string | null; googleCustomerId: string | null;
+  awsAccountId: string | null; awsRegions: string | null;
 };
+const NO_GOOGLE = { googleAdminEmail: null, googleDomain: null, googleCustomerId: null };
+const NO_AWS = { awsAccountId: null, awsRegions: null };
+const NO_M365 = { m365TenantId: null, appClientId: null, spoTenant: null };
 
 function readConnection(fd: FormData): Conn {
   if (fd.get("platform") === "GOOGLE") {
@@ -33,9 +37,17 @@ function readConnection(fd: FormData): Conn {
     if (!/^[a-z0-9.-]+\.[a-z]{2,}$/.test(googleDomain)) throw new Error("Domínio principal inválido (ex.: contoso.com.br).");
     const cid = s(fd, "googleCustomerId")?.trim() || null;
     if (cid && !/^C[0-9a-z]{6,12}$/i.test(cid)) throw new Error("Customer ID do Google inválido (formato C0xxxxxxx). Deixe em branco se não souber.");
-    return { platform: "GOOGLE", authMode: "gsa", m365TenantId: null, appClientId: null, spoTenant: null, googleAdminEmail, googleDomain, googleCustomerId: cid };
+    return { platform: "GOOGLE", authMode: "gsa", ...NO_M365, googleAdminEmail, googleDomain, googleCustomerId: cid, ...NO_AWS };
   }
-  return { ...readM365(fd), platform: "M365", googleAdminEmail: null, googleDomain: null, googleCustomerId: null };
+  if (fd.get("platform") === "AWS") {
+    const awsAccountId = req(fd, "awsAccountId", "ID da conta AWS").replace(/[\s-]/g, "");
+    if (!/^\d{12}$/.test(awsAccountId)) throw new Error("ID da conta AWS precisa ter 12 dígitos (canto superior direito do console da AWS).");
+    const regions = (s(fd, "awsRegions") ?? "").toLowerCase().split(/[\s,;]+/).filter(Boolean);
+    const bad = regions.find((r) => !/^[a-z]{2}(-gov)?-[a-z]+-\d$/.test(r));
+    if (bad) throw new Error(`Região AWS inválida: ${bad} (ex.: us-east-1, sa-east-1). Deixe em branco para todas as habilitadas.`);
+    return { platform: "AWS", authMode: "awskey", ...NO_M365, ...NO_GOOGLE, awsAccountId, awsRegions: regions.length ? [...new Set(regions)].join(",") : null };
+  }
+  return { ...readM365(fd), platform: "M365", ...NO_GOOGLE, ...NO_AWS };
 }
 
 function readM365(fd: FormData) {
@@ -50,6 +62,13 @@ function readM365(fd: FormData) {
 
 /** Lê a credencial do formulário (secret ou .pfx). Nulo = nada novo enviado. */
 async function readCredential(fd: FormData, mode: Conn["authMode"], clientName: string) {
+  if (mode === "awskey") {
+    const keyId = (s(fd, "awsAccessKeyId") ?? "").trim(), secret = (s(fd, "awsSecretAccessKey") ?? "").trim();
+    if (!keyId && !secret) return null;
+    if (!/^AKIA[0-9A-Z]{16}$/.test(keyId)) throw new Error("Access Key ID inválida: deve começar com AKIA e ter 20 caracteres (chave de usuário IAM; chaves temporárias ASIA não servem).");
+    if (!/^[A-Za-z0-9/+]{40}$/.test(secret)) throw new Error("Secret Access Key inválida: são 40 caracteres, mostrados só uma vez ao criar a chave.");
+    return { kind: "aws" as const, json: JSON.stringify({ accessKeyId: keyId, secretAccessKey: secret }), hint: `chave IAM ${keyId.slice(0, 4)}…${keyId.slice(-4)}` };
+  }
   if (mode === "gsa") {
     const file = fd.get("gsaFile");
     if (!(file instanceof File) || file.size === 0) return null;
@@ -76,7 +95,9 @@ async function readCredential(fd: FormData, mode: Conn["authMode"], clientName: 
 }
 
 async function storeCredential(clientId: string, cred: NonNullable<Awaited<ReturnType<typeof readCredential>>>) {
-  if (cred.kind === "gsa") {
+  if (cred.kind === "aws") {
+    await setSecret(secretName(clientId, "aws"), cred.json);
+  } else if (cred.kind === "gsa") {
     await setSecret(secretName(clientId, "gsa"), cred.json);
   } else if (cred.kind === "secret") {
     await setSecret(secretName(clientId, "secret"), cred.secret);
@@ -143,7 +164,7 @@ async function createClient_(fd: FormData) {
   if (await prisma.client.findUnique({ where: { slug } })) throw new Error(`Já existe um cliente com o identificador "${slug}".`);
   const conn = readConnection(fd);
   const cred = await readCredential(fd, conn.authMode, name);
-  if (!cred) throw new Error(conn.authMode === "gsa" ? "Envie a chave JSON da conta de serviço do Google." : conn.authMode === "cert" ? "Gere o certificado no portal ou envie o .pfx do App Registration." : "Informe o client secret do App Registration.");
+  if (!cred) throw new Error(conn.authMode === "awskey" ? "Informe a Access Key ID e a Secret Access Key do usuário IAM." : conn.authMode === "gsa" ? "Envie a chave JSON da conta de serviço do Google." : conn.authMode === "cert" ? "Gere o certificado no portal ou envie o .pfx do App Registration." : "Informe o client secret do App Registration.");
   const db = readDb(fd, slug);
   await assertDbFree(db);
   if (db.mode === "MANAGED" && db.createNow && !tenantSqlConfigured()) throw new Error("O servidor dos bancos de clientes não está configurado no portal: desmarque a criação do banco ou configure TENANT_SQL_*.");
@@ -241,7 +262,7 @@ async function testConnection_(id: string) {
 
 async function removeCredential_(id: string) {
   const me = await requireClientPerm(id, "clients:manage");
-  await Promise.all((["secret", "cert", "certpwd", "gsa"] as const).map((k) => deleteSecret(secretName(id, k))));
+  await Promise.all((["secret", "cert", "certpwd", "gsa", "aws"] as const).map((k) => deleteSecret(secretName(id, k))));
   await prisma.client.update({ where: { id }, data: { credentialSetAt: null, credentialHint: null, connectionOkAt: null } });
   await audit(prisma, "Client", id, "CONNECTION", me.id, { credencial: "removida" });
   revalidatePath(`/clientes/${id}`);
@@ -314,6 +335,7 @@ async function runDiagnostic_(id: string) {
   const c = await prisma.client.findUniqueOrThrow({ where: { id } });
   const params = c.platform === "GOOGLE"
     ? { ...buildGoogleParams({}, c.name), diagnostic_only: true }
+    : c.platform === "AWS" ? { ...buildAwsParams({}, c.name), diagnostic_only: true }
     : { ...buildParams({ modules: {}, sites: [], parallel: 8, sitesBatch: 100, clientName: c.name }), diagnostic_only: true };
   const aid = await launchAssessment(id, params, me.id, "DIAGNOSTICO");
   await audit(prisma, "Client", id, "DIAGNOSTIC", me.id, { execucao: aid });

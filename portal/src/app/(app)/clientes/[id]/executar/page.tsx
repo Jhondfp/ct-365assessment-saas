@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireClientPage } from "@/lib/session";
-import { GOOGLE_MODULES, MODULES } from "@/lib/collector";
+import { AWS_MODULES, GOOGLE_MODULES, MODULES } from "@/lib/collector";
 import { readiness } from "@/lib/assessments";
 import { RUNNER, RUNNER_LABEL } from "@/lib/jobs";
 import { startAssessment } from "@/actions/assessments";
@@ -27,7 +27,28 @@ export default async function Executar({ params }: { params: Promise<{ id: strin
       {missing.length > 0 ? (
         <div className="card max-w-2xl text-sm text-amber-900">Antes de executar, configure: {missing.join(", ")}. <Link className="link" href={`/clientes/${c.id}?tab=conexao`}>Ir para a conexão</Link></div>
       ) : (
-        c.platform === "GOOGLE" ? (
+        c.platform === "AWS" ? (
+          <ActionForm action={startAssessment.bind(null, c.id)} className="grid gap-6 lg:grid-cols-3" submit="Iniciar levantamento">
+            <section className="card lg:col-span-2">
+              <h2 className="card-title">AWS · o que levantar</h2>
+              <div className="grid gap-3 sm:grid-cols-2">
+                {AWS_MODULES.map((m) => (
+                  <label key={m.key} className="flex gap-3 rounded-lg border border-slate-200 p-3 hover:bg-slate-50">
+                    <input type="checkbox" name={m.key} defaultChecked={checked(m.key, m.default)} className="mt-1" />
+                    <span><span className="block text-sm font-medium">{m.label}</span><span className="block text-xs text-slate-500">{m.hint}</span></span>
+                  </label>
+                ))}
+              </div>
+            </section>
+            <section className="card space-y-2 text-sm text-slate-600">
+              <h2 className="card-title">Como funciona</h2>
+              <p>Só leitura de inventário e métricas (describe/list): não lemos dados de buckets, bancos nem discos.</p>
+              <p>Conta {c.awsAccountId} · regiões: {c.awsRegions ? c.awsRegions.split(",").join(", ") : "todas as habilitadas"}.</p>
+              <p>Custos usam o Cost Explorer: a AWS cobra US$ 0,01 por consulta (o levantamento faz uma).</p>
+              <p>Contas médias levam poucos minutos; a métrica de CPU de muitas instâncias pode levar mais.</p>
+            </section>
+          </ActionForm>
+        ) :         c.platform === "GOOGLE" ? (
           <ActionForm action={startAssessment.bind(null, c.id)} className="grid gap-6 lg:grid-cols-3" submit="Iniciar levantamento">
             <section className="card lg:col-span-2">
               <h2 className="card-title">Google Workspace · o que levantar</h2>

@@ -9,7 +9,7 @@ import { can } from "@/lib/rbac";
 import { readiness } from "@/lib/assessments";
 import { ACTIVE, DB_STATUS_LABEL } from "@/lib/status";
 import { PERMISSIONS_HELP } from "@/lib/collector";
-import { GOOGLE_SCOPES } from "@/lib/setupGuides";
+import { AWS_ACTIONS, GOOGLE_SCOPES } from "@/lib/setupGuides";
 import { SECRET_STORE } from "@/lib/secrets";
 import { dateTime } from "@/lib/format";
 import { importDbExecutions, provisionDb, removeCredential, runDiagnostic, saveConnection, saveDatabase, testConnection, updateClient } from "@/actions/clients";
@@ -41,12 +41,12 @@ export default async function Cliente({ params, searchParams }: { params: Promis
   const canConn = canManage;
   const cert = t === "conexao" && canConn && c.authMode === "cert" && c.credentialSetAt ? await certificateInfo(c.id) : null;
   const canRun = can(u.roles, "assessments:run");
-  const google = c.platform === "GOOGLE";
+  const google = c.platform === "GOOGLE", aws = c.platform === "AWS", migration = google || aws;
   const tabs = [
     { key: "visao", label: "Visão geral" },
-    ...(canConn ? [{ key: "conexao", label: google ? "Conexão Google Workspace" : "Conexão Microsoft 365" }] : []),
+    ...(canConn ? [{ key: "conexao", label: aws ? "Conexão AWS" : google ? "Conexão Google Workspace" : "Conexão Microsoft 365" }] : []),
     { key: "execucoes", label: "Execuções", count: c.assessments.length },
-    ...(canRun && !google ? [{ key: "higienizacao", label: "Higienização" }] : []),
+    ...(canRun && !migration ? [{ key: "higienizacao", label: "Higienização" }] : []),
     ...(canManage ? [{ key: "cadastro", label: "Cadastro e banco" }] : []),
   ];
   const tab = tabs.some((x) => x.key === t) ? t! : "visao";
@@ -62,7 +62,7 @@ export default async function Cliente({ params, searchParams }: { params: Promis
     <>
       <PageHeader
         title={c.name}
-        subtitle={<>{google ? (c.googleDomain ? `Google Workspace · ${c.googleDomain} · levantamento para migração` : "Google Workspace não configurado") : c.spoTenant ? `${c.spoTenant}.sharepoint.com` : "Microsoft 365 não configurado"}{!c.active && <span className="ml-2"><Badge>inativo</Badge></span>}</>}
+        subtitle={<>{aws ? (c.awsAccountId ? `AWS · conta ${c.awsAccountId} · levantamento para migração ao Azure` : "AWS não configurada") : google ? (c.googleDomain ? `Google Workspace · ${c.googleDomain} · levantamento para migração` : "Google Workspace não configurado") : c.spoTenant ? `${c.spoTenant}.sharepoint.com` : "Microsoft 365 não configurado"}{!c.active && <span className="ml-2"><Badge>inativo</Badge></span>}</>}
         actions={<>
           {c.dbStatus === "PROVISIONADO" && <Link href={`/clientes/${c.id}/relatorio`} className="btn-secondary">Relatório</Link>}
           {canRun && !active && !missing.length && <Link href={`/clientes/${c.id}/executar`} className="btn">Nova execução</Link>}
@@ -77,7 +77,7 @@ export default async function Cliente({ params, searchParams }: { params: Promis
           <section className="card">
             <h2 className="card-title">Primeiros passos</h2>
             <Steps steps={[
-              { done: connDone, title: "Enviar o guia de acesso ao cliente", detail: `Ele cria ${google ? "a conta de serviço no Google Workspace" : "o App Registration no Microsoft 365"} e nos devolve os dados.`,
+              { done: connDone, title: "Enviar o guia de acesso ao cliente", detail: `Ele cria ${aws ? "um usuário IAM só de leitura na AWS" : google ? "a conta de serviço no Google Workspace" : "o App Registration no Microsoft 365"} e nos devolve os dados.`,
                 action: canConn ? { href: `/clientes/${c.id}?tab=conexao`, label: "Abrir o guia" } : undefined },
               { done: connDone, title: "Configurar a conexão", detail: connDone ? (c.credentialHint ?? "Conexão e credencial salvas.") : `Falta: ${missing.join(", ")}.`,
                 action: canConn ? { href: `/clientes/${c.id}?tab=conexao`, label: "Configurar conexão" } : undefined },
@@ -104,7 +104,7 @@ export default async function Cliente({ params, searchParams }: { params: Promis
       {tab === "conexao" && canConn && (
         <div className="grid gap-6 lg:grid-cols-3">
           <section className="card lg:col-span-2">
-            <h2 className="card-title">App Registration do cliente</h2>
+            <h2 className="card-title">{aws ? "Acesso à AWS do cliente" : google ? "Conta de serviço do Google do cliente" : "App Registration do cliente"}</h2>
             <ActionForm action={saveConnection.bind(null, c.id)} className="grid gap-4 sm:grid-cols-2" submit="Salvar conexão">
               <ConnectionFields c={c} editing />
               <p className="text-xs text-slate-500 sm:col-span-2">
@@ -133,7 +133,7 @@ export default async function Cliente({ params, searchParams }: { params: Promis
               {c.connectionOkAt && <Badge tone="green">testada em {dateTime(c.connectionOkAt)}</Badge>}
             </div>
             {c.connectionError && <p className="mt-3 rounded-lg bg-red-50 p-3 text-sm text-red-800">{c.connectionError}</p>}
-            <p className="mt-3 text-xs text-slate-500">{google ? "O diagnóstico roda no coletor (cerca de 1 minuto): testa a chave da conta de serviço, a delegação de cada escopo e o banco do cliente." : "O diagnóstico roda no worker (leva cerca de 1 minuto): testa a credencial, o Graph, as permissões concedidas ao app, o SharePoint Admin e o banco do cliente."}</p>
+            <p className="mt-3 text-xs text-slate-500">{aws ? "O diagnóstico roda no coletor (cerca de 1 minuto): confirma a conta da chave, as regiões habilitadas, as permissões de leitura e o banco do cliente." : google ? "O diagnóstico roda no coletor (cerca de 1 minuto): testa a chave da conta de serviço, a delegação de cada escopo e o banco do cliente." : "O diagnóstico roda no worker (leva cerca de 1 minuto): testa a credencial, o Graph, as permissões concedidas ao app, o SharePoint Admin e o banco do cliente."}</p>
           </section>
           <div className="space-y-6">
           {lastDiag && (
@@ -147,7 +147,11 @@ export default async function Cliente({ params, searchParams }: { params: Promis
             </section>
           )}
           <section className="card">
-            {google ? (<>
+            {aws ? (<>
+              <h2 className="card-title">Política IAM (só leitura)</h2>
+              <p className="muted mb-2">Ações da política CTAssessmentReadOnly (o JSON completo está no guia):</p>
+              <ul className="list-disc space-y-0.5 break-all pl-5 font-mono text-[11px] text-slate-700">{AWS_ACTIONS.map((p) => <li key={p}>{p}</li>)}</ul>
+            </>) : google ? (<>
               <h2 className="card-title">Escopos da delegação (só leitura)</h2>
               <p className="muted mb-2">Admin Console → Segurança → Controles de API → Delegação em todo o domínio, para o ID da conta de serviço:</p>
               <ul className="list-disc space-y-1 break-all pl-5 font-mono text-[11px] text-slate-700">{GOOGLE_SCOPES.map((p) => <li key={p}>{p.replace("https://www.googleapis.com/auth/", "")}</li>)}</ul>
@@ -176,7 +180,7 @@ export default async function Cliente({ params, searchParams }: { params: Promis
         </section>
       )}
 
-      {tab === "higienizacao" && canRun && !google && (
+      {tab === "higienizacao" && canRun && !migration && (
         <Suspense key={`${keep}-${from ?? ""}-${presetSites.length}`} fallback={<div className="card flex items-center gap-3 text-sm text-slate-600"><span className="h-4 w-4 animate-spin rounded-full border-2 border-ct-purple border-t-transparent" />Calculando os arquivos com excesso de versões na última coleta…</div>}>
           <HygieneTab client={c} keep={keep} from={from} sites={presetSites} />
         </Suspense>

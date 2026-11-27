@@ -44,6 +44,9 @@ jobs:
       - name: Google Workspace (APIs e banco simulados)
         shell: pwsh
         run: ./job/tests/Test-Google.ps1
+      - name: AWS (CLI e banco simulados)
+        shell: pwsh
+        run: ./job/tests/Test-Aws.ps1
       - run: docker build -t ctassessment-job:ci job
 
   infra:
